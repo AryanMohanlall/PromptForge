@@ -7,11 +7,11 @@ public static class ABPGroupDbContextConfigurer
 {
     public static void Configure(DbContextOptionsBuilder<ABPGroupDbContext> builder, string connectionString)
     {
-        builder.UseSqlServer(connectionString);
+        builder.UseNpgsql(connectionString);
     }
 
     public static void Configure(DbContextOptionsBuilder<ABPGroupDbContext> builder, DbConnection connection)
     {
-        builder.UseSqlServer(connection);
+        builder.UseNpgsql(connection);
     }
 }
