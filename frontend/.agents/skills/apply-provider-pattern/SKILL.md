@@ -1,5 +1,5 @@
 ---
-name: govleave-provider-pattern
+name: apply-provider-pattern
 description: Use this skill when creating any new provider (employee, department, leave, or any future entity). Contains the canonical 4-file pattern with context, actions, reducer, and index — using redux-actions throughout. Always follow this template exactly.
 ---
 
@@ -316,3 +316,4 @@ export const useEntityAction = () => {
   // ❌ Bad — collision possible
   FETCH_ALL_PENDING (in both providers)
   ```
+

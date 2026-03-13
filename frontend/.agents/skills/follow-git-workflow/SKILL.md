@@ -1,5 +1,5 @@
 ---
-name: govleave-git-workflow
+name: follow-git-workflow
 description: Use this skill before starting ANY feature or fix. Covers branch naming, commit message conventions, the mandatory planning step, and the push workflow. The agent must always show a plan and create a branch before writing code.
 ---
 
@@ -158,3 +158,4 @@ git commit -m "feat: add employee provider with full CRUD"
 # 5. Push
 git push origin feature/employee-provider
 ```
+

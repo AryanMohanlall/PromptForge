@@ -1,5 +1,5 @@
 ---
-name: govleave-auth-provider
+name: add-auth-provider
 description: Use this skill when building or modifying the auth provider, login page, register page, or anything related to authentication state — token storage, login/logout actions, or reading the current user from context.
 ---
 
@@ -262,3 +262,4 @@ logout();
 // Check role
 const isHRAdmin = user?.roleNames?.includes('HRAdmin');
 ```
+

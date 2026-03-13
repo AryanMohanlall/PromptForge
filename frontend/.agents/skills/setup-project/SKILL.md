@@ -1,5 +1,5 @@
 ---
-name: govleave-project-setup
+name: setup-project
 description: Use this skill when scaffolding the GovLeave Next.js project from scratch, setting up folder structure, installing dependencies, configuring environment variables, and wiring up the root layout with providers and AntdRegistry.
 ---
 
@@ -221,3 +221,4 @@ export const AppProviders = ({ children }: { children: React.ReactNode }) => (
   </AuthProvider>
 );
 ```
+

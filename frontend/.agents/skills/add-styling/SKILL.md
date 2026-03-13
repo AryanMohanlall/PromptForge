@@ -1,5 +1,5 @@
 ---
-name: govleave-styling
+name: add-styling
 description: Use this skill when styling any page, component, or layout in the GovLeave frontend. Covers the mandatory antd-style createStyles pattern, design token usage, and the styles folder structure that every route must follow.
 ---
 
@@ -197,3 +197,4 @@ export const useStyles = createStyles(({ token, css }) => ({
 | Empty state | `<Empty>` |
 | Breadcrumb | `<Breadcrumb>` |
 | Stats | `<Statistic>` |
+
