@@ -6,6 +6,7 @@ using ABPGroup.EntityFrameworkCore.Seed.Host;
 using ABPGroup.EntityFrameworkCore.Seed.Tenants;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Data;
 using System.Transactions;
 
 namespace ABPGroup.EntityFrameworkCore.Seed;
@@ -20,6 +21,20 @@ public static class SeedHelper
     public static void SeedHostDb(ABPGroupDbContext context)
     {
         context.SuppressAutoSetTenantId = true;
+
+        // Legacy SQL Server migrations can leave a partially-initialized PostgreSQL DB.
+        // If core ABP tables are missing, rebuild schema from the current EF model.
+        if (context.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true
+            && !PostgreSqlTableExists(context, "AbpEditions"))
+        {
+            context.Database.ExecuteSqlRaw("DROP SCHEMA IF EXISTS public CASCADE;");
+            context.Database.ExecuteSqlRaw("CREATE SCHEMA public;");
+            context.Database.EnsureCreated();
+        }
+        else
+        {
+            context.Database.EnsureCreated();
+        }
 
         // Host seed
         new InitialHostDbBuilder(context).Create();
@@ -41,6 +56,38 @@ public static class SeedHelper
                 contextAction(context);
 
                 uow.Complete();
+            }
+        }
+    }
+
+    private static bool PostgreSqlTableExists(DbContext context, string tableName)
+    {
+        var connection = context.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+
+        if (shouldClose)
+        {
+            connection.Open();
+        }
+
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT to_regclass(@tableName)::text IS NOT NULL;";
+
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = "@tableName";
+            parameter.Value = '"' + tableName + '"';
+            command.Parameters.Add(parameter);
+
+            var result = command.ExecuteScalar();
+            return result is bool exists && exists;
+        }
+        finally
+        {
+            if (shouldClose)
+            {
+                connection.Close();
             }
         }
     }

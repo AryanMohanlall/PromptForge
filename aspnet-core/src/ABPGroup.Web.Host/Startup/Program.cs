@@ -2,6 +2,7 @@
 using Abp.Dependency;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
+using System;
 
 namespace ABPGroup.Web.Host.Startup
 {
@@ -9,6 +10,7 @@ namespace ABPGroup.Web.Host.Startup
     {
         public static void Main(string[] args)
         {
+            AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
             CreateHostBuilder(args).Build().Run();
         }
 
@@ -16,6 +18,12 @@ namespace ABPGroup.Web.Host.Startup
             Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder(args)
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
+                    var port = Environment.GetEnvironmentVariable("PORT");
+                    if (!string.IsNullOrWhiteSpace(port))
+                    {
+                        webBuilder.UseUrls($"http://0.0.0.0:{port}");
+                    }
+
                     webBuilder.UseStartup<Startup>();
                 })
                 .UseCastleWindsor(IocManager.Instance.IocContainer);
