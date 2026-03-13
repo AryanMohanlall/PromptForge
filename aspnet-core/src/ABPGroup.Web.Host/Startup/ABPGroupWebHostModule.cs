@@ -19,6 +19,11 @@ namespace ABPGroup.Web.Host.Startup
             _appConfiguration = env.GetAppConfiguration();
         }
 
+        public override void PreInitialize()
+        {
+            Configuration.BackgroundJobs.IsJobExecutionEnabled = false;
+        }
+
         public override void Initialize()
         {
             IocManager.RegisterAssemblyByConvention(typeof(ABPGroupWebHostModule).GetAssembly());
