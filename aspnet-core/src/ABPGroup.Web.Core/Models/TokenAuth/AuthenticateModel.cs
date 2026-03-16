@@ -1,5 +1,6 @@
 ﻿using Abp.Auditing;
 using Abp.Authorization.Users;
+using Abp.MultiTenancy;
 using System.ComponentModel.DataAnnotations;
 
 namespace ABPGroup.Models.TokenAuth
@@ -9,6 +10,9 @@ namespace ABPGroup.Models.TokenAuth
         [Required]
         [StringLength(AbpUserBase.MaxEmailAddressLength)]
         public string UserNameOrEmailAddress { get; set; }
+
+        [StringLength(AbpTenantBase.MaxTenancyNameLength)]
+        public string TenancyName { get; set; }
 
         [Required]
         [StringLength(AbpUserBase.MaxPlainPasswordLength)]

@@ -1,13 +1,13 @@
 services:
 
   abp_host:
+    image: abpgroup/host-local
     build:
-      context: ../../
+      context: ..
       dockerfile: src/ABPGroup.Web.Host/Dockerfile
-    image: abpgroup-host-local
     environment:
-      ASPNETCORE_ENVIRONMENT: "Production"
-      ConnectionStrings__Default: ${ConnectionStrings__Default}
+      ASPNETCORE_ENVIRONMENT: "Staging"
+      ConnectionStrings__Default: "${ConnectionStrings__Default}"
       App__ServerRootAddress: "http://localhost:44311/"
       App__ClientRootAddress: "http://localhost:4200/"
       App__CorsOrigins: "http://localhost:4200"

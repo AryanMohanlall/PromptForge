@@ -1,5 +1,7 @@
 ﻿using Abp.Authorization;
 using Abp.Authorization.Users;
+using Abp.Domain.Repositories;
+using Abp.Domain.Uow;
 using Abp.MultiTenancy;
 using Abp.Runtime.Security;
 using ABPGroup.Authentication.JwtBearer;
@@ -24,26 +26,43 @@ namespace ABPGroup.Controllers
         private readonly ITenantCache _tenantCache;
         private readonly AbpLoginResultTypeHelper _abpLoginResultTypeHelper;
         private readonly TokenAuthConfiguration _configuration;
+        private readonly IRepository<User, long> _userRepository;
+        private readonly IUnitOfWorkManager _unitOfWorkManager;
 
         public TokenAuthController(
             LogInManager logInManager,
             ITenantCache tenantCache,
             AbpLoginResultTypeHelper abpLoginResultTypeHelper,
-            TokenAuthConfiguration configuration)
+            TokenAuthConfiguration configuration,
+            IRepository<User, long> userRepository,
+            IUnitOfWorkManager unitOfWorkManager)
         {
             _logInManager = logInManager;
             _tenantCache = tenantCache;
             _abpLoginResultTypeHelper = abpLoginResultTypeHelper;
             _configuration = configuration;
+            _userRepository = userRepository;
+            _unitOfWorkManager = unitOfWorkManager;
         }
 
         [HttpPost]
         public async Task<AuthenticateResultModel> Authenticate([FromBody] AuthenticateModel model)
         {
+            string tenancyName;
+            if (!string.IsNullOrWhiteSpace(model.TenancyName))
+            {
+                tenancyName = model.TenancyName.Trim();
+            }
+            else
+            {
+                tenancyName = GetTenancyNameOrNull()
+                    ?? await ResolveTenanctNameFromUserAsync(model.UserNameOrEmailAddress);
+            }
+
             var loginResult = await GetLoginResultAsync(
                 model.UserNameOrEmailAddress,
                 model.Password,
-                GetTenancyNameOrNull()
+                tenancyName
             );
 
             var accessToken = CreateAccessToken(CreateJwtClaims(loginResult.Identity));
@@ -65,6 +84,26 @@ namespace ABPGroup.Controllers
             }
 
             return _tenantCache.GetOrNull(AbpSession.TenantId.Value)?.TenancyName;
+        }
+
+        private async Task<string> ResolveTenanctNameFromUserAsync(string userNameOrEmailAddress)
+        {
+            using (var uow = _unitOfWorkManager.Begin())
+            using (_unitOfWorkManager.Current.DisableFilter(AbpDataFilters.MustHaveTenant, AbpDataFilters.MayHaveTenant))
+            {
+                var normalized = userNameOrEmailAddress.ToUpperInvariant();
+                var user = await _userRepository.FirstOrDefaultAsync(
+                    u => u.TenantId != null &&
+                         (u.NormalizedUserName == normalized || u.NormalizedEmailAddress == normalized)
+                );
+
+                string tenancyName = null;
+                if (user?.TenantId != null)
+                    tenancyName = _tenantCache.GetOrNull(user.TenantId.Value)?.TenancyName;
+
+                uow.Complete();
+                return tenancyName;
+            }
         }
 
         private async Task<AbpLoginResult<Tenant, User>> GetLoginResultAsync(string usernameOrEmailAddress, string password, string tenancyName)

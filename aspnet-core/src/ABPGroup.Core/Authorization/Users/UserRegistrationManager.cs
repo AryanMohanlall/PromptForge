@@ -41,33 +41,41 @@ public class UserRegistrationManager : DomainService
     {
         CheckForTenant();
 
-        var tenant = await GetActiveTenantAsync();
+        return await RegisterAsync(name, surname, emailAddress, userName, plainPassword, AbpSession.TenantId!.Value, isEmailConfirmed);
+    }
 
-        var user = new User
+    public async Task<User> RegisterAsync(string name, string surname, string emailAddress, string userName, string plainPassword, int tenantId, bool isEmailConfirmed)
+    {
+        var tenant = await GetActiveTenantAsync(tenantId);
+
+        using (CurrentUnitOfWork.SetTenantId(tenant.Id))
         {
-            TenantId = tenant.Id,
-            Name = name,
-            Surname = surname,
-            EmailAddress = emailAddress,
-            IsActive = true,
-            UserName = userName,
-            IsEmailConfirmed = isEmailConfirmed,
-            Roles = new List<UserRole>()
-        };
+            var user = new User
+            {
+                TenantId = tenant.Id,
+                Name = name,
+                Surname = surname,
+                EmailAddress = emailAddress,
+                IsActive = true,
+                UserName = userName,
+                IsEmailConfirmed = isEmailConfirmed,
+                Roles = new List<UserRole>()
+            };
 
-        user.SetNormalizedNames();
+            user.SetNormalizedNames();
 
-        foreach (var defaultRole in await _roleManager.Roles.Where(r => r.IsDefault).ToListAsync())
-        {
-            user.Roles.Add(new UserRole(tenant.Id, user.Id, defaultRole.Id));
+            foreach (var defaultRole in await _roleManager.Roles.Where(r => r.IsDefault).ToListAsync())
+            {
+                user.Roles.Add(new UserRole(tenant.Id, user.Id, defaultRole.Id));
+            }
+
+            await _userManager.InitializeOptionsAsync(tenant.Id);
+
+            CheckErrors(await _userManager.CreateAsync(user, plainPassword));
+            await CurrentUnitOfWork.SaveChangesAsync();
+
+            return user;
         }
-
-        await _userManager.InitializeOptionsAsync(tenant.Id);
-
-        CheckErrors(await _userManager.CreateAsync(user, plainPassword));
-        await CurrentUnitOfWork.SaveChangesAsync();
-
-        return user;
     }
 
     private void CheckForTenant()
