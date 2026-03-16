@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.\\(md|txt\\)$\")",
+      "Bash(find c:UsersNhlakaniphoDocumentsProjectsABP-Groupaspnet-coresrc -name *Auth* -o -name *auth*)"
+    ]
+  }
+}
