@@ -14,6 +14,8 @@ The frontend is a Next.js app under `frontend/` and currently contains the defau
 | ------------ | --------------------------------- |
 | Figma Design | [View Designs](#) (placeholder)   |
 | Live Demo    | Not deployed yet (placeholder)    |
+| Domain Model | [Domain Model](https://drive.google.com/file/d/1qlQETELNI8zWojMrI2GbCQXjUzENu9eq/view?usp=sharing) |
+| Architecture | [Architecture](https://drive.google.com/file/d/13-XbXg1Q31u4pAhsZdx9QOW4dNwz5U54/view?usp=sharing) |
 
 ## Tech Stack
 
