@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useReducer } from "react";
+import { useContext, useEffect, useReducer } from "react";
 import { getAxiosInstance, setAuthToken, removeAuthToken } from "@/utils/axiosInstance";
 import { AuthReducer } from "./reducer";
 import { INITIAL_STATE, AuthStateContext, AuthActionContext, type IRegisterInput, type IUser } from "./context";
@@ -16,9 +16,26 @@ import {
   logoutError,
 } from "./actions";
 
+const AUTH_USER_KEY = "auth_user";
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const instance = getAxiosInstance();
   const [state, dispatch] = useReducer(AuthReducer, INITIAL_STATE);
+
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(AUTH_USER_KEY);
+      if (stored) {
+        const user: IUser = JSON.parse(stored);
+        if (user?.accessToken && user?.userId) {
+          setAuthToken(user.accessToken);
+          dispatch(loginSuccess(user));
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }, []);
 
   const login = async (userNameOrEmailAddress: string, password: string) => {
     dispatch(loginPending());
@@ -69,6 +86,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     dispatch(logoutPending());
     try {
       removeAuthToken();
+      sessionStorage.removeItem(AUTH_USER_KEY);
       dispatch(logoutSuccess());
     } catch {
       dispatch(logoutError());

@@ -4,6 +4,7 @@ using Abp.AspNetCore.SignalR;
 using Abp.Modules;
 using Abp.Reflection.Extensions;
 using Abp.Zero.Configuration;
+using ABPGroup.Authentication.External;
 using ABPGroup.Authentication.JwtBearer;
 using ABPGroup.Configuration;
 using ABPGroup.EntityFrameworkCore;
@@ -48,6 +49,7 @@ namespace ABPGroup
                  );
 
             ConfigureTokenAuth();
+            ConfigureExternalAuth();
         }
 
         private void ConfigureTokenAuth()
@@ -60,6 +62,22 @@ namespace ABPGroup
             tokenAuthConfig.Audience = _appConfiguration["Authentication:JwtBearer:Audience"];
             tokenAuthConfig.SigningCredentials = new SigningCredentials(tokenAuthConfig.SecurityKey, SecurityAlgorithms.HmacSha256);
             tokenAuthConfig.Expiration = TimeSpan.FromDays(1);
+        }
+
+        private void ConfigureExternalAuth()
+        {
+            IocManager.Register<ExternalAuthConfiguration>();
+            var externalAuthConfig = IocManager.Resolve<ExternalAuthConfiguration>();
+
+            if (!string.IsNullOrWhiteSpace(_appConfiguration["GitHub:ClientId"]))
+            {
+                externalAuthConfig.Providers.Add(
+                    new ExternalLoginProviderInfo(
+                        "GitHub",
+                        _appConfiguration["GitHub:ClientId"],
+                        _appConfiguration["GitHub:ClientSecret"],
+                        typeof(GitHubAuthProvider)));
+            }
         }
 
         public override void Initialize()
