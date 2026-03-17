@@ -2,7 +2,7 @@ import axios, { type AxiosInstance } from "axios";
 import Cookies from "js-cookie";
 
 const AUTH_TOKEN_KEY = "auth_token";
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://localhost:44311";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:44311";
 
 let axiosInstance: AxiosInstance | null = null;
 
