@@ -11,6 +11,9 @@ const handledActions = new Set<AuthStateEnums>([
   AuthStateEnums.LOGOUT_PENDING,
   AuthStateEnums.LOGOUT_SUCCESS,
   AuthStateEnums.LOGOUT_ERROR,
+  AuthStateEnums.LOAD_LOCAL_STATE,
+  AuthStateEnums.GITHUB_CONNECT,
+  AuthStateEnums.PROJECT_CREATED,
 ]);
 
 export const AuthReducer = (

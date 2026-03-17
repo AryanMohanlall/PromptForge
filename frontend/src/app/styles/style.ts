@@ -68,29 +68,15 @@ export const useStyles = createStyles(({ token, css }) => ({
     font-size: ${token.fontSizeLG}px;
     color: ${token.colorText};
   `,
-  logoIcon: css`
+  logoImage: css`
+    width: ${token.paddingXL}px;
+    height: ${token.paddingXL}px;
+    object-fit: contain;
+  `,
+  logoImageSmall: css`
     width: ${token.paddingLG}px;
     height: ${token.paddingLG}px;
-    border-radius: ${token.borderRadiusSM}px;
-    background: ${token.colorPrimary};
-    color: ${token.colorBgContainer};
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
-  `,
-  logoIconSmall: css`
-    width: ${token.padding}px;
-    height: ${token.padding}px;
-    border-radius: ${token.borderRadiusSM}px;
-    background: ${token.colorPrimary};
-    color: ${token.colorBgContainer};
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
+    object-fit: contain;
   `,
   navActions: css`
     display: flex;

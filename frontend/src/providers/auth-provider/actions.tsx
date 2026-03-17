@@ -10,14 +10,20 @@ export enum AuthStateEnums {
   LOGOUT_PENDING = "LOGOUT_PENDING",
   LOGOUT_SUCCESS = "LOGOUT_SUCCESS",
   LOGOUT_ERROR = "LOGOUT_ERROR",
+  LOAD_LOCAL_STATE = "LOAD_LOCAL_STATE",
+  GITHUB_CONNECT = "GITHUB_CONNECT",
+  PROJECT_CREATED = "PROJECT_CREATED",
 }
 
 export interface AuthAction {
   type: AuthStateEnums;
-  payload: IAuthStateContext;
+  payload: Partial<IAuthStateContext>;
 }
 
-const createAuthAction = (type: AuthStateEnums, payload: IAuthStateContext): AuthAction => ({
+const createAuthAction = (
+  type: AuthStateEnums,
+  payload: Partial<IAuthStateContext>
+): AuthAction => ({
   type,
   payload,
 });
@@ -87,6 +93,8 @@ export const logoutSuccess = (): AuthAction =>
     isError: false,
     isAuthenticated: false,
     user: undefined,
+    isGithubConnected: false,
+    hasCreatedProject: false,
   });
 
 export const logoutError = (): AuthAction =>
@@ -95,4 +103,22 @@ export const logoutError = (): AuthAction =>
     isSuccess: false,
     isError: true,
     isAuthenticated: false,
+  });
+
+export const loadLocalState = (payload: {
+  isGithubConnected: boolean;
+  hasCreatedProject: boolean;
+}): AuthAction =>
+  createAuthAction(AuthStateEnums.LOAD_LOCAL_STATE, {
+    ...payload,
+  });
+
+export const githubConnect = (): AuthAction =>
+  createAuthAction(AuthStateEnums.GITHUB_CONNECT, {
+    isGithubConnected: true,
+  });
+
+export const projectCreated = (): AuthAction =>
+  createAuthAction(AuthStateEnums.PROJECT_CREATED, {
+    hasCreatedProject: true,
   });

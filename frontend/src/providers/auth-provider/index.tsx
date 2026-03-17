@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useReducer } from "react";
+import { useContext, useEffect, useReducer } from "react";
 import { getAxiosInstance, setAuthToken, removeAuthToken } from "@/utils/axiosInstance";
 import { AuthReducer } from "./reducer";
 import { INITIAL_STATE, AuthStateContext, AuthActionContext, type IRegisterInput, type IUser } from "./context";
@@ -14,11 +14,26 @@ import {
   logoutPending,
   logoutSuccess,
   logoutError,
+  loadLocalState,
+  githubConnect,
+  projectCreated,
 } from "./actions";
+
+const GITHUB_STORAGE_KEY = "promptforge:githubConnected";
+const PROJECT_STORAGE_KEY = "promptforge:hasCreatedProject";
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const instance = getAxiosInstance();
   const [state, dispatch] = useReducer(AuthReducer, INITIAL_STATE);
+
+  useEffect(() => {
+    const githubConnected = window.localStorage.getItem(GITHUB_STORAGE_KEY) === "true";
+    const hasCreatedProject =
+      window.localStorage.getItem(PROJECT_STORAGE_KEY) === "true";
+    if (githubConnected || hasCreatedProject) {
+      dispatch(loadLocalState({ isGithubConnected: githubConnected, hasCreatedProject }));
+    }
+  }, []);
 
   const login = async (userNameOrEmailAddress: string, password: string) => {
     dispatch(loginPending());
@@ -69,15 +84,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     dispatch(logoutPending());
     try {
       removeAuthToken();
+      window.localStorage.removeItem(GITHUB_STORAGE_KEY);
+      window.localStorage.removeItem(PROJECT_STORAGE_KEY);
       dispatch(logoutSuccess());
     } catch {
       dispatch(logoutError());
     }
   };
 
+  const connectGithub = () => {
+    window.localStorage.setItem(GITHUB_STORAGE_KEY, "true");
+    dispatch(githubConnect());
+  };
+
+  const markProjectCreated = () => {
+    window.localStorage.setItem(PROJECT_STORAGE_KEY, "true");
+    dispatch(projectCreated());
+  };
+
   return (
     <AuthStateContext.Provider value={state}>
-      <AuthActionContext.Provider value={{ login, register, logout }}>
+      <AuthActionContext.Provider
+        value={{ login, register, logout, connectGithub, markProjectCreated }}
+      >
         {children}
       </AuthActionContext.Provider>
     </AuthStateContext.Provider>

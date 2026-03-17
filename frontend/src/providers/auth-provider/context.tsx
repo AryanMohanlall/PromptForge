@@ -13,6 +13,8 @@ export interface IAuthStateContext {
   isSuccess: boolean;
   isError: boolean;
   isAuthenticated: boolean;
+  isGithubConnected: boolean;
+  hasCreatedProject: boolean;
   user?: IUser;
 }
 
@@ -20,6 +22,8 @@ export interface IAuthActionContext {
   login: (userNameOrEmailAddress: string, password: string) => Promise<IUser | null>;
   register: (input: IRegisterInput) => Promise<void>;
   logout: () => Promise<void>;
+  connectGithub: () => void;
+  markProjectCreated: () => void;
 }
 
 export interface IRegisterInput {
@@ -36,6 +40,8 @@ export const INITIAL_STATE: IAuthStateContext = {
   isSuccess: false,
   isError: false,
   isAuthenticated: false,
+  isGithubConnected: false,
+  hasCreatedProject: false,
 };
 
 export const AuthStateContext = createContext<IAuthStateContext>(INITIAL_STATE);
@@ -43,4 +49,6 @@ export const AuthActionContext = createContext<IAuthActionContext>({
   login: async () => null,
   register: async () => {},
   logout: async () => {},
+  connectGithub: () => {},
+  markProjectCreated: () => {},
 });

@@ -58,7 +58,11 @@ export default function PromptForgeLanding() {
 
       <nav className={styles.nav}>
         <div className={styles.logo}>
-          <span className={styles.logoIcon}>PF</span>
+          <img
+            src="/logo.svg"
+            alt="PromptForge logo"
+            className={styles.logoImage}
+          />
           PromptForge
         </div>
         <div className={styles.navActions}>
@@ -170,7 +174,11 @@ export default function PromptForgeLanding() {
 
       <footer className={styles.footer}>
         <div className={styles.footerLogo}>
-          <span className={styles.logoIconSmall}>PF</span>
+          <img
+            src="/logo.svg"
+            alt="PromptForge logo"
+            className={styles.logoImageSmall}
+          />
           PromptForge
         </div>
         <span className={styles.footerText}>Built for builders.</span>
