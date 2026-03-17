@@ -308,6 +308,99 @@ namespace ABPGroup.Migrations
                     b.ToTable("AbpTenants");
                 });
 
+            modelBuilder.Entity("ABPGroup.Projects.Project", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DatabaseOption")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Framework")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IncludeAuth")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Language")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Prompt")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long?>("PromptId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("PromptSubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PromptVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("WorkspaceId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PromptId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.ToTable("Projects", (string)null);
+                });
+
+            modelBuilder.Entity("ABPGroup.Projects.Prompt", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("ProjectId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("ProjectId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("Prompts", (string)null);
+                });
+
             modelBuilder.Entity("Abp.Application.Editions.Edition", b =>
                 {
                     b.Property<int>("Id")
@@ -1785,6 +1878,35 @@ namespace ABPGroup.Migrations
                     b.Navigation("LastModifierUser");
                 });
 
+            modelBuilder.Entity("ABPGroup.Projects.Project", b =>
+                {
+                    b.HasOne("ABPGroup.Projects.Prompt", "PromptEntity")
+                        .WithMany()
+                        .HasForeignKey("PromptId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ABPGroup.MultiTenancy.Tenant", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PromptEntity");
+
+                    b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("ABPGroup.Projects.Prompt", b =>
+                {
+                    b.HasOne("ABPGroup.Projects.Project", "Project")
+                        .WithMany("Prompts")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("Abp.Authorization.Roles.RoleClaim", b =>
                 {
                     b.HasOne("ABPGroup.Authorization.Roles.Role", null)
@@ -1957,6 +2079,11 @@ namespace ABPGroup.Migrations
                     b.Navigation("Settings");
 
                     b.Navigation("Tokens");
+                });
+
+            modelBuilder.Entity("ABPGroup.Projects.Project", b =>
+                {
+                    b.Navigation("Prompts");
                 });
 
             modelBuilder.Entity("Abp.DynamicEntityProperties.DynamicProperty", b =>

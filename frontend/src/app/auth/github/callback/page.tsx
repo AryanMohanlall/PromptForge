@@ -46,7 +46,7 @@ function GitHubCallback() {
       }),
     );
 
-    router.replace("/");
+    router.replace("/dashboard");
   }, [router]);
 
   return (

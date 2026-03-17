@@ -24,12 +24,26 @@ public static class SeedHelper
 
         // Legacy SQL Server migrations can leave a partially-initialized PostgreSQL DB.
         // If core ABP tables are missing, rebuild schema from the current EF model.
-        if (context.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true
-            && !PostgreSqlTableExists(context, "AbpEditions"))
+        // If ABP tables exist but newer domain tables are missing, apply pending migrations.
+        if (context.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true)
         {
-            context.Database.ExecuteSqlRaw("DROP SCHEMA IF EXISTS public CASCADE;");
-            context.Database.ExecuteSqlRaw("CREATE SCHEMA public;");
-            context.Database.EnsureCreated();
+            var hasAbpEditions = PostgreSqlTableExists(context, "AbpEditions");
+            var hasProjects = PostgreSqlTableExists(context, "Projects");
+
+            if (!hasAbpEditions)
+            {
+                context.Database.ExecuteSqlRaw("DROP SCHEMA IF EXISTS public CASCADE;");
+                context.Database.ExecuteSqlRaw("CREATE SCHEMA public;");
+                context.Database.EnsureCreated();
+            }
+            else if (!hasProjects)
+            {
+                context.Database.Migrate();
+            }
+            else
+            {
+                context.Database.EnsureCreated();
+            }
         }
         else
         {

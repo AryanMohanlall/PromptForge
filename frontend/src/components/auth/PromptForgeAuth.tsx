@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { useSearchParams } from "next/navigation";
+import { redirect, useSearchParams } from "next/navigation";
 import { Button, Input, Divider } from "antd";
 import {
   usePageStyles,
@@ -165,6 +165,7 @@ function SignInPage({ onSwitch }: PageProps) {
     }
     setValidationError("");
     void login(email, password);
+    redirect("/dashboard");
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
