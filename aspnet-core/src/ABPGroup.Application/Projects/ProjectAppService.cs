@@ -60,10 +60,7 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
 
     public override async Task<ProjectDto> UpdateAsync(CreateUpdateProjectDto input)
     {
-        if (!input.WorkspaceId.HasValue || !_tenantRepository.GetAll().Any(x => x.Id == input.WorkspaceId.Value))
-        {
-            throw new Abp.UI.UserFriendlyException("WorkspaceId is invalid. Provide an existing workspace for updates.");
-        }
+        input.WorkspaceId = await ResolveWorkspaceIdAsync(input, createIfMissing: false);
 
         var entity = await GetEntityByIdAsync(input.Id);
         MapToEntity(input, entity);
@@ -123,8 +120,16 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
         return prompt;
     }
 
-    private async Task<int> ResolveWorkspaceIdAsync(CreateUpdateProjectDto input)
+    private async Task<int> ResolveWorkspaceIdAsync(CreateUpdateProjectDto input, bool createIfMissing = true)
     {
+        // In tenant context, always bind project workspace to the logged-in tenant.
+        if (AbpSession.TenantId.HasValue
+            && AbpSession.TenantId.Value > 0
+            && await _tenantManager.FindByIdAsync(AbpSession.TenantId.Value) != null)
+        {
+            return AbpSession.TenantId.Value;
+        }
+
         if (input.WorkspaceId.HasValue && _tenantRepository.GetAll().Any(x => x.Id == input.WorkspaceId.Value))
         {
             return input.WorkspaceId.Value;
@@ -134,6 +139,11 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
         if (existingWorkspace != null)
         {
             return existingWorkspace.Id;
+        }
+
+        if (!createIfMissing)
+        {
+            throw new Abp.UI.UserFriendlyException("WorkspaceId is invalid. Provide an existing workspace for updates.");
         }
 
         var baseName = input.Name.IsNullOrWhiteSpace() ? "workspace" : input.Name;

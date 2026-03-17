@@ -1,4 +1,5 @@
 using Abp.Application.Services;
+using Abp.Application.Services.Dto;
 using Abp.Domain.Repositories;
 using Abp.Extensions;
 using Abp.Linq.Extensions;
@@ -41,6 +42,23 @@ public class WorkspaceAppService : AsyncCrudAppService<Tenant, WorkspaceDto, int
         await CurrentUnitOfWork.SaveChangesAsync();
 
         return MapToEntityDto(tenant);
+    }
+
+    public override async Task<WorkspaceDto> GetAsync(EntityDto<int> input)
+    {
+        if (input.Id <= 0)
+        {
+            if (AbpSession.TenantId.HasValue && AbpSession.TenantId.Value > 0)
+            {
+                input.Id = AbpSession.TenantId.Value;
+            }
+            else
+            {
+                throw new UserFriendlyException("Workspace id is required.");
+            }
+        }
+
+        return await base.GetAsync(input);
     }
 
     protected override IQueryable<Tenant> CreateFilteredQuery(PagedWorkspaceResultRequestDto input)
