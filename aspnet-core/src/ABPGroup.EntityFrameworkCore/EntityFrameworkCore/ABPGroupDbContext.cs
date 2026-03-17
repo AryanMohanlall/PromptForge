@@ -1,4 +1,4 @@
-﻿using Abp.Zero.EntityFrameworkCore;
+using Abp.Zero.EntityFrameworkCore;
 using ABPGroup.Authorization.Roles;
 using ABPGroup.Authorization.Users;
 using ABPGroup.MultiTenancy;
