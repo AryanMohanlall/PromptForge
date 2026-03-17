@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import { Button, Input, Divider } from 'antd';
 import {
   usePageStyles,
@@ -20,6 +21,7 @@ import {
   CheckCircleIcon,
   BrandingStackIcon,
 } from './icons';
+import { useAuthAction } from '@/providers/auth-provider';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Page = 'signin' | 'signup' | 'forgot';
@@ -43,6 +45,19 @@ interface SocialButtonProps {
 interface PageProps {
   readonly onSwitch: (page: Page) => void;
 }
+
+const decodeTenantId = (value: string | null) => {
+  if (!value) return undefined;
+  try {
+    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+    const padding = normalized.length % 4;
+    const decoded = atob(padding ? normalized.padEnd(normalized.length + (4 - padding), '=') : normalized);
+    const tenantId = Number.parseInt(decoded, 10);
+    return Number.isNaN(tenantId) ? undefined : tenantId;
+  } catch {
+    return undefined;
+  }
+};
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 function AuthInput({ icon, type = 'text', placeholder, value, onChange, showToggle, confirmState }: InputProps) {
@@ -113,7 +128,13 @@ function AuthLogo() {
 function SignInPage({ onSwitch }: PageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const { login } = useAuthAction();
   const { styles } = useAuthStyles();
+
+  const handleSignIn = () => {
+    if (!email || !password) return;
+    void login(email, password);
+  };
 
   return (
     <AuthCard>
@@ -150,7 +171,7 @@ function SignInPage({ onSwitch }: PageProps) {
         </button>
       </div>
 
-      <Button block type="primary" className={styles.primaryBtn}>
+      <Button block type="primary" className={styles.primaryBtn} onClick={handleSignIn}>
         Sign in
       </Button>
 
@@ -200,12 +221,30 @@ function CheckItem({ label, met }: { readonly label: string; readonly met: boole
 
 function SignUpPage({ onSwitch }: PageProps) {
   const [name, setName] = useState('');
+  const [surname, setSurname] = useState('');
+  const [userName, setUserName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const searchParams = useSearchParams();
+  const tenantId = decodeTenantId(searchParams.get('tenant'));
+  const { register } = useAuthAction();
   const { styles } = useAuthStyles();
 
   const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
+  const finalUserName = userName || email;
+
+  const handleRegister = () => {
+    if (!name || !surname || !finalUserName || !email || !password || !passwordsMatch) return;
+    void register({
+      name,
+      surname,
+      userName: finalUserName,
+      emailAddress: email,
+      password,
+      ...(tenantId !== undefined ? { tenantId } : {}),
+    });
+  };
 
   return (
     <AuthCard>
@@ -223,9 +262,23 @@ function SignUpPage({ onSwitch }: PageProps) {
         <AuthInput
           icon={<UserIcon />}
           type="text"
-          placeholder="Full name"
+          placeholder="First name"
           value={name}
           onChange={e => setName(e.target.value)}
+        />
+        <AuthInput
+          icon={<UserIcon />}
+          type="text"
+          placeholder="Surname"
+          value={surname}
+          onChange={e => setSurname(e.target.value)}
+        />
+        <AuthInput
+          icon={<UserIcon />}
+          type="text"
+          placeholder="Username"
+          value={userName}
+          onChange={e => setUserName(e.target.value)}
         />
         <AuthInput
           icon={<MailIcon />}
@@ -262,7 +315,7 @@ function SignUpPage({ onSwitch }: PageProps) {
         </div>
       )}
 
-      <Button block type="primary" className={styles.primaryBtnMt}>
+      <Button block type="primary" className={styles.primaryBtnMt} onClick={handleRegister}>
         Create account
       </Button>
 
