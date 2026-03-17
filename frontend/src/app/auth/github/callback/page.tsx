@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { setAuthToken } from "@/utils/axiosInstance";
 
 const AUTH_USER_KEY = "auth_user";
 
-export default function GitHubCallbackPage() {
+function GitHubCallback() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -51,5 +51,13 @@ export default function GitHubCallbackPage() {
     >
       Signing you in…
     </div>
+  );
+}
+
+export default function GitHubCallbackPage() {
+  return (
+    <Suspense>
+      <GitHubCallback />
+    </Suspense>
   );
 }
