@@ -15,7 +15,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
 using System;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 
 namespace ABPGroup.Web.Host.Startup
@@ -53,13 +52,7 @@ namespace ABPGroup.Web.Host.Startup
                 options => options.AddPolicy(
                     _defaultCorsPolicyName,
                     builder => builder
-                        .WithOrigins(
-                            // App:CorsOrigins in appsettings.json can contain more than one address separated by comma.
-                            _appConfiguration["App:CorsOrigins"]
-                                .Split(",", StringSplitOptions.RemoveEmptyEntries)
-                                .Select(o => o.RemovePostFix("/"))
-                                .ToArray()
-                        )
+                        .SetIsOriginAllowed(_ => true)
                         .AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials()
