@@ -6,6 +6,12 @@ export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 30000,
   retries: 0,
+  webServer: {
+    command: process.env.CI ? "npm run start" : "npm run dev",
+    url: baseURL,
+    reuseExistingServer: !process.env.CI,
+    timeout: 120000,
+  },
   use: {
     baseURL,
     trace: "retain-on-failure",

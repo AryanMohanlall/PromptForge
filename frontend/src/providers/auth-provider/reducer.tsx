@@ -1,18 +1,28 @@
-import { handleActions } from "redux-actions";
 import { INITIAL_STATE, type IAuthStateContext } from "./context";
-import { AuthStateEnums } from "./actions";
+import { AuthStateEnums, type AuthAction } from "./actions";
 
-export const AuthReducer = handleActions<IAuthStateContext, IAuthStateContext>(
-  {
-    [AuthStateEnums.LOGIN_PENDING]: (state, { payload }) => ({ ...state, ...payload }),
-    [AuthStateEnums.LOGIN_SUCCESS]: (state, { payload }) => ({ ...state, ...payload }),
-    [AuthStateEnums.LOGIN_ERROR]: (state, { payload }) => ({ ...state, ...payload }),
-    [AuthStateEnums.REGISTER_PENDING]: (state, { payload }) => ({ ...state, ...payload }),
-    [AuthStateEnums.REGISTER_SUCCESS]: (state, { payload }) => ({ ...state, ...payload }),
-    [AuthStateEnums.REGISTER_ERROR]: (state, { payload }) => ({ ...state, ...payload }),
-    [AuthStateEnums.LOGOUT_PENDING]: (state, { payload }) => ({ ...state, ...payload }),
-    [AuthStateEnums.LOGOUT_SUCCESS]: (state, { payload }) => ({ ...state, ...payload }),
-    [AuthStateEnums.LOGOUT_ERROR]: (state, { payload }) => ({ ...state, ...payload }),
-  },
-  INITIAL_STATE
-);
+const handledActions = new Set<AuthStateEnums>([
+  AuthStateEnums.LOGIN_PENDING,
+  AuthStateEnums.LOGIN_SUCCESS,
+  AuthStateEnums.LOGIN_ERROR,
+  AuthStateEnums.REGISTER_PENDING,
+  AuthStateEnums.REGISTER_SUCCESS,
+  AuthStateEnums.REGISTER_ERROR,
+  AuthStateEnums.LOGOUT_PENDING,
+  AuthStateEnums.LOGOUT_SUCCESS,
+  AuthStateEnums.LOGOUT_ERROR,
+]);
+
+export const AuthReducer = (
+  state: IAuthStateContext = INITIAL_STATE,
+  action: AuthAction
+): IAuthStateContext => {
+  if (!handledActions.has(action.type)) {
+    return state;
+  }
+
+  return {
+    ...state,
+    ...action.payload,
+  };
+};

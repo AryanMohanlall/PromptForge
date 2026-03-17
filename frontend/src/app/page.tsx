@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Button, Card, Input, Tag } from "antd";
 import {
   CheckCircleOutlined,
@@ -36,16 +35,24 @@ const pipelineSteps = [
   { label: "Create GitHub repository", status: "pending" },
   { label: "Push code & commit", status: "pending" },
   { label: "Deploy to production", status: "pending" },
-];
+ ] as const;
 
 export default function PromptForgeLanding() {
   const { styles } = useStyles();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  const featureCardClasses = [
+    styles.featureCard0,
+    styles.featureCard1,
+    styles.featureCard2,
+    styles.featureCard3,
+  ];
+  const pipelineStepClasses = {
+    done: styles.stepdone,
+    running: styles.steprunning,
+    pending: styles.steppending,
+  };
 
   return (
-    <div className={`${styles.page} ${mounted ? styles.pageMounted : ""}`}>
+    <div className={`${styles.page} ${styles.pageMounted}`}>
       <div className={styles.bgOrbPrimary} />
       <div className={styles.bgOrbSecondary} />
 
@@ -102,7 +109,7 @@ export default function PromptForgeLanding() {
           {features.map((feature, index) => (
             <Card
               key={feature.title}
-              className={`${styles.featureCard} ${styles[`featureCard${index}` as const]}`}
+              className={`${styles.featureCard} ${featureCardClasses[index] ?? ""}`}
             >
               <div className={styles.featureIcon}>
                 <span className={styles.featureIconDot} />
@@ -138,7 +145,7 @@ export default function PromptForgeLanding() {
               {pipelineSteps.map((step) => (
                 <div
                   key={step.label}
-                  className={`${styles.pipelineStep} ${styles[`step${step.status}` as const]}`}
+                  className={`${styles.pipelineStep} ${pipelineStepClasses[step.status]}`}
                 >
                   {step.status === "done" && (
                     <CheckCircleOutlined className={styles.stepIconDone} />

@@ -224,6 +224,7 @@ function SignInPage({ onSwitch }: PageProps) {
         className={styles.primaryBtn}
         onClick={handleSignIn}
         loading={isPending}
+        disabled={!canSubmit}
       >
         Sign in
       </Button>
@@ -436,6 +437,8 @@ function SignUpPage({ onSwitch }: PageProps) {
         type="primary"
         className={styles.primaryBtnMt}
         onClick={handleRegister}
+        loading={isPending}
+        disabled={!canSubmit}
       >
         Create account
       </Button>

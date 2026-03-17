@@ -15,9 +15,10 @@ test.describe("Auth page", () => {
     await page.goto("/auth");
     await page.getByPlaceholder("Email address").fill("user@example.com");
     await page.getByPlaceholder("Password").fill("Password1!");
-    await page.getByRole("button", { name: "Sign in" }).click();
-
-    await page.waitForRequest("**/api/TokenAuth/Authenticate");
+    await Promise.all([
+      page.waitForRequest("**/api/TokenAuth/Authenticate"),
+      page.getByRole("button", { name: "Sign in" }).click(),
+    ]);
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
   });
 
@@ -52,9 +53,10 @@ test.describe("Auth page", () => {
     await page.getByPlaceholder("Email address").fill("jane@example.com");
     await page.getByPlaceholder("Create a password").fill("Password1!");
     await page.getByPlaceholder("Confirm password").fill("Password1!");
-    await page.getByRole("button", { name: "Create account" }).click();
-
-    await page.waitForRequest("**/api/services/app/Account/Register");
+    await Promise.all([
+      page.waitForRequest("**/api/services/app/Account/Register"),
+      page.getByRole("button", { name: "Create account" }).click(),
+    ]);
     expect(tenantHeader).toBe("7");
   });
 });

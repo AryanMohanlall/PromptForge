@@ -1,4 +1,3 @@
-import { createAction } from "redux-actions";
 import { type IAuthStateContext, type IUser } from "./context";
 
 export enum AuthStateEnums {
@@ -13,47 +12,87 @@ export enum AuthStateEnums {
   LOGOUT_ERROR = "LOGOUT_ERROR",
 }
 
-export const loginPending = createAction<IAuthStateContext>(
-  AuthStateEnums.LOGIN_PENDING,
-  () => ({ isPending: true, isSuccess: false, isError: false, isAuthenticated: false })
-);
+export interface AuthAction {
+  type: AuthStateEnums;
+  payload: IAuthStateContext;
+}
 
-export const loginSuccess = createAction<IAuthStateContext, IUser>(
-  AuthStateEnums.LOGIN_SUCCESS,
-  (user: IUser) => ({ isPending: false, isSuccess: true, isError: false, isAuthenticated: true, user })
-);
+const createAuthAction = (type: AuthStateEnums, payload: IAuthStateContext): AuthAction => ({
+  type,
+  payload,
+});
 
-export const loginError = createAction<IAuthStateContext>(
-  AuthStateEnums.LOGIN_ERROR,
-  () => ({ isPending: false, isSuccess: false, isError: true, isAuthenticated: false })
-);
+export const loginPending = (): AuthAction =>
+  createAuthAction(AuthStateEnums.LOGIN_PENDING, {
+    isPending: true,
+    isSuccess: false,
+    isError: false,
+    isAuthenticated: false,
+  });
 
-export const registerPending = createAction<IAuthStateContext>(
-  AuthStateEnums.REGISTER_PENDING,
-  () => ({ isPending: true, isSuccess: false, isError: false, isAuthenticated: false })
-);
+export const loginSuccess = (user: IUser): AuthAction =>
+  createAuthAction(AuthStateEnums.LOGIN_SUCCESS, {
+    isPending: false,
+    isSuccess: true,
+    isError: false,
+    isAuthenticated: true,
+    user,
+  });
 
-export const registerSuccess = createAction<IAuthStateContext, IUser>(
-  AuthStateEnums.REGISTER_SUCCESS,
-  (user: IUser) => ({ isPending: false, isSuccess: true, isError: false, isAuthenticated: true, user })
-);
+export const loginError = (): AuthAction =>
+  createAuthAction(AuthStateEnums.LOGIN_ERROR, {
+    isPending: false,
+    isSuccess: false,
+    isError: true,
+    isAuthenticated: false,
+  });
 
-export const registerError = createAction<IAuthStateContext>(
-  AuthStateEnums.REGISTER_ERROR,
-  () => ({ isPending: false, isSuccess: false, isError: true, isAuthenticated: false })
-);
+export const registerPending = (): AuthAction =>
+  createAuthAction(AuthStateEnums.REGISTER_PENDING, {
+    isPending: true,
+    isSuccess: false,
+    isError: false,
+    isAuthenticated: false,
+  });
 
-export const logoutPending = createAction<IAuthStateContext>(
-  AuthStateEnums.LOGOUT_PENDING,
-  () => ({ isPending: true, isSuccess: false, isError: false, isAuthenticated: false })
-);
+export const registerSuccess = (user: IUser): AuthAction =>
+  createAuthAction(AuthStateEnums.REGISTER_SUCCESS, {
+    isPending: false,
+    isSuccess: true,
+    isError: false,
+    isAuthenticated: true,
+    user,
+  });
 
-export const logoutSuccess = createAction<IAuthStateContext>(
-  AuthStateEnums.LOGOUT_SUCCESS,
-  () => ({ isPending: false, isSuccess: true, isError: false, isAuthenticated: false, user: undefined })
-);
+export const registerError = (): AuthAction =>
+  createAuthAction(AuthStateEnums.REGISTER_ERROR, {
+    isPending: false,
+    isSuccess: false,
+    isError: true,
+    isAuthenticated: false,
+  });
 
-export const logoutError = createAction<IAuthStateContext>(
-  AuthStateEnums.LOGOUT_ERROR,
-  () => ({ isPending: false, isSuccess: false, isError: true, isAuthenticated: false })
-);
+export const logoutPending = (): AuthAction =>
+  createAuthAction(AuthStateEnums.LOGOUT_PENDING, {
+    isPending: true,
+    isSuccess: false,
+    isError: false,
+    isAuthenticated: false,
+  });
+
+export const logoutSuccess = (): AuthAction =>
+  createAuthAction(AuthStateEnums.LOGOUT_SUCCESS, {
+    isPending: false,
+    isSuccess: true,
+    isError: false,
+    isAuthenticated: false,
+    user: undefined,
+  });
+
+export const logoutError = (): AuthAction =>
+  createAuthAction(AuthStateEnums.LOGOUT_ERROR, {
+    isPending: false,
+    isSuccess: false,
+    isError: true,
+    isAuthenticated: false,
+  });
