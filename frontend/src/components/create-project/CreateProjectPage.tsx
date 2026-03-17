@@ -6,6 +6,13 @@ import { motion } from "framer-motion";
 import { StepIndicator } from "../StepIndicator";
 import { useStyles } from "./styles";
 import { useAuthAction, useAuthState } from "@/providers/auth-provider";
+import {
+  ProjectDatabaseOption,
+  ProjectFramework,
+  ProjectProgrammingLanguage,
+  ProjectStatus,
+  useProjectAction,
+} from "@/providers/projects-provider";
 
 interface CreateProjectPageProps {
   onNavigate: (page: string) => void;
@@ -15,6 +22,7 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
   const { styles, cx } = useStyles();
   const { isGithubConnected, hasCreatedProject } = useAuthState();
   const { connectGithub, markProjectCreated } = useAuthAction();
+  const { create } = useProjectAction();
   const [currentStep, setCurrentStep] = useState(1);
   const [prompt, setPrompt] = useState("");
   const [framework, setFramework] = useState("Next.js");
@@ -22,6 +30,8 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
   const [styling, setStyling] = useState("Tailwind CSS");
   const [database, setDatabase] = useState("PostgreSQL");
   const [authEnabled, setAuthEnabled] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const suggestions = [
     "SaaS dashboard",
@@ -40,12 +50,85 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
   const handleBack = () => setCurrentStep((prev) => Math.max(prev - 1, 1));
   const requiresGithub = !hasCreatedProject && !isGithubConnected;
 
-  const handleGenerate = () => {
+  const mapFramework = (value: string): ProjectFramework => {
+    switch (value) {
+      case "React + Vite":
+        return ProjectFramework.ReactVite;
+      case "Angular":
+        return ProjectFramework.Angular;
+      case "Vue":
+        return ProjectFramework.Vue;
+      case ".NET Blazor":
+        return ProjectFramework.DotNetBlazor;
+      case "Next.js":
+      default:
+        return ProjectFramework.NextJS;
+    }
+  };
+
+  const mapLanguage = (value: string): ProjectProgrammingLanguage => {
+    switch (value) {
+      case "JavaScript":
+        return ProjectProgrammingLanguage.JavaScript;
+      case "C#":
+        return ProjectProgrammingLanguage.CSharp;
+      case "TypeScript":
+      default:
+        return ProjectProgrammingLanguage.TypeScript;
+    }
+  };
+
+  const mapDatabase = (value: string): ProjectDatabaseOption => {
+    switch (value) {
+      case "MongoDB":
+        return ProjectDatabaseOption.MongoCloud;
+      case "PostgreSQL":
+      default:
+        return ProjectDatabaseOption.RenderPostgres;
+    }
+  };
+
+  const deriveProjectName = (value: string): string => {
+    const normalized = value
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/[^a-zA-Z0-9 ]/g, "");
+
+    if (!normalized) {
+      return `Project ${new Date().toISOString().slice(0, 10)}`;
+    }
+
+    return normalized.slice(0, 128);
+  };
+
+  const handleGenerate = async () => {
     if (requiresGithub) {
       return;
     }
-    markProjectCreated();
-    onNavigate("generation");
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      await create({
+        name: deriveProjectName(prompt),
+        prompt,
+        promptVersion: 1,
+        promptSubmittedAt: new Date().toISOString(),
+        framework: mapFramework(framework),
+        language: mapLanguage(language),
+        databaseOption: mapDatabase(database),
+        includeAuth: authEnabled,
+        status: ProjectStatus.PromptSubmitted,
+      });
+
+      markProjectCreated();
+      onNavigate("generation");
+    } catch {
+      setSubmitError("We could not create the project. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const renderSelectionCard = (
@@ -345,15 +428,19 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
                 <button
                   type="button"
                   onClick={handleGenerate}
+                  disabled={isSubmitting}
                   className={cx(styles.generateButton, styles.focusRing)}
                 >
                   <SparklesIcon className={styles.iconMedium} />
-                  Generate my app
+                  {isSubmitting ? "Creating project..." : "Generate my app"}
                 </button>
                 <p className={styles.generateNote}>
                   This will create a new GitHub repository and start code
                   generation.
                 </p>
+                {submitError && (
+                  <p className={styles.generateNote}>{submitError}</p>
+                )}
 
                 <button
                   type="button"

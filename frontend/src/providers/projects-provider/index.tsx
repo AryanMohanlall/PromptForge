@@ -71,8 +71,9 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
 			await instance.post(`${ENDPOINT}/Create`, data);
 			dispatch(createSuccess());
 			await fetchAll();
-		} catch {
+		} catch (error) {
 			dispatch(createError());
+			throw error;
 		}
 	};
 
