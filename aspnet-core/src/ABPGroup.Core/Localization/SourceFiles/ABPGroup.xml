@@ -120,5 +120,13 @@
     <text name="403PageHeader">Forbidden</text>
     <text name="403PageDescription">You don't have permission to access this resource. Please contact your administrator.</text>
     <text name="403PageButton">Go back to Dashboard</text>
+    <text name="Workspaces">Workspaces</text>
+    <text name="CreateWorkspace">Create workspace</text>
+    <text name="EditWorkspace">Edit workspace</text>
+    <text name="DeleteWorkspace">Delete workspace</text>
+    <text name="Projects">Projects</text>
+    <text name="CreateProject">Create project</text>
+    <text name="EditProject">Edit project</text>
+    <text name="DeleteProject">Delete project</text>
   </texts>
 </localizationDictionary>

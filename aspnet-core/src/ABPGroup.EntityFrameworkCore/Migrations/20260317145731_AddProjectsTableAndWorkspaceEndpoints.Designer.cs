@@ -3,6 +3,7 @@ using System;
 using ABPGroup.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ABPGroup.Migrations
 {
     [DbContext(typeof(ABPGroupDbContext))]
-    partial class ABPGroupDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260317145731_AddProjectsTableAndWorkspaceEndpoints")]
+    partial class AddProjectsTableAndWorkspaceEndpoints
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -340,9 +343,6 @@ namespace ABPGroup.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<long?>("PromptId")
-                        .HasColumnType("bigint");
-
                     b.Property<DateTime?>("PromptSubmittedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -360,45 +360,9 @@ namespace ABPGroup.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PromptId");
-
                     b.HasIndex("WorkspaceId");
 
                     b.ToTable("Projects", (string)null);
-                });
-
-            modelBuilder.Entity("ABPGroup.Projects.Prompt", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long>("ProjectId")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTime?>("SubmittedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Version")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId");
-
-                    b.HasIndex("ProjectId", "Version")
-                        .IsUnique();
-
-                    b.ToTable("Prompts", (string)null);
                 });
 
             modelBuilder.Entity("Abp.Application.Editions.Edition", b =>
@@ -1880,31 +1844,13 @@ namespace ABPGroup.Migrations
 
             modelBuilder.Entity("ABPGroup.Projects.Project", b =>
                 {
-                    b.HasOne("ABPGroup.Projects.Prompt", "PromptEntity")
-                        .WithMany()
-                        .HasForeignKey("PromptId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("ABPGroup.MultiTenancy.Tenant", "Workspace")
                         .WithMany()
                         .HasForeignKey("WorkspaceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("PromptEntity");
-
                     b.Navigation("Workspace");
-                });
-
-            modelBuilder.Entity("ABPGroup.Projects.Prompt", b =>
-                {
-                    b.HasOne("ABPGroup.Projects.Project", "Project")
-                        .WithMany("Prompts")
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("Abp.Authorization.Roles.RoleClaim", b =>
@@ -2079,11 +2025,6 @@ namespace ABPGroup.Migrations
                     b.Navigation("Settings");
 
                     b.Navigation("Tokens");
-                });
-
-            modelBuilder.Entity("ABPGroup.Projects.Project", b =>
-                {
-                    b.Navigation("Prompts");
                 });
 
             modelBuilder.Entity("Abp.DynamicEntityProperties.DynamicProperty", b =>
