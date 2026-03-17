@@ -2,7 +2,7 @@ import { handleActions } from "redux-actions";
 import { INITIAL_STATE, IProjectStateContext } from "./context";
 import { ProjectStateEnums } from "./actions";
 
-export const ProjectReducer = handleActions<IProjectStateContext, IProjectStateContext>(
+export const ProjectReducer = handleActions<IProjectStateContext, Partial<IProjectStateContext>>(
   {
     [ProjectStateEnums.PROJECT_FETCH_ALL_PENDING]: (state, { payload }) => ({ ...state, ...payload }),
     [ProjectStateEnums.PROJECT_FETCH_ALL_SUCCESS]: (state, { payload }) => ({ ...state, ...payload }),

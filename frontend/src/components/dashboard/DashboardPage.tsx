@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { SearchIcon, ChevronDownIcon } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 import { ProjectCard, ProjectData } from "../ProjectCard";
 import { useStyles } from "./styles";
 import {
@@ -83,7 +83,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     return matchesSearch && matchesStatus;
   });
 
-  const containerVariants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
@@ -91,7 +91,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     },
   };
 
-  const itemVariants = {
+  const itemVariants: Variants = {
     hidden: { opacity: 0, y: 20 },
     show: {
       opacity: 1,
