@@ -71,12 +71,6 @@ public class RegisterInput : IValidatableObject
                 yield return new ValidationResult("TenantName is required when CreateTenant is true.");
             }
         }
-        else
-        {
-            if (!TenantId.HasValue || TenantId.Value <= 0)
-            {
-                yield return new ValidationResult("TenantId is required when joining an existing tenant.");
-            }
-        }
+        // If neither CreateTenant nor TenantId is provided, a tenant will be auto-generated from the email address.
     }
 }
