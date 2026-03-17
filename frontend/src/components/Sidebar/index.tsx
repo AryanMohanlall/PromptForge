@@ -13,6 +13,7 @@ import {
   ActivityIcon,
 } from "lucide-react";
 import { useStyles } from "./styles";
+import { useAuthState } from "@/providers/auth-provider";
 
 interface SidebarProps {
   currentPage: string;
@@ -21,6 +22,8 @@ interface SidebarProps {
 
 export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const { styles, cx } = useStyles();
+  const { user } = useAuthState();
+  const isAdmin = user?.roleNames?.includes("PlatformAdministrator");
   const mainNav = [
     {
       id: "dashboard",
@@ -108,33 +111,40 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           })}
         </nav>
 
-        <div className={styles.adminLabel}>Admin</div>
-        <div className={styles.divider} />
+        {isAdmin && (
+          <>
+            <div className={styles.adminLabel}>Admin</div>
+            <div className={styles.divider} />
 
-        <nav className={styles.nav}>
-          {adminNav.map((item) => {
-            const isActive = currentPage === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() =>
-                  onNavigate(item.id.startsWith("admin") ? "admin" : item.id)
-                }
-                className={cx(
-                  styles.navButton,
-                  styles.focusRing,
-                  isActive && styles.navButtonActive
-                )}
-              >
-                <item.icon
-                  className={cx(styles.navIcon, isActive && styles.navIconActive)}
-                />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
+            <nav className={styles.nav}>
+              {adminNav.map((item) => {
+                const isActive = currentPage === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() =>
+                      onNavigate(item.id.startsWith("admin") ? "admin" : item.id)
+                    }
+                    className={cx(
+                      styles.navButton,
+                      styles.focusRing,
+                      isActive && styles.navButtonActive
+                    )}
+                  >
+                    <item.icon
+                      className={cx(
+                        styles.navIcon,
+                        isActive && styles.navIconActive
+                      )}
+                    />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+          </>
+        )}
 
         <div className={styles.footer}>
           <button type="button" className={cx(styles.profileButton, styles.focusRing)}>
