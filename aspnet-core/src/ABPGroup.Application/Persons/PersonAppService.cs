@@ -9,13 +9,15 @@ using System.Linq;
 
 namespace ABPGroup.Persons
 {
-    [AbpAuthorize(PermissionNames.Pages_Persons)]
+    [AbpAuthorize]
     public class PersonAppService
         : AsyncCrudAppService<User, PersonDto, long, PagedPersonResultRequestDto, CreateUpdatePersonDto, CreateUpdatePersonDto>,
           IPersonAppService
     {
         public PersonAppService(IRepository<User, long> repository) : base(repository)
         {
+            GetPermissionName = null;
+            GetAllPermissionName = null;
             CreatePermissionName = PermissionNames.Pages_Persons_Create;
             UpdatePermissionName = PermissionNames.Pages_Persons_Edit;
             DeletePermissionName = PermissionNames.Pages_Persons_Delete;
@@ -24,6 +26,7 @@ namespace ABPGroup.Persons
         protected override IQueryable<User> CreateFilteredQuery(PagedPersonResultRequestDto input)
         {
             return Repository.GetAll()
+                .Where(x => x.TenantId == AbpSession.TenantId)
                 .WhereIf(!string.IsNullOrEmpty(input.Keyword),
                     x => x.UserName.Contains(input.Keyword) ||
                          x.DisplayName.Contains(input.Keyword) ||

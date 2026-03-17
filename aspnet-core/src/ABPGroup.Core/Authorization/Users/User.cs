@@ -12,7 +12,7 @@ public class User : AbpUser<User>
     [MaxLength(256)]
     public string DisplayName { get; set; }
 
-    public PersonRole? Role { get; set; }
+    public PersonRole Role { get; set; } = PersonRole.Admin;
 
     [MaxLength(256)]
     public string GitHubUsername { get; set; }

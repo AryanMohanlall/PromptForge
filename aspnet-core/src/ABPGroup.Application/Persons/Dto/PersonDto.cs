@@ -8,7 +8,7 @@ namespace ABPGroup.Persons.Dto
         public string UserName { get; set; }
         public string EmailAddress { get; set; }
         public string DisplayName { get; set; }
-        public PersonRole? Role { get; set; }
+        public PersonRole Role { get; set; }
         public string GitHubUsername { get; set; }
         public string GitHubAccessToken { get; set; }
         public string AvatarUrl { get; set; }

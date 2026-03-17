@@ -98,6 +98,9 @@ public class AccountAppService : ABPGroupAppServiceBase, IAccountAppService
             true // Assumed email address is always confirmed. Change this if you want to implement email confirmation.
         );
 
+        user.Role = input.Role; // defaults to Admin if not provided
+        await _userManager.UpdateAsync(user);
+
         if (createdNewTenant)
         {
             using (CurrentUnitOfWork.SetTenantId(tenantId))
