@@ -92,10 +92,8 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const { items } = useProjectState();
   const { fetchAll } = useProjectAction();
   const [generationStep, setGenerationStep] = useState(0);
-  const [isGenerated, setIsGenerated] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState(-1);
-  const [isDeployed, setIsDeployed] = useState(false);
   const [repoName, setRepoName] = useState("promptforge-app");
   const [branchName, setBranchName] = useState("main");
   const [autoDeploy, setAutoDeploy] = useState(true);
@@ -140,6 +138,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
   const projectTitle = latestProject?.name ?? "New PromptForge build";
 
+  const isGenerated = generationStep >= generationSteps.length;
+  const isDeployed = isDeploying && deploymentStep >= deploymentSteps.length;
+
   const generationStatus: StatusBadgeState = isDeployed
     ? "Live"
     : isDeploying
@@ -160,30 +161,20 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
   useEffect(() => {
     if (isGenerated) return undefined;
-    if (generationStep < generationSteps.length) {
-      const timer = window.setTimeout(() => {
-        setGenerationStep((prev) => prev + 1);
-      }, 1700);
+    const timer = window.setTimeout(() => {
+      setGenerationStep((prev) => prev + 1);
+    }, 1700);
 
-      return () => window.clearTimeout(timer);
-    }
-
-    setIsGenerated(true);
-    return undefined;
+    return () => window.clearTimeout(timer);
   }, [generationStep, generationSteps.length, isGenerated]);
 
   useEffect(() => {
     if (!isDeploying || isDeployed) return undefined;
-    if (deploymentStep < deploymentSteps.length) {
-      const timer = window.setTimeout(() => {
-        setDeploymentStep((prev) => prev + 1);
-      }, 1500);
+    const timer = window.setTimeout(() => {
+      setDeploymentStep((prev) => prev + 1);
+    }, 1500);
 
-      return () => window.clearTimeout(timer);
-    }
-
-    setIsDeployed(true);
-    return undefined;
+    return () => window.clearTimeout(timer);
   }, [isDeploying, deploymentStep, isDeployed, deploymentSteps.length]);
 
   const handleDeploy = () => {
@@ -296,28 +287,28 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                     <span className={styles.codeKeyword}>import</span> React, {" "}
                     {"{"} useState {"}"} {" "}
                     <span className={styles.codeKeyword}>from</span>{" "}
-                    <span className={styles.codeString}>"react"</span>;
+                    <span className={styles.codeString}>&quot;react&quot;</span>;
                     {"\n"}
                     <span className={styles.codeKeyword}>import</span> {"{"} BuildJob {"}"} {" "}
                     <span className={styles.codeKeyword}>from</span>{" "}
-                    <span className={styles.codeString}>"@/generation"</span>;
+                    <span className={styles.codeString}>&quot;@/generation&quot;</span>;
                     {"\n\n"}
                     <span className={styles.codeKeyword}>export</span> <span className={styles.codeKeyword}>function</span>{" "}
                     <span className={styles.codeFunction}>GeneratedProject</span>() {"{"}
                     {"\n"}
                     {"  "}<span className={styles.codeKeyword}>const</span> [status] = <span className={styles.codeFunction}>useState</span>(
-                    <span className={styles.codeString}>"InProgress"</span>);
+                    <span className={styles.codeString}>&quot;InProgress&quot;</span>);
                     {"\n\n"}
                     {"  "}<span className={styles.codeKeyword}>return</span> (
                     {"\n    "}&lt;<span className={styles.codeTag}>section</span>{" "}
                     <span className={styles.codeAttr}>aria-label</span>=
-                    <span className={styles.codeString}>"Generated project"</span>
+                    <span className={styles.codeString}>&quot;Generated project&quot;</span>
                     &gt;
                     {"\n      "}&lt;<span className={styles.codeTag}>h2</span>&gt;PromptSession summary&lt;/{" "}
                     <span className={styles.codeTag}>h2</span>&gt;
                     {"\n      "}&lt;<span className={styles.codeTag}>BuildJob</span>{" "}
                     <span className={styles.codeAttr}>status</span>=
-                    <span className={styles.codeString}>"{"{status}"}"</span>
+                    <span className={styles.codeString}>&quot;{"{status}"}&quot;</span>
                     /&gt;
                     {"\n    "}&lt;/{" "}
                     <span className={styles.codeTag}>section</span>&gt;
