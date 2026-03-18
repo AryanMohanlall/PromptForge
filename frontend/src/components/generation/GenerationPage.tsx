@@ -16,11 +16,13 @@ import {
   GitBranchIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import type { AxiosError } from "axios";
 import { useStyles } from "./styles";
 import {
   useProjectAction,
   useProjectState,
 } from "@/providers/projects-provider";
+import { getAxiosInstance } from "@/utils/axiosInstance";
 
 interface GenerationPageProps {
   onNavigate: (page: string) => void;
@@ -92,13 +94,15 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const { items } = useProjectState();
   const { fetchAll } = useProjectAction();
   const [generationStep, setGenerationStep] = useState(0);
-  const [isGenerated, setIsGenerated] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState(-1);
-  const [isDeployed, setIsDeployed] = useState(false);
   const [repoName, setRepoName] = useState("promptforge-app");
   const [branchName, setBranchName] = useState("main");
   const [autoDeploy, setAutoDeploy] = useState(true);
+  const [isCreatingRepo, setIsCreatingRepo] = useState(false);
+  const [deployError, setDeployError] = useState<string | null>(null);
+  const [githubRepoUrl, setGithubRepoUrl] = useState<string | null>(null);
+  const [githubRepoFullName, setGithubRepoFullName] = useState<string | null>(null);
 
   const generationSteps = useMemo(
     () => [
@@ -139,10 +143,15 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
   }, [items]);
 
   const projectTitle = latestProject?.name ?? "New PromptForge build";
+  const configuredOwner = (process.env.NEXT_PUBLIC_GITHUB_OWNER ?? "").trim();
+  const displayOwner = configuredOwner || "owner";
+
+  const isGenerated = generationStep >= generationSteps.length;
+  const isDeployed = isDeploying && deploymentStep >= deploymentSteps.length;
 
   const generationStatus: StatusBadgeState = isDeployed
     ? "Live"
-    : isDeploying
+    : isDeploying || isCreatingRepo
       ? "Deploying"
       : isGenerated
         ? "Generated"
@@ -160,35 +169,80 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
   useEffect(() => {
     if (isGenerated) return undefined;
-    if (generationStep < generationSteps.length) {
-      const timer = window.setTimeout(() => {
-        setGenerationStep((prev) => prev + 1);
-      }, 1700);
+    const timer = window.setTimeout(() => {
+      setGenerationStep((prev) => prev + 1);
+    }, 1700);
 
-      return () => window.clearTimeout(timer);
-    }
-
-    setIsGenerated(true);
-    return undefined;
+    return () => window.clearTimeout(timer);
   }, [generationStep, generationSteps.length, isGenerated]);
 
   useEffect(() => {
     if (!isDeploying || isDeployed) return undefined;
-    if (deploymentStep < deploymentSteps.length) {
-      const timer = window.setTimeout(() => {
-        setDeploymentStep((prev) => prev + 1);
-      }, 1500);
+    const timer = window.setTimeout(() => {
+      setDeploymentStep((prev) => prev + 1);
+    }, 1500);
 
-      return () => window.clearTimeout(timer);
-    }
-
-    setIsDeployed(true);
-    return undefined;
+    return () => window.clearTimeout(timer);
   }, [isDeploying, deploymentStep, isDeployed, deploymentSteps.length]);
 
-  const handleDeploy = () => {
-    setIsDeploying(true);
-    setDeploymentStep(0);
+  const handleDeploy = async () => {
+    const sanitizedRepoName = repoName.trim();
+    if (!sanitizedRepoName || isDeploying || isCreatingRepo) {
+      return;
+    }
+
+    setDeployError(null);
+    setIsCreatingRepo(true);
+
+    try {
+      const instance = getAxiosInstance();
+      const response = await instance.post<{
+        repository?: {
+          name?: string;
+          fullName?: string;
+          htmlUrl?: string;
+        };
+      }>("/api/github-app/repositories", {
+        name: sanitizedRepoName,
+        description: `Generated from PromptForge: ${projectTitle}`,
+        isPrivate: true,
+        autoInit: true,
+        owner: configuredOwner || undefined,
+      });
+
+      const repository = response.data.repository;
+      setGithubRepoUrl(repository?.htmlUrl ?? null);
+      setGithubRepoFullName(repository?.fullName ?? repository?.name ?? sanitizedRepoName);
+      setIsDeploying(true);
+      setDeploymentStep(0);
+    } catch (error) {
+      const axiosError = error as AxiosError<{
+        result?: {
+          message?: string;
+          details?: string;
+          error?: string;
+        };
+        message?: string;
+        details?: string;
+        error?: string;
+      }>;
+
+      const payload = axiosError.response?.data;
+      const backendMessage =
+        payload?.result?.details ||
+        payload?.result?.error ||
+        payload?.result?.message ||
+        payload?.details ||
+        payload?.error ||
+        payload?.message;
+
+      setDeployError(
+        backendMessage ||
+          "Repository creation failed. Verify GitHub App credentials and installation access."
+      );
+    } finally {
+      setIsCreatingRepo(false);
+    }
   };
 
   return (
@@ -296,28 +350,28 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                     <span className={styles.codeKeyword}>import</span> React, {" "}
                     {"{"} useState {"}"} {" "}
                     <span className={styles.codeKeyword}>from</span>{" "}
-                    <span className={styles.codeString}>"react"</span>;
+                    <span className={styles.codeString}>&quot;react&quot;</span>;
                     {"\n"}
                     <span className={styles.codeKeyword}>import</span> {"{"} BuildJob {"}"} {" "}
                     <span className={styles.codeKeyword}>from</span>{" "}
-                    <span className={styles.codeString}>"@/generation"</span>;
+                    <span className={styles.codeString}>&quot;@/generation&quot;</span>;
                     {"\n\n"}
                     <span className={styles.codeKeyword}>export</span> <span className={styles.codeKeyword}>function</span>{" "}
                     <span className={styles.codeFunction}>GeneratedProject</span>() {"{"}
                     {"\n"}
                     {"  "}<span className={styles.codeKeyword}>const</span> [status] = <span className={styles.codeFunction}>useState</span>(
-                    <span className={styles.codeString}>"InProgress"</span>);
+                    <span className={styles.codeString}>&quot;InProgress&quot;</span>);
                     {"\n\n"}
                     {"  "}<span className={styles.codeKeyword}>return</span> (
                     {"\n    "}&lt;<span className={styles.codeTag}>section</span>{" "}
                     <span className={styles.codeAttr}>aria-label</span>=
-                    <span className={styles.codeString}>"Generated project"</span>
+                    <span className={styles.codeString}>&quot;Generated project&quot;</span>
                     &gt;
                     {"\n      "}&lt;<span className={styles.codeTag}>h2</span>&gt;PromptSession summary&lt;/{" "}
                     <span className={styles.codeTag}>h2</span>&gt;
                     {"\n      "}&lt;<span className={styles.codeTag}>BuildJob</span>{" "}
                     <span className={styles.codeAttr}>status</span>=
-                    <span className={styles.codeString}>"{"{status}"}"</span>
+                    <span className={styles.codeString}>&quot;{"{status}"}&quot;</span>
                     /&gt;
                     {"\n    "}&lt;/{" "}
                     <span className={styles.codeTag}>section</span>&gt;
@@ -463,7 +517,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
               <div>
                 <label className={styles.inputLabel}>Repository name</label>
                 <div className={styles.inputWrap}>
-                  <span className={styles.inputPrefix}>alexchen/</span>
+                  <span className={styles.inputPrefix}>{displayOwner}/</span>
                   <input
                     type="text"
                     value={repoName}
@@ -498,11 +552,18 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 type="button"
                 onClick={handleDeploy}
                 className={cx(styles.primaryButton, styles.focusRing)}
+                disabled={isCreatingRepo || !repoName.trim()}
               >
                 <RocketIcon className={styles.iconSmall} />
-                Commit and deploy
+                {isCreatingRepo ? "Creating repository..." : "Commit and deploy"}
               </button>
             </div>
+
+            {deployError && (
+              <p className={styles.errorText} role="alert">
+                {deployError}
+              </p>
+            )}
 
             <div className={styles.checkboxRow}>
               <input
@@ -588,9 +649,17 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                   <ExternalLinkIcon className={styles.iconSmall} />
                   Open live site
                 </button>
-                <button className={cx(styles.successGhost, styles.focusRing)}>
+                <button
+                  className={cx(styles.successGhost, styles.focusRing)}
+                  onClick={() => {
+                    if (githubRepoUrl) {
+                      window.open(githubRepoUrl, "_blank", "noopener,noreferrer");
+                    }
+                  }}
+                  disabled={!githubRepoUrl}
+                >
                   <GithubIcon className={styles.iconSmall} />
-                  View on GitHub
+                  {githubRepoFullName ? `View ${githubRepoFullName}` : "View on GitHub"}
                 </button>
                 <button className={cx(styles.successGhost, styles.focusRing)}>
                   <RefreshCwIcon className={styles.iconSmall} />

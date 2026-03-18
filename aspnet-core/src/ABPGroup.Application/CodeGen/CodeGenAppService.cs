@@ -1,26 +1,33 @@
 using System;
+using System.Diagnostics;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using ABPGroup.Projects;
 using ABPGroup.Projects.Dto;
 using Abp.Application.Services;
+using Microsoft.Extensions.Configuration;
 
 namespace ABPGroup.CodeGen
 {
     public class CodeGenAppService : ApplicationService, ICodeGenAppService
     {
-        private readonly HttpClient _httpClient;
-        private const string Endpoint = "https://nwu-vaal-gkss.netlify.app/api/ai";
-        private const string Model = "llama-3.1-8b-instant";
-        private const string OutputPath = "C:/GeneratedApps";
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IConfiguration _configuration;
 
-        public CodeGenAppService(HttpClient httpClient)
+        private const string GroqEndpoint = "https://api.groq.com/openai/v1/chat/completions";
+        private const string OutputBase    = "/app/GeneratedApps";
+        private const int    MaxFixRetries = 3;
+
+        public CodeGenAppService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
         {
-            _httpClient = httpClient;
+            _httpClientFactory = httpClientFactory;
+            _configuration     = configuration;
         }
 
         public async Task<CodeGenResult> GenerateProjectAsync(CreateUpdateProjectDto request)
@@ -28,30 +35,74 @@ namespace ABPGroup.CodeGen
             if (request == null)
                 throw new ArgumentNullException(nameof(request));
 
-            var systemMessage = GenerateSystemMessage(request);
-            var userMessage = GenerateUserMessage(request);
-            var combinedMessage = $"{systemMessage}\n\n{userMessage}";
+            var projectName = string.IsNullOrWhiteSpace(request.Name) ? "UnnamedProject" : request.Name;
+            var projectDir  = Path.Combine(OutputBase, projectName);
 
-            var result = await CallAIAsync(combinedMessage);
+            // ── 1. Generate initial files ──────────────────────────────────────
+            var result = await CallGroqAsync(GenerateSystemMessage(request), GenerateUserMessage(request));
 
             if (result == null || result.Files == null || result.Files.Count == 0)
             {
-                Logger.Warn("First AI attempt returned invalid or empty result — retrying.");
-
-                var retryMessage = $"{systemMessage}\nYour previous response was invalid JSON. Return ONLY the JSON object with no text before or after it.\n\n{userMessage}";
-                result = await CallAIAsync(retryMessage);
-
+                Logger.Warn("First AI attempt returned no files — retrying.");
+                result = await CallGroqAsync(GenerateSystemMessage(request), GenerateUserMessage(request));
                 if (result == null || result.Files == null || result.Files.Count == 0)
-                    throw new Exception("AI response was invalid JSON after retry. Check RAW AI RESPONSE in logs.");
+                    throw new Exception("AI returned no files after retry.");
             }
 
-            var projectName = string.IsNullOrWhiteSpace(request.Name) ? "UnnamedProject" : request.Name;
+            WriteFiles(projectDir, result.Files);
 
-            foreach (var file in result.Files)
+            // ── 2. Validate: npm install + npm run build ───────────────────────
+            for (var attempt = 1; attempt <= MaxFixRetries; attempt++)
             {
-                var normalizedPath = file.Path.Replace("/", Path.DirectorySeparatorChar.ToString())
-                                              .Replace("\\", Path.DirectorySeparatorChar.ToString());
-                var fullPath = Path.Combine(OutputPath, projectName, normalizedPath);
+                var (success, output) = await RunNpmBuildAsync(projectDir);
+                if (success)
+                {
+                    Logger.Info($"npm build passed on attempt {attempt}.");
+                    break;
+                }
+
+                Logger.Warn($"npm build failed (attempt {attempt}/{MaxFixRetries}):\n{output}");
+
+                if (attempt == MaxFixRetries)
+                {
+                    Logger.Error("Max fix retries reached. Returning last generated files.");
+                    break;
+                }
+
+                // ── 3. Ask AI to fix the errors ────────────────────────────────
+                var fixResult = await CallGroqAsync(
+                    GenerateFixSystemMessage(),
+                    GenerateFixUserMessage(result.Files, output));
+
+                if (fixResult?.Files != null && fixResult.Files.Count > 0)
+                {
+                    // Overwrite only the files the AI returned
+                    WriteFiles(projectDir, fixResult.Files);
+                    foreach (var f in fixResult.Files)
+                    {
+                        var existing = result.Files.FirstOrDefault(x => x.Path == f.Path);
+                        if (existing != null) existing.Content = f.Content;
+                        else result.Files.Add(f);
+                    }
+                }
+            }
+
+            result.OutputPath          = projectDir;
+            result.GeneratedProjectId  = request.Id;
+
+            Logger.Info($"Generation complete. {result.Files.Count} files in {projectDir}");
+            return result;
+        }
+
+        // ── File writing ────────────────────────────────────────────────────────
+        private void WriteFiles(string projectDir, List<GeneratedFile> files)
+        {
+            foreach (var file in files)
+            {
+                var normalizedPath = file.Path
+                    .Replace("/",  Path.DirectorySeparatorChar.ToString())
+                    .Replace("\\", Path.DirectorySeparatorChar.ToString());
+                var fullPath = Path.Combine(projectDir, normalizedPath);
                 var dir = Path.GetDirectoryName(fullPath);
 
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
@@ -60,228 +111,279 @@ namespace ABPGroup.CodeGen
                 File.WriteAllText(fullPath, file.Content, Encoding.UTF8);
                 Logger.Debug($"Written: {fullPath}");
             }
-
-            result.OutputPath = Path.Combine(OutputPath, projectName);
-            result.GeneratedProjectId = request.Id;
-
-            Logger.Info($"Generation complete. {result.Files.Count} files written to {result.OutputPath}");
-
-            return result;
         }
 
-        private async Task<CodeGenResult> CallAIAsync(string message)
+        // ── npm install + npm run build ─────────────────────────────────────────
+        private async Task<(bool success, string output)> RunNpmBuildAsync(string projectDir)
         {
-            var payload = new
+            if (!Directory.Exists(projectDir))
+                return (false, $"Project directory does not exist: {projectDir}");
+
+            var sb = new StringBuilder();
+
+            // npm install
+            var (installCode, installOut) = await RunProcessAsync("npm", "install --prefer-offline", projectDir, timeoutSeconds: 120);
+            sb.AppendLine("=== npm install ===");
+            sb.AppendLine(installOut);
+
+            if (installCode != 0)
+                return (false, sb.ToString());
+
+            // npm run build
+            var (buildCode, buildOut) = await RunProcessAsync("npm", "run build", projectDir, timeoutSeconds: 180);
+            sb.AppendLine("=== npm run build ===");
+            sb.AppendLine(buildOut);
+
+            return (buildCode == 0, sb.ToString());
+        }
+
+        private static async Task<(int exitCode, string output)> RunProcessAsync(
+            string command, string args, string workingDir, int timeoutSeconds = 120)
+        {
+            var psi = new ProcessStartInfo(command, args)
             {
-                model = Model,
-                message = message
+                WorkingDirectory       = workingDir,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+                CreateNoWindow         = true
             };
 
-            var json = JsonSerializer.Serialize(payload);
+            using var process = new Process { StartInfo = psi };
+            var output = new StringBuilder();
+
+            process.OutputDataReceived += (_, e) => { if (e.Data != null) output.AppendLine(e.Data); };
+            process.ErrorDataReceived  += (_, e) => { if (e.Data != null) output.AppendLine(e.Data); };
+
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            var timeout = TimeSpan.FromSeconds(timeoutSeconds);
+            var finished = await Task.Run(() => process.WaitForExit((int)timeout.TotalMilliseconds));
+
+            if (!finished)
+            {
+                process.Kill(entireProcessTree: true);
+                return (-1, $"Process timed out after {timeoutSeconds}s.\n{output}");
+            }
+
+            return (process.ExitCode, output.ToString());
+        }
+
+        // ── Groq API call ───────────────────────────────────────────────────────
+        private async Task<CodeGenResult> CallGroqAsync(string systemMessage, string userMessage)
+        {
+            var apiKey = _configuration["Groq:ApiKey"];
+            var model  = _configuration["Groq:Model"] ?? "llama-3.3-70b-versatile";
+
+            if (string.IsNullOrWhiteSpace(apiKey))
+                throw new Exception("Groq:ApiKey is not configured.");
+
+            var payload = new
+            {
+                model,
+                messages = new[]
+                {
+                    new { role = "system", content = systemMessage },
+                    new { role = "user",   content = userMessage   }
+                },
+                max_tokens  = 8192,
+                temperature = 0.2
+            };
+
+            var json    = JsonSerializer.Serialize(payload);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync(Endpoint, content);
+            var httpClient = _httpClientFactory.CreateClient();
+            httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", apiKey);
+            httpClient.Timeout = TimeSpan.FromMinutes(3);
+
+            var response       = await httpClient.PostAsync(GroqEndpoint, content);
             var responseString = await response.Content.ReadAsStringAsync();
 
-            Logger.Warn($"RAW AI RESPONSE [{(int)response.StatusCode}]: {responseString}");
+            Logger.Warn($"RAW GROQ [{(int)response.StatusCode}]: {responseString.Substring(0, Math.Min(300, responseString.Length))}");
 
             if (!response.IsSuccessStatusCode)
             {
-                Logger.Error($"AI endpoint returned {(int)response.StatusCode}: {responseString}");
+                Logger.Error($"Groq API error {(int)response.StatusCode}: {responseString}");
                 return null;
             }
 
-            return ParseAIResponse(responseString);
+            return ParseGroqResponse(responseString);
         }
 
-        private CodeGenResult ParseAIResponse(string responseString)
+        // ── Response parsing ────────────────────────────────────────────────────
+        private CodeGenResult ParseGroqResponse(string responseString)
         {
-            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-
-            // Attempt 1 — response is already a raw CodeGenResult
-            try
-            {
-                var direct = JsonSerializer.Deserialize<CodeGenResult>(responseString, opts);
-                if (direct?.Files != null && direct.Files.Count > 0)
-                {
-                    Logger.Info("Parsed AI response directly.");
-                    return direct;
-                }
-            }
-            catch { }
-
-            // Attempt 2 — response is wrapped in an envelope property
             try
             {
                 using var doc = JsonDocument.Parse(responseString);
-                var root = doc.RootElement;
+                var text = doc.RootElement
+                    .GetProperty("choices")[0]
+                    .GetProperty("message")
+                    .GetProperty("content")
+                    .GetString();
 
-                string inner = null;
-
-                if (root.TryGetProperty("response", out var r)) inner = r.GetString();
-                else if (root.TryGetProperty("content", out var c)) inner = c.GetString();
-                else if (root.TryGetProperty("result", out var res)) inner = res.GetString();
-                else if (root.TryGetProperty("message", out var m)) inner = m.GetString();
-                else if (root.TryGetProperty("text", out var t)) inner = t.GetString();
-                else if (root.TryGetProperty("output", out var o)) inner = o.GetString();
-
-                if (!string.IsNullOrWhiteSpace(inner))
+                if (string.IsNullOrWhiteSpace(text))
                 {
-                    inner = StripMarkdownFences(inner);
-                    Logger.Info($"Unwrapped AI envelope. Inner length: {inner.Length}");
-
-                    var unwrapped = JsonSerializer.Deserialize<CodeGenResult>(inner, opts);
-                    if (unwrapped?.Files != null && unwrapped.Files.Count > 0)
-                        return unwrapped;
+                    Logger.Error("Groq content is empty.");
+                    return null;
                 }
+
+                Logger.Info($"Groq content length: {text.Length} chars");
+                return ParseDelimitedResponse(text);
             }
             catch (Exception ex)
             {
-                Logger.Error($"Failed to unwrap AI envelope: {ex.Message}");
+                Logger.Error($"Failed to parse Groq response: {ex.Message}");
+                return null;
             }
-
-            // Attempt 3 — the entire response string is the inner JSON (no envelope)
-            // but with markdown fences around it
-            try
-            {
-                var stripped = StripMarkdownFences(responseString);
-                var fallback = JsonSerializer.Deserialize<CodeGenResult>(stripped, opts);
-                if (fallback?.Files != null && fallback.Files.Count > 0)
-                {
-                    Logger.Info("Parsed AI response after stripping markdown fences.");
-                    return fallback;
-                }
-            }
-            catch { }
-
-            Logger.Error("All parse attempts failed. Check RAW AI RESPONSE log above.");
-            return null;
         }
 
-        private static string StripMarkdownFences(string text)
+        private CodeGenResult ParseDelimitedResponse(string text)
         {
-            if (string.IsNullOrWhiteSpace(text)) return text;
+            var result = new CodeGenResult
+            {
+                Files      = new List<GeneratedFile>(),
+                ModuleList = new List<string>()
+            };
 
-            text = text.Trim();
+            var archStart = text.IndexOf("===ARCHITECTURE===", StringComparison.Ordinal);
+            var archEnd   = text.IndexOf("===END ARCHITECTURE===", StringComparison.Ordinal);
+            if (archStart >= 0 && archEnd > archStart)
+                result.ArchitectureSummary = text.Substring(archStart + 18, archEnd - archStart - 18).Trim();
 
-            if (text.StartsWith("```json", StringComparison.OrdinalIgnoreCase))
-                text = text.Substring(7);
-            else if (text.StartsWith("```"))
-                text = text.Substring(3);
+            var modStart = text.IndexOf("===MODULES===", StringComparison.Ordinal);
+            var modEnd   = text.IndexOf("===END MODULES===", StringComparison.Ordinal);
+            if (modStart >= 0 && modEnd > modStart)
+                result.ModuleList = text.Substring(modStart + 13, modEnd - modStart - 13)
+                    .Trim().Split(',').Select(m => m.Trim()).Where(m => m.Length > 0).ToList();
 
-            if (text.EndsWith("```"))
-                text = text.Substring(0, text.Length - 3);
+            var searchFrom = 0;
+            while (true)
+            {
+                var fileStart = text.IndexOf("===FILE===", searchFrom, StringComparison.Ordinal);
+                if (fileStart < 0) break;
 
-            return text.Trim();
+                var contentMarker = text.IndexOf("===CONTENT===", fileStart, StringComparison.Ordinal);
+                if (contentMarker < 0) break;
+
+                var fileEnd  = text.IndexOf("===END FILE===", contentMarker, StringComparison.Ordinal);
+                var path     = text.Substring(fileStart + 10, contentMarker - fileStart - 10).Trim();
+                var filecontent = fileEnd >= 0
+                    ? text.Substring(contentMarker + 13, fileEnd - contentMarker - 13).Trim()
+                    : text.Substring(contentMarker + 13).Trim();
+
+                if (!string.IsNullOrWhiteSpace(path))
+                    result.Files.Add(new GeneratedFile { Path = path, Content = filecontent });
+
+                searchFrom = fileEnd >= 0 ? fileEnd + 14 : text.Length;
+            }
+
+            Logger.Info($"Parsed {result.Files.Count} files.");
+            return result.Files.Count > 0 ? result : null;
         }
 
+        // ── Prompt builders ─────────────────────────────────────────────────────
         private string GenerateSystemMessage(CreateUpdateProjectDto input)
         {
             var framework = FormatFramework(input.Framework);
-            var language = FormatLanguage(input.Language);
-            var database = FormatDatabase(input.DatabaseOption);
-            var auth = input.IncludeAuth ? "next-auth v5 with credentials + JWT" : "none";
+            var language  = FormatLanguage(input.Language);
+            var database  = FormatDatabase(input.DatabaseOption);
+            var auth      = input.IncludeAuth ? "next-auth v5 with credentials + JWT" : "none";
 
-            return $@"You are a senior full-stack developer. Generate a COMPLETE, PRODUCTION-READY {framework} full-stack application based on the user's description. Every file must be fully implemented and ready to run with zero modifications.
+            return $@"You are a senior full-stack developer. Generate a production-ready {framework} application.
 
-App configuration:
-- Framework:  {framework}
-- Language:   {language}
-- Database:   {database}
-- Auth:       {auth}
+Stack: {framework} | {language} | {database} | Auth: {auth}
 
-Next.js 16 rules — follow exactly:
-- Use proxy.ts instead of middleware.ts (Next.js 16 renamed it)
-- Export a function named 'proxy' not 'middleware'
-- Use 'use cache' directive for cached data fetching
-- Turbopack is default — do NOT add webpack config in next.config.ts
-- Use React 19 patterns — useActionState instead of useFormState
-- next.config.ts (TypeScript) not next.config.js
+Rules:
+- Every file must be complete and runnable — no TODOs, no placeholders
+- Use React 19 (useActionState not useFormState), next.config.ts (not .js)
+- Turbopack is default — no webpack config
+- The app MUST compile with zero errors when running: npm install && npm run build
 
-You MUST generate ALL of these files — no skipping, no omitting:
-- package.json (all deps + scripts: dev, build, start, lint)
-- tsconfig.json (strict: true)
-- next.config.ts
-- .env.example (every env var used anywhere in the code)
-- README.md (setup, env vars, how to run, how to deploy)
-- prisma/schema.prisma (if PostgreSQL)
-- src/app/layout.tsx
-- src/app/page.tsx
-- src/app/globals.css
-- src/app/loading.tsx
-- src/app/error.tsx
-- src/app/not-found.tsx
-- src/app/api/[every route needed]/route.ts
-- src/app/api/auth/[...nextauth]/route.ts (if auth)
-- src/app/auth/login/page.tsx (if auth)
-- src/app/auth/register/page.tsx (if auth)
-- src/proxy.ts (NOT middleware.ts — if auth)
-- src/components/ui/Button.tsx
-- src/components/ui/Input.tsx
-- src/components/ui/Card.tsx
-- src/components/layout/Header.tsx
-- src/components/layout/Footer.tsx
-- src/lib/db.ts
-- src/lib/auth.ts (if auth)
-- src/lib/utils.ts
-- src/lib/validations.ts
-- src/types/index.ts
+Respond in EXACTLY this format. No JSON. No markdown. No extra text:
 
-INVARIANTS — violating any means the output is wrong:
-1. Zero placeholders — no TODO, no 'add your logic here', no empty bodies
-2. Every import resolves to a file you generated or an npm package in package.json
-3. Every API route has complete request handling, validation, db query, and response
-4. All database operations use real Prisma queries or Mongoose methods
-5. package.json lists every npm package imported anywhere
-6. .env.example lists every process.env variable used anywhere
-7. The app must be built around the user's prompt — not a generic template
+===ARCHITECTURE===
+One or two sentences describing what was built.
+===END ARCHITECTURE===
 
-Return ONLY this JSON — no markdown, no explanation, no code fences, no text before or after:
-{{
-  ""files"": [
-    {{ ""path"": ""path/from/project/root"", ""content"": ""complete file content"" }}
-  ],
-  ""architectureSummary"": ""2-3 sentences describing what was built"",
-  ""moduleList"": [""every"", ""top-level"", ""feature"", ""or"", ""module""]
-}}";
+===MODULES===
+comma,separated,module,names
+===END MODULES===
+
+===FILE===
+package.json
+===CONTENT===
+{{full file content here}}
+===END FILE===
+
+===FILE===
+tsconfig.json
+===CONTENT===
+{{full file content here}}
+===END FILE===
+
+Generate as many files as needed. Every file must have complete, working content.";
         }
 
         private string GenerateUserMessage(CreateUpdateProjectDto input)
         {
             var prompt = input.Prompt ?? string.Empty;
-            var name = string.IsNullOrWhiteSpace(input.Name) ? "Unnamed Project" : input.Name;
+            var name   = string.IsNullOrWhiteSpace(input.Name) ? "Unnamed Project" : input.Name;
             return $"Build this app: {prompt}\nProject name: {name}";
         }
 
-        private static string FormatFramework(Framework framework)
+        private static string GenerateFixSystemMessage() =>
+            @"You are a senior full-stack developer fixing build errors in a generated project.
+You will be given the current files and the npm build error output.
+Return ONLY the files that need to be fixed in the same delimiter format:
+
+===FILE===
+path/to/file
+===CONTENT===
+{complete fixed file content}
+===END FILE===
+
+Fix ALL errors. Return complete file contents, not diffs. No explanations.";
+
+        private static string GenerateFixUserMessage(List<GeneratedFile> files, string buildOutput)
         {
-            return framework switch
+            var sb = new StringBuilder();
+            sb.AppendLine("Build failed with these errors:");
+            sb.AppendLine(buildOutput.Length > 3000 ? buildOutput.Substring(0, 3000) : buildOutput);
+            sb.AppendLine("\nCurrent files:");
+            foreach (var f in files)
             {
-                Framework.ReactVite => "React (Vite)",
-                Framework.Angular => "Angular",
-                Framework.Vue => "Vue",
-                Framework.DotNetBlazor => ".NET Blazor",
-                _ => "Next.js 16.1 (App Router, Turbopack enabled by default)"
-            };
+                sb.AppendLine($"\n--- {f.Path} ---");
+                var snippet = f.Content.Length > 500 ? f.Content.Substring(0, 500) + "..." : f.Content;
+                sb.AppendLine(snippet);
+            }
+            return sb.ToString();
         }
 
-        private static string FormatLanguage(ProgrammingLanguage language)
+        private static string FormatFramework(Framework framework) => framework switch
         {
-            return language switch
-            {
-                ProgrammingLanguage.JavaScript => "JavaScript",
-                ProgrammingLanguage.CSharp => "C#",
-                _ => "TypeScript (strict mode)"
-            };
-        }
+            Framework.ReactVite    => "React (Vite)",
+            Framework.Angular      => "Angular",
+            Framework.Vue          => "Vue",
+            Framework.DotNetBlazor => ".NET Blazor",
+            _                      => "Next.js 16.1 (App Router)"
+        };
 
-        private static string FormatDatabase(DatabaseOption option)
+        private static string FormatLanguage(ProgrammingLanguage language) => language switch
         {
-            return option switch
-            {
-                DatabaseOption.MongoCloud => "MongoDB via Mongoose",
-                _ => "PostgreSQL via Prisma"
-            };
-        }
+            ProgrammingLanguage.JavaScript => "JavaScript",
+            ProgrammingLanguage.CSharp     => "C#",
+            _                              => "TypeScript (strict)"
+        };
+
+        private static string FormatDatabase(DatabaseOption option) => option switch
+        {
+            DatabaseOption.MongoCloud => "MongoDB via Mongoose",
+            _                         => "PostgreSQL via Prisma"
+        };
     }
 }
