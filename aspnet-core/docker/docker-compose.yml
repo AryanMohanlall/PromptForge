@@ -6,7 +6,7 @@ services:
       context: ..
       dockerfile: src/ABPGroup.Web.Host/Dockerfile
     env_file:
-      - ../../.env
+      - .env
     environment:
       ASPNETCORE_ENVIRONMENT: "Staging"
       ConnectionStrings__Default: "${ConnectionStrings__Default}"
