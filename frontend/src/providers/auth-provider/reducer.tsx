@@ -14,6 +14,7 @@ const handledActions = new Set<AuthStateEnums>([
   AuthStateEnums.LOAD_LOCAL_STATE,
   AuthStateEnums.GITHUB_CONNECT,
   AuthStateEnums.PROJECT_CREATED,
+  AuthStateEnums.AUTH_INITIALIZED,
 ]);
 
 export const AuthReducer = (

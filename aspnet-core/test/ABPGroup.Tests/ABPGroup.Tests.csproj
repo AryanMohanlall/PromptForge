@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ABPGroup.Application\ABPGroup.Application.csproj" />
     <ProjectReference Include="..\..\src\ABPGroup.EntityFrameworkCore\ABPGroup.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\src\ABPGroup.Web.Core\ABPGroup.Web.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.0" />
@@ -27,6 +28,8 @@
     <PackageReference Include="Abp.TestBase" Version="10.2.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.5" />
     <PackageReference Include="Castle.Core" Version="5.2.1" />
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.5" />
   </ItemGroup>
   <ItemGroup>
     <None Update="appsettings.json">

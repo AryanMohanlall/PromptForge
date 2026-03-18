@@ -33,9 +33,9 @@ namespace ABPGroup.Controllers
         private readonly TokenAuthConfiguration _configuration;
         private readonly IRepository<User, long> _userRepository;
         private readonly IUnitOfWorkManager _unitOfWorkManager;
-        private readonly UserManager _userManager;
         private readonly IUserClaimsPrincipalFactory<User> _userClaimsPrincipalFactory;
-        private readonly GitHubApiService _gitHubApiService;
+        private readonly IGitHubApiService _gitHubApiService;
+        private readonly IGitHubUserService _gitHubUserService;
         private readonly IConfiguration _appConfiguration;
 
         public TokenAuthController(
@@ -45,9 +45,9 @@ namespace ABPGroup.Controllers
             TokenAuthConfiguration configuration,
             IRepository<User, long> userRepository,
             IUnitOfWorkManager unitOfWorkManager,
-            UserManager userManager,
             IUserClaimsPrincipalFactory<User> userClaimsPrincipalFactory,
-            GitHubApiService gitHubApiService,
+            IGitHubApiService gitHubApiService,
+            IGitHubUserService gitHubUserService,
             IConfiguration appConfiguration)
         {
             _logInManager = logInManager;
@@ -56,9 +56,9 @@ namespace ABPGroup.Controllers
             _configuration = configuration;
             _userRepository = userRepository;
             _unitOfWorkManager = unitOfWorkManager;
-            _userManager = userManager;
             _userClaimsPrincipalFactory = userClaimsPrincipalFactory;
             _gitHubApiService = gitHubApiService;
+            _gitHubUserService = gitHubUserService;
             _appConfiguration = appConfiguration;
         }
 
@@ -111,22 +111,22 @@ namespace ABPGroup.Controllers
             var scope = Uri.EscapeDataString("user:email repo");
 
             return Redirect(
-                $"https://github.com/login/oauth/authorize" +
-                $"?client_id={clientId}" +
-                $"&redirect_uri={redirectUri}" +
-                $"&scope={scope}" +
-                $"&state={state}");
+                "https://github.com/login/oauth/authorize" +
+                "?client_id=" + clientId +
+                "&redirect_uri=" + redirectUri +
+                "&scope=" + scope +
+                "&state=" + state);
         }
 
         [HttpGet]
         public async Task<IActionResult> GitHubCallback([FromQuery] string code, [FromQuery] string state)
         {
-            var clientRoot = _appConfiguration["App:ClientRootAddress"]?.TrimEnd('/') ?? "";
+            var clientRoot = (_appConfiguration["App:ClientRootAddress"] ?? "").TrimEnd('/');
 
             var savedState = Request.Cookies["github_oauth_state"];
             if (string.IsNullOrEmpty(savedState) || savedState != state)
             {
-                return Redirect($"{clientRoot}/auth?error=invalid_state");
+                return Redirect(clientRoot + "/auth?error=invalid_state");
             }
 
             Response.Cookies.Delete("github_oauth_state");
@@ -139,24 +139,24 @@ namespace ABPGroup.Controllers
 
             if (string.IsNullOrEmpty(githubAccessToken))
             {
-                return Redirect($"{clientRoot}/auth?error=token_exchange_failed");
+                return Redirect(clientRoot + "/auth?error=token_exchange_failed");
             }
 
             var githubUser = await _gitHubApiService.GetUserInfoAsync(githubAccessToken);
             if (githubUser == null)
             {
-                return Redirect($"{clientRoot}/auth?error=user_info_failed");
+                return Redirect(clientRoot + "/auth?error=user_info_failed");
             }
 
             User user;
             try
             {
-                user = await GetOrCreateGitHubUserAsync(githubUser, githubAccessToken);
+                user = await _gitHubUserService.GetOrCreateAsync(githubUser, githubAccessToken);
             }
             catch (Exception ex)
             {
                 Logger.Error("GitHub user creation failed", ex);
-                return Redirect($"{clientRoot}/auth?error=user_creation_failed");
+                return Redirect(clientRoot + "/auth?error=user_creation_failed");
             }
 
             var principal = await _userClaimsPrincipalFactory.CreateAsync(user);
@@ -164,7 +164,7 @@ namespace ABPGroup.Controllers
             var accessToken = CreateAccessToken(CreateJwtClaims(identity));
             var expireInSeconds = (int)_configuration.Expiration.TotalSeconds;
 
-            Response.Cookies.Append("github_auth_result", $"{accessToken}|{user.Id}|{expireInSeconds}", new CookieOptions
+            Response.Cookies.Append("github_auth_result", accessToken + "|" + user.Id + "|" + expireInSeconds, new CookieOptions
             {
                 HttpOnly = false,
                 Secure = HttpContext.Request.IsHttps,

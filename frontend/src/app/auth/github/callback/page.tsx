@@ -22,7 +22,7 @@ function GitHubCallback() {
     const raw = getCookie("github_auth_result");
 
     if (!raw) {
-      router.replace("/auth?error=missing_token");
+      router.replace("/login?error=missing_token");
       return;
     }
 
@@ -31,7 +31,7 @@ function GitHubCallback() {
     const [accessToken, userId, expireInSeconds] = raw.split("|");
 
     if (!accessToken || !userId) {
-      router.replace("/auth?error=missing_token");
+      router.replace("/login?error=missing_token");
       return;
     }
 

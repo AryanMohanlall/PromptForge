@@ -17,7 +17,7 @@ export const withAuth = <P extends object>(
 ) => {
   const {
     requiredRoles,
-    redirectTo = "/auth",
+    redirectTo = "/login",
     unauthorizedRedirectTo = "/dashboard",
   } = options;
 

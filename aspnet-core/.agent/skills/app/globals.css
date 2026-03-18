@@ -1,0 +1,105 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap");
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes orb1 {
+  0% {
+    transform: translate(0, 0);
+  }
+  33% {
+    transform: translate(40px, -30px);
+  }
+  66% {
+    transform: translate(-20px, 20px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes orb2 {
+  0% {
+    transform: translate(0, 0);
+  }
+  33% {
+    transform: translate(-30px, 40px);
+  }
+  66% {
+    transform: translate(30px, -20px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* Override autofill for Ant Design Inputs — light mode (default) */
+.ant-input:-webkit-autofill,
+.ant-input:-webkit-autofill:hover,
+.ant-input:-webkit-autofill:focus,
+.ant-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #ffffff inset;
+  -webkit-text-fill-color: rgba(0, 0, 0, 0.88);
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Override autofill for Ant Design Inputs — dark mode */
+.dark-mode .ant-input:-webkit-autofill,
+.dark-mode .ant-input:-webkit-autofill:hover,
+.dark-mode .ant-input:-webkit-autofill:focus,
+.dark-mode .ant-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #141414 inset;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.85);
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  html {
+    color-scheme: dark;
+  }
+}
