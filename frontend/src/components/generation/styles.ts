@@ -545,6 +545,12 @@ export const useStyles = createStyles(({ token, css }) => ({
     &:active {
       transform: scale(0.98);
     }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+      filter: none;
+    }
   `,
   secondaryButton: css`
     display: inline-flex;
@@ -575,6 +581,12 @@ export const useStyles = createStyles(({ token, css }) => ({
   checkboxLabel: css`
     font-size: ${token.fontSizeSM}px;
     color: ${token.colorTextSecondary};
+  `,
+  errorText: css`
+    margin: 0;
+    color: ${token.colorError};
+    font-size: ${token.fontSizeSM}px;
+    font-weight: ${token.fontWeightStrong};
   `,
   deployWrap: css`
     display: flex;

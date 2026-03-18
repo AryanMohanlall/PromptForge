@@ -91,6 +91,31 @@ export const useStyles = createStyles(({ token, css }) => ({
     justify-content: space-between;
     gap: ${token.marginSM}px;
   `,
+  footerActions: css`
+    display: flex;
+    align-items: center;
+    gap: ${token.marginSM}px;
+  `,
+  deleteButton: css`
+    padding: ${token.paddingSM}px ${token.paddingLG}px;
+    border-radius: ${token.borderRadiusLG * 1.5}px;
+    border: 1px solid ${token.colorErrorBorder};
+    background: ${token.colorErrorBg};
+    color: ${token.colorError};
+    font-size: ${token.fontSizeSM}px;
+    font-weight: ${token.fontWeightStrong};
+    cursor: pointer;
+    transition: filter 0.2s ease;
+
+    &:hover:not(:disabled) {
+      filter: brightness(0.98);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+  `,
   viewButton: css`
     padding: ${token.paddingSM}px ${token.paddingLG}px;
     border-radius: ${token.borderRadiusLG * 1.5}px;

@@ -3,6 +3,7 @@ using Abp.Domain.Repositories;
 using Abp.Extensions;
 using Abp.Linq.Extensions;
 using ABPGroup.MultiTenancy;
+using ABPGroup.CodeGen;
 using ABPGroup.Projects.Dto;
 using System;
 using System.Linq;
@@ -17,17 +18,20 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
     private readonly IRepository<Prompt, long> _promptRepository;
     private readonly IRepository<Tenant, int> _tenantRepository;
     private readonly TenantManager _tenantManager;
+    private readonly ICodeGenAppService _codeGenAppService;
 
     public ProjectAppService(
         IRepository<Project, long> repository,
         IRepository<Prompt, long> promptRepository,
         IRepository<Tenant, int> tenantRepository,
-        TenantManager tenantManager)
+        TenantManager tenantManager,
+        ICodeGenAppService codeGenAppService)
         : base(repository)
     {
         _promptRepository = promptRepository;
         _tenantRepository = tenantRepository;
         _tenantManager = tenantManager;
+        _codeGenAppService = codeGenAppService;
         GetPermissionName = null;
         GetAllPermissionName = null;
         CreatePermissionName = null;
@@ -37,6 +41,23 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
 
     public override async Task<ProjectDto> CreateAsync(CreateUpdateProjectDto input)
     {
+        Logger.Info($"Creating project with name: {input.Name}");
+        if (input.PromptId.HasValue && input.PromptId.Value <= 0)
+        {
+            input.PromptId = null;
+        }
+
+        if (input.WorkspaceId.HasValue && input.WorkspaceId.Value <= 0)
+        {
+            input.WorkspaceId = null;
+        }
+
+        if (input.PromptVersion <= 0)
+        {
+            input.PromptVersion = 1;
+        }
+
+        Logger.Info($"Resolved WorkspaceId: {input.WorkspaceId}, PromptId: {input.PromptId}, PromptVersion: {input.PromptVersion}");
         input.WorkspaceId = await ResolveWorkspaceIdAsync(input);
 
         var entity = MapToEntity(input);
@@ -47,6 +68,7 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
             entity.Status = ProjectStatus.PromptSubmitted;
         }
 
+        Logger.Info($"Inserting project entity into database. Name: {entity.Name}, WorkspaceId: {entity.WorkspaceId}, PromptVersion: {input.PromptVersion}");
         await Repository.InsertAsync(entity);
         await CurrentUnitOfWork.SaveChangesAsync();
 
@@ -54,6 +76,17 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
         entity.PromptId = prompt.Id;
         await Repository.UpdateAsync(entity);
         await CurrentUnitOfWork.SaveChangesAsync();
+
+        input.Id = entity.Id;
+        input.WorkspaceId = entity.WorkspaceId;
+        input.PromptId = entity.PromptId;
+        input.PromptSubmittedAt = entity.PromptSubmittedAt;
+        input.Status = entity.Status;
+        input.PromptVersion = prompt.Version;
+
+        Logger.Info($"Generating project code for: {input.Name} in codegen service.");
+
+        await _codeGenAppService.GenerateProjectAsync(input);
 
         return MapToEntityDto(entity);
     }

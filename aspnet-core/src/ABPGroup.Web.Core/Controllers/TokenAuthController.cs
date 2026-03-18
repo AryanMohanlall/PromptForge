@@ -106,8 +106,8 @@ namespace ABPGroup.Controllers
                 MaxAge = TimeSpan.FromMinutes(10)
             });
 
-            var clientId = _appConfiguration["GitHub:ClientId"];
-            var redirectUri = Uri.EscapeDataString(_appConfiguration["GitHub:RedirectUri"]);
+            var clientId = GetGitHubOAuthConfig("ClientId");
+            var redirectUri = Uri.EscapeDataString(GetGitHubOAuthConfig("RedirectUri"));
             var scope = Uri.EscapeDataString("user:email repo");
 
             return Redirect(
@@ -133,9 +133,9 @@ namespace ABPGroup.Controllers
 
             var githubAccessToken = await _gitHubApiService.ExchangeCodeForAccessTokenAsync(
                 code,
-                _appConfiguration["GitHub:ClientId"],
-                _appConfiguration["GitHub:ClientSecret"],
-                _appConfiguration["GitHub:RedirectUri"]);
+                GetGitHubOAuthConfig("ClientId"),
+                GetGitHubOAuthConfig("ClientSecret"),
+                GetGitHubOAuthConfig("RedirectUri"));
 
             if (string.IsNullOrEmpty(githubAccessToken))
             {
@@ -172,7 +172,12 @@ namespace ABPGroup.Controllers
                 MaxAge = TimeSpan.FromMinutes(2)
             });
 
-            return Redirect(clientRoot + "/auth/github/callback");
+            return Redirect($"{clientRoot}/auth/github/callback");
+        }
+
+        private string GetGitHubOAuthConfig(string key)
+        {
+            return _appConfiguration[$"GitHubOAuth:{key}"] ?? _appConfiguration[$"GitHub:{key}"];
         }
 
         private string GetTenancyNameOrNull()
