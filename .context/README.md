@@ -24,3 +24,8 @@ a live URL.
 - The ubiquitous language in `domain-model.md` is law — use those exact terms
   everywhere: in class names, variable names, API routes, UI labels, and comments.
 - The project namespace is `PromptForge` — never use `ABPGroup`.
+- **When generating or modifying any Next.js project** (including all apps
+  produced by the CodeGen service), read and follow
+  `.agents/skills/create-nextjs-app/SKILL.md` before writing a single file.
+  Every generated Next.js app ships with a copy of this skill at
+  `.agents/skills/create-nextjs-app/SKILL.md` — check it first.

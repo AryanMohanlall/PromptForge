@@ -29,6 +29,9 @@ namespace ABPGroup.CodeGen
         private readonly string _localCopyPath;
         private readonly bool   _skipBuild;
 
+        // Path to the create-nextjs-app SKILL.md on disk (optional — uses embedded stub if absent)
+        private readonly string _skillFilePath;
+
         public CodeGenAppService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
         {
             _httpClientFactory = httpClientFactory;
@@ -36,6 +39,7 @@ namespace ABPGroup.CodeGen
             _outputBase        = _configuration["CodeGen:OutputPath"] ?? DefaultOutput;
             _localCopyPath     = _configuration["CodeGen:LocalCopyPath"];
             _skipBuild         = string.Equals(_configuration["CodeGen:SkipBuild"], "true", StringComparison.OrdinalIgnoreCase);
+            _skillFilePath     = _configuration["CodeGen:SkillFilePath"] ?? string.Empty;
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -146,7 +150,7 @@ namespace ABPGroup.CodeGen
         //  BOILERPLATE SCAFFOLDING — saves ~3k tokens per generation
         // ══════════════════════════════════════════════════════════════════════
 
-        private static List<GeneratedFile> ScaffoldBoilerplate(CreateUpdateProjectDto input)
+        private List<GeneratedFile> ScaffoldBoilerplate(CreateUpdateProjectDto input)
         {
             if (input.Framework != Framework.NextJS)
                 return new List<GeneratedFile>();
@@ -160,10 +164,10 @@ namespace ABPGroup.CodeGen
                 MakePackageJson(name, auth, usePrisma, input.DatabaseOption == DatabaseOption.MongoCloud),
                 MakeTsConfig(),
                 MakeNextConfig(),
-                MakePostCssConfig(),
                 MakeRootLayout(name),
                 MakeGlobalsCss(),
                 MakeEnvExample(input.DatabaseOption),
+                MakeSkillFile(),
             };
 
             if (usePrisma)
@@ -179,17 +183,20 @@ namespace ABPGroup.CodeGen
         {
             var deps = new Dictionary<string, string>
             {
-                ["next"]      = "^15.1.0",
-                ["react"]     = "^19.0.0",
-                ["react-dom"] = "^19.0.0"
+                ["next"]                        = "^15.1.0",
+                ["react"]                       = "^19.0.0",
+                ["react-dom"]                   = "^19.0.0",
+                ["antd"]                        = "^5.0.0",
+                ["antd-style"]                  = "^3.0.0",
+                ["@ant-design/nextjs-registry"] = "^1.0.0",
+                ["axios"]                       = "^1.0.0",
+                ["js-cookie"]                   = "^3.0.5",
+                ["redux-actions"]               = "^3.0.0",
+                ["lucide-react"]                = "^0.400.0",
             };
             if (prisma) deps["@prisma/client"] = "^6.0.0";
             if (mongo)  deps["mongoose"]       = "^8.0.0";
-            if (auth)
-            {
-                deps["next-auth"] = "^5.0.0-beta.25";
-                deps["bcryptjs"]  = "^2.4.3";
-            }
+            if (auth)   deps["bcryptjs"]       = "^2.4.3";
 
             var pkg = new Dictionary<string, object>
             {
@@ -210,8 +217,8 @@ namespace ABPGroup.CodeGen
                     ["@types/node"]         = "^22.0.0",
                     ["@types/react"]        = "^19.0.0",
                     ["@types/react-dom"]    = "^19.0.0",
-                    ["@tailwindcss/postcss"] = "^4.0.0",
-                    ["tailwindcss"]         = "^4.0.0",
+                    ["@types/js-cookie"]    = "^3.0.0",
+                    ["@types/redux-actions"]= "^2.6.0",
                     ["eslint"]              = "^9.0.0",
                     ["eslint-config-next"]  = "^15.0.0"
                 }
@@ -256,16 +263,105 @@ namespace ABPGroup.CodeGen
             Content = "import type { NextConfig } from 'next';\n\nconst nextConfig: NextConfig = {};\n\nexport default nextConfig;\n"
         };
 
-        private static GeneratedFile MakePostCssConfig() => new GeneratedFile
+        // Embeds the full code-generation skill guide into every generated project.
+        // If CodeGen:SkillFilePath is configured and the file exists, uses that content.
+        // Otherwise falls back to the embedded stub so agents always have a baseline.
+        private GeneratedFile MakeSkillFile()
         {
-            Path    = "postcss.config.mjs",
-            Content = "const config = {\n  plugins: {\n    '@tailwindcss/postcss': {},\n  },\n};\n\nexport default config;\n"
-        };
+            var content = string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(_skillFilePath) && File.Exists(_skillFilePath))
+            {
+                content = File.ReadAllText(_skillFilePath, Encoding.UTF8);
+                Logger.Debug($"Skill file loaded from: {_skillFilePath}");
+            }
+            else
+            {
+                Logger.Warn("CodeGen:SkillFilePath not set or file not found — embedding built-in skill stub.");
+                content = EmbeddedSkillStub;
+            }
+
+            return new GeneratedFile
+            {
+                Path    = ".agents/skills/create-nextjs-app/SKILL.md",
+                Content = content,
+            };
+        }
+
+        // Minimal built-in skill guide — the full canonical version lives at
+        // .agents/skills/create-nextjs-app/SKILL.md in the PromptForge repository.
+        private const string EmbeddedSkillStub = @"---
+name: create-nextjs-app
+description: Canonical patterns for every Next.js app generated by PromptForge. Follow ALL rules below — do not deviate.
+---
+
+# Next.js App — Required Patterns
+
+## Stack (non-negotiable)
+- Framework : Next.js 15+ App Router + TypeScript strict
+- UI        : Ant Design (`antd`) — no Tailwind, no plain CSS for layout
+- Styling   : `antd-style` `createStyles` in co-located `styles/style.ts` per page/component
+- State     : React Context + `useReducer` + `redux-actions` (4-file provider split)
+- HTTP      : singleton `axios` instance in `src/utils/axiosInstance.ts`
+- Auth token: `js-cookie` (never localStorage)
+- Icons     : `lucide-react`
+
+## Folder structure (strict)
+```
+src/
+├── app/
+│   ├── (auth)/login/       page.tsx + styles/style.ts
+│   ├── (auth)/register/    page.tsx + styles/style.ts
+│   ├── (dashboard)/        layout.tsx (withAuth) + pages...
+│   └── layout.tsx          AntdRegistry + AppProviders
+├── components/layout/      AppShell.tsx
+├── hoc/withAuth.tsx
+├── providers/
+│   ├── index.tsx            AppProviders composer
+│   ├── auth-provider/       context / actions / reducer / index
+│   └── <entity>-provider/  context / actions / reducer / index
+├── types/index.ts
+└── utils/axiosInstance.ts
+```
+
+## Provider pattern (4 files per entity — never skip)
+1. `context.tsx`  — interfaces, initial state, createContext (state + action contexts)
+2. `actions.tsx`  — redux-actions createAction, enum keys prefixed with ENTITY name
+3. `reducer.tsx`  — handleActions, spread payload into state
+4. `index.tsx`    — Provider component + useXxxState() + useXxxAction() hooks
+
+## Axios instance rules
+- Single export: `getAxiosInstance()` — memoised, never re-created
+- Request interceptor: inject `Authorization: Bearer <token>` from cookie
+- Response interceptor: on 401 → clear cookie → redirect to /login
+- Helpers: `setAuthToken`, `removeAuthToken`, `getAuthToken`
+
+## Styling rules
+- EVERY page: `import { useStyles } from './styles/style'` using `createStyles`
+- Use design tokens: `token.paddingLG`, `token.colorBgContainer`, etc.
+- No magic numbers for spacing or colour
+
+## Auth rules
+- `withAuth` HOC wraps `(dashboard)/layout.tsx` — all child pages inherit protection
+- Tokens stored with `js-cookie` (`secure`, `sameSite: strict`)
+- User object persisted to `sessionStorage`, rehydrated on provider mount
+
+## Common mistakes to avoid
+- `axios.create()` outside axiosInstance.ts → always use `getAxiosInstance()`
+- Auto-fetch in provider `useEffect` → let the page call `fetchAll()` on mount
+- `style={{}}` for layout → use `createStyles`
+- Skipping 4-file split → always split even for simple providers
+- Not calling `fetchAll()` after create/update/delete
+- Duplicate enum values across providers → prefix every enum with ENTITY name
+";
+
 
         private static GeneratedFile MakeRootLayout(string appName) => new GeneratedFile
         {
             Path = "src/app/layout.tsx",
             Content = $@"import type {{ Metadata }} from 'next';
+import {{ AntdRegistry }} from '@ant-design/nextjs-registry';
+import {{ AppProviders }} from '@/providers';
 import './globals.css';
 
 export const metadata: Metadata = {{
@@ -276,7 +372,13 @@ export const metadata: Metadata = {{
 export default function RootLayout({{ children }}: {{ children: React.ReactNode }}) {{
   return (
     <html lang=""en"">
-      <body>{{children}}</body>
+      <body>
+        <AntdRegistry>
+          <AppProviders>
+            {{children}}
+          </AppProviders>
+        </AntdRegistry>
+      </body>
     </html>
   );
 }}
@@ -286,7 +388,7 @@ export default function RootLayout({{ children }}: {{ children: React.ReactNode 
         private static GeneratedFile MakeGlobalsCss() => new GeneratedFile
         {
             Path    = "src/app/globals.css",
-            Content = "@import 'tailwindcss';\n"
+            Content = "*, *::before, *::after { box-sizing: border-box; }\nbody { margin: 0; padding: 0; }\n"
         };
 
         private static GeneratedFile MakeEnvExample(DatabaseOption db) => new GeneratedFile
@@ -363,7 +465,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
             var stackRules = input.Framework switch
             {
-                Framework.NextJS     => "- Next.js 15 App Router, React 19, Tailwind CSS v4\n- Imports use @/ alias (mapped to ./src/*)\n- 'use client' only on components with hooks/events/browser APIs",
+                Framework.NextJS => string.Join("\n",
+                    "- Next.js 15 App Router, React 19, TypeScript strict",
+                    "- UI: antd (Ant Design) + antd-style createStyles — NO Tailwind, NO plain CSS for layout",
+                    "- State: React Context + useReducer + redux-actions, 4-file provider split (context/actions/reducer/index)",
+                    "- HTTP: singleton axios instance at src/utils/axiosInstance.ts — NEVER call axios.create() elsewhere",
+                    "- Auth tokens: js-cookie only (never localStorage). withAuth HOC protects (dashboard)/layout.tsx",
+                    "- Styles: every page/component has co-located styles/style.ts using createStyles from antd-style",
+                    "- Imports use @/ alias (mapped to ./src/*)",
+                    "- 'use client' only on components with hooks/events/browser APIs",
+                    "- Full skill guide at .agents/skills/create-nextjs-app/SKILL.md — follow it exactly"),
                 Framework.ReactVite  => "- React 19, Vite, Tailwind CSS v4, react-router-dom v7",
                 Framework.Angular    => "- Angular 19 standalone components, signals",
                 Framework.Vue        => "- Vue 3 Composition API, Vite, Tailwind CSS v4",
