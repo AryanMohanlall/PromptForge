@@ -26,16 +26,16 @@ export const fetchAllPending = createAction<ProjectStatePayload>(
   () => ({ isPending: true, isSuccess: false, isError: false })
 );
 
-export const fetchAllSuccess = createAction<
-  ProjectStatePayload,
-  { items: IProjectItem[]; totalCount: number }
->(ProjectStateEnums.PROJECT_FETCH_ALL_SUCCESS, ({ items, totalCount }) => ({
+export const fetchAllSuccess = createAction(
+  ProjectStateEnums.PROJECT_FETCH_ALL_SUCCESS,
+  ({ items, totalCount }: { items: IProjectItem[]; totalCount: number }): ProjectStatePayload => ({
   isPending: false,
   isSuccess: true,
   isError: false,
   items,
   totalCount,
-}));
+  })
+);
 
 export const fetchAllError = createAction<ProjectStatePayload>(
   ProjectStateEnums.PROJECT_FETCH_ALL_ERROR,
@@ -47,9 +47,14 @@ export const fetchOnePending = createAction<ProjectStatePayload>(
   () => ({ isPending: true, isSuccess: false, isError: false })
 );
 
-export const fetchOneSuccess = createAction<ProjectStatePayload, IProjectItem>(
+export const fetchOneSuccess = createAction(
   ProjectStateEnums.PROJECT_FETCH_ONE_SUCCESS,
-  selected => ({ isPending: false, isSuccess: true, isError: false, selected })
+  (selected: IProjectItem): ProjectStatePayload => ({
+    isPending: false,
+    isSuccess: true,
+    isError: false,
+    selected,
+  })
 );
 
 export const fetchOneError = createAction<ProjectStatePayload>(
