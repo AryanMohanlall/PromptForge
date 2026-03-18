@@ -10,6 +10,7 @@ namespace ABPGroup.Web.Host.Startup
     {
         public static void Main(string[] args)
         {
+            DotNetEnv.Env.Load("../../../.env");
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
             CreateHostBuilder(args).Build().Run();
         }

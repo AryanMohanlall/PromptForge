@@ -5,12 +5,15 @@ services:
     build:
       context: ..
       dockerfile: src/ABPGroup.Web.Host/Dockerfile
+    env_file:
+      - ../../.env
     environment:
       ASPNETCORE_ENVIRONMENT: "Staging"
       ConnectionStrings__Default: "${ConnectionStrings__Default}"
       App__ServerRootAddress: "http://localhost:44311/"
-      App__ClientRootAddress: "http://localhost:4200/"
-      App__CorsOrigins: "http://localhost:4200"
+      App__ClientRootAddress: "http://localhost:3000/"
+      App__CorsOrigins: "http://localhost:3000"
+      GitHub__RedirectUri: "http://localhost:44311/api/TokenAuth/GitHubCallback"
       TZ: "America/Toronto"
       PORT: "80"
       Kestrel__Endpoints__Http__Url: "http://+:80"

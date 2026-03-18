@@ -2,6 +2,7 @@
 using Abp.Authorization.Users;
 using Abp.Extensions;
 using Abp.MultiTenancy;
+using ABPGroup.Persons;
 using ABPGroup.Validation;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -34,6 +35,8 @@ public class RegisterInput : IValidatableObject
 
     [DisableAuditing]
     public string CaptchaResponse { get; set; }
+
+    public PersonRole Role { get; set; } = PersonRole.Admin;
 
     public int? TenantId { get; set; }
 
