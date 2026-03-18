@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace ABPGroup.Controllers
@@ -317,13 +318,14 @@ namespace ABPGroup.Controllers
                 });
             }
 
-            var projectDir = Path.Combine("/app/GeneratedApps", project.Name ?? string.Empty);
-            if (!Directory.Exists(projectDir))
+            var outputBase = _configuration["CodeGen:OutputPath"] ?? "/app/GeneratedApps";
+            var projectDir = ResolveExistingProjectDirectory(outputBase, project.Name);
+            if (string.IsNullOrWhiteSpace(projectDir))
             {
                 return NotFound(new
                 {
                     message = "Generated project files were not found on server.",
-                    details = $"Expected directory: {projectDir}"
+                    details = $"Checked under {outputBase} for project name '{project.Name}'."
                 });
             }
 
@@ -402,6 +404,48 @@ namespace ABPGroup.Controllers
             }
 
             return files;
+        }
+
+        private static string ResolveExistingProjectDirectory(string outputBase, string projectName)
+        {
+            if (string.IsNullOrWhiteSpace(outputBase) || string.IsNullOrWhiteSpace(projectName))
+            {
+                return null;
+            }
+
+            var candidates = new List<string>
+            {
+                Path.Combine(outputBase, projectName.Trim()),
+                Path.Combine(outputBase, SanitizeDirName(projectName))
+            };
+
+            foreach (var candidate in candidates)
+            {
+                if (Directory.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
+        }
+
+        private static string SanitizeDirName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return "unnamed-project";
+            }
+
+            var safe = Regex.Replace(name.Trim(), @"[^\w\-.]", "-");
+            safe = Regex.Replace(safe, @"-{2,}", "-").Trim('-');
+
+            if (safe.Length > 80)
+            {
+                safe = safe.Substring(0, 80).TrimEnd('-');
+            }
+
+            return string.IsNullOrWhiteSpace(safe) ? "unnamed-project" : safe.ToLowerInvariant();
         }
 
         private async Task<string> GetCurrentUserGitHubAccessTokenAsync()
