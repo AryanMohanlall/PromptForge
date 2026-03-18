@@ -16,7 +16,7 @@ namespace ABPGroup.Authentication.External.GitHub
         public string AvatarUrl { get; set; }
     }
 
-    public class GitHubApiService : ITransientDependency
+    public class GitHubApiService : IGitHubApiService, ITransientDependency
     {
         private readonly IHttpClientFactory _httpClientFactory;
 
