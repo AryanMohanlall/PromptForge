@@ -23,6 +23,13 @@ import {
 } from "./icons";
 import { useAuthAction, useAuthState } from "@/providers/auth-provider";
 
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:44311";
+
+const handleGitHubSignIn = () => {
+  window.location.href = `${API_BASE_URL}/api/TokenAuth/GitHubLogin`;
+};
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Page = "signin" | "signup" | "forgot";
 
@@ -177,7 +184,7 @@ function SignInPage({ onSwitch }: PageProps) {
         <p className={styles.subtitle}>Sign in to your PromptForge account</p>
       </div>
 
-      <SocialButton icon={<GitHubIcon />} label="Continue with GitHub" />
+      <SocialButton icon={<GitHubIcon />} label="Continue with GitHub" onClick={handleGitHubSignIn} />
 
       <AuthDivider />
 
@@ -351,7 +358,7 @@ function SignUpPage({ onSwitch }: PageProps) {
         <p className={styles.subtitle}>Start building with PromptForge</p>
       </div>
 
-      <SocialButton icon={<GitHubIcon />} label="Sign up with GitHub" />
+      <SocialButton icon={<GitHubIcon />} label="Sign up with GitHub" onClick={handleGitHubSignIn} />
 
       <AuthDivider />
 

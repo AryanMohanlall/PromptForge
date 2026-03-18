@@ -19,19 +19,38 @@ import {
   projectCreated,
 } from "./actions";
 
-const GITHUB_STORAGE_KEY = "promptforge:githubConnected";
-const PROJECT_STORAGE_KEY = "promptforge:hasCreatedProject";
+const AUTH_USER_KEY = "auth_user";
+const GITHUB_CONNECTED_KEY = "github_connected";
+const PROJECT_STORAGE_KEY = "project_created";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:44311";
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const instance = getAxiosInstance();
   const [state, dispatch] = useReducer(AuthReducer, INITIAL_STATE);
 
   useEffect(() => {
-    const githubConnected = window.localStorage.getItem(GITHUB_STORAGE_KEY) === "true";
-    const hasCreatedProject =
-      window.localStorage.getItem(PROJECT_STORAGE_KEY) === "true";
-    if (githubConnected || hasCreatedProject) {
-      dispatch(loadLocalState({ isGithubConnected: githubConnected, hasCreatedProject }));
+    try {
+      const stored = sessionStorage.getItem(AUTH_USER_KEY);
+      const hasCreatedProject = sessionStorage.getItem(PROJECT_STORAGE_KEY) === "true";
+
+      if (stored) {
+        const user: IUser = JSON.parse(stored);
+        if (user?.accessToken && user?.userId) {
+          setAuthToken(user.accessToken);
+          dispatch(loginSuccess(user));
+          // OAuth callback stores auth_user in sessionStorage; treat that as GitHub-connected.
+          sessionStorage.setItem(GITHUB_CONNECTED_KEY, "true");
+          dispatch(loadLocalState({ isGithubConnected: true, hasCreatedProject }));
+          return;
+        }
+      }
+
+      const isGithubConnected = sessionStorage.getItem(GITHUB_CONNECTED_KEY) === "true";
+      if (isGithubConnected || hasCreatedProject) {
+        dispatch(loadLocalState({ isGithubConnected, hasCreatedProject }));
+      }
+    } catch {
+      // ignore parse errors
     }
   }, []);
 
@@ -84,8 +103,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     dispatch(logoutPending());
     try {
       removeAuthToken();
-      window.localStorage.removeItem(GITHUB_STORAGE_KEY);
-      window.localStorage.removeItem(PROJECT_STORAGE_KEY);
+      sessionStorage.removeItem(AUTH_USER_KEY);
+      sessionStorage.removeItem(GITHUB_CONNECTED_KEY);
+      sessionStorage.removeItem(PROJECT_STORAGE_KEY);
       dispatch(logoutSuccess());
     } catch {
       dispatch(logoutError());
@@ -93,12 +113,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const connectGithub = () => {
-    window.localStorage.setItem(GITHUB_STORAGE_KEY, "true");
-    dispatch(githubConnect());
+    try {
+      const stored = sessionStorage.getItem(AUTH_USER_KEY);
+      if (stored) {
+        const user: IUser = JSON.parse(stored);
+        if (user?.accessToken && user?.userId) {
+          sessionStorage.setItem(GITHUB_CONNECTED_KEY, "true");
+          dispatch(githubConnect());
+          return;
+        }
+      }
+    } catch {
+      // Fallback to OAuth redirect below.
+    }
+
+    window.location.href = `${API_BASE_URL}/api/TokenAuth/GitHubLogin`;
   };
 
   const markProjectCreated = () => {
-    window.localStorage.setItem(PROJECT_STORAGE_KEY, "true");
+    sessionStorage.setItem(PROJECT_STORAGE_KEY, "true");
     dispatch(projectCreated());
   };
 

@@ -27,7 +27,8 @@ public class User : AbpUser<User>
 
     public static string CreateRandomPassword()
     {
-        return Guid.NewGuid().ToString("N").Truncate(16);
+        var guid = Guid.NewGuid().ToString("N");
+        return guid.Substring(0, 6).ToUpper() + guid.Substring(6, 8) + "!1";
     }
 
     public static User CreateTenantAdminUser(int tenantId, string emailAddress)

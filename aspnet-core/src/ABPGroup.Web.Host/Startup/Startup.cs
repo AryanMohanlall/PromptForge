@@ -45,6 +45,8 @@ namespace ABPGroup.Web.Host.Startup
             IdentityRegistrar.Register(services);
             AuthConfigurer.Configure(services, _appConfiguration);
 
+            services.AddHttpClient();
+
             services.AddSignalR();
 
             // Configure CORS for angular2 UI

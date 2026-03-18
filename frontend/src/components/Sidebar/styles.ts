@@ -125,6 +125,30 @@ export const useStyles = createStyles(({ token, css }) => ({
       background: rgba(255, 255, 255, 0.06);
     }
   `,
+  logoutButton: css`
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: ${token.marginSM}px;
+    margin-top: ${token.marginSM}px;
+    padding: ${token.paddingSM}px ${token.padding}px;
+    border-radius: ${token.borderRadiusLG * 1.5}px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: transparent;
+    color: ${token.colorTextSecondary};
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: ${token.colorBgContainer};
+    }
+  `,
+  logoutIcon: css`
+    width: ${token.fontSize}px;
+    height: ${token.fontSize}px;
+  `,
   profileInfo: css`
     display: flex;
     align-items: center;

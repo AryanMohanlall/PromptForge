@@ -11,9 +11,11 @@ import {
   LayersIcon,
   ServerIcon,
   ActivityIcon,
+  LogOutIcon,
 } from "lucide-react";
 import { useStyles } from "./styles";
-import { useAuthState } from "@/providers/auth-provider";
+import { useAuthAction, useAuthState } from "@/providers/auth-provider";
+import { useRouter } from "next/navigation";
 
 interface SidebarProps {
   currentPage: string;
@@ -22,7 +24,9 @@ interface SidebarProps {
 
 export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const { styles, cx } = useStyles();
+  const router = useRouter();
   const { user } = useAuthState();
+  const { logout } = useAuthAction();
   const isAdmin = user?.roleNames?.includes("PlatformAdministrator");
   const mainNav = [
     {
@@ -69,6 +73,11 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       icon: ActivityIcon,
     },
   ];
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/auth");
+  };
 
   return (
     <div className={styles.sidebar}>
@@ -153,6 +162,15 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
               <span className={styles.profileName}>Alex Chen</span>
             </div>
             <ChevronDownIcon className={styles.chevron} />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className={cx(styles.logoutButton, styles.focusRing)}
+          >
+            <LogOutIcon className={styles.logoutIcon} />
+            Log out
           </button>
         </div>
       </div>
