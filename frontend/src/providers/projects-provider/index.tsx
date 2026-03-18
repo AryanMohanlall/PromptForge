@@ -65,12 +65,12 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
 		}
 	};
 
-	const create = async (data: IProjectCreateInput) => {
+	const create = async (data: IProjectCreateInput): Promise<IProjectItem> => {
 		dispatch(createPending());
 		try {
-			await instance.post(`${ENDPOINT}/Create`, data);
+			const res = await instance.post<AbpResult<IProjectItem>>(`${ENDPOINT}/Create`, data);
 			dispatch(createSuccess());
-			await fetchAll();
+			return res.data.result;
 		} catch (error) {
 			dispatch(createError());
 			throw error;

@@ -110,7 +110,7 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
     setSubmitError(null);
 
     try {
-      await create({
+      const project = await create({
         name: deriveProjectName(prompt),
         prompt,
         promptVersion: 1,
@@ -123,7 +123,7 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
       });
 
       markProjectCreated();
-      onNavigate("generation");
+      onNavigate(`generation?id=${project.id}`);
     } catch {
       setSubmitError("We could not create the project. Please try again.");
     } finally {

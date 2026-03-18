@@ -79,7 +79,7 @@ export interface IProjectStateContext {
 export interface IProjectActionContext {
   fetchAll: () => Promise<void>;
   fetchById: (id: number) => Promise<void>;
-  create: (data: IProjectCreateInput) => Promise<void>;
+  create: (data: IProjectCreateInput) => Promise<IProjectItem>;
   update: (data: IProjectUpdateInput) => Promise<void>;
   remove: (id: number) => Promise<void>;
 }
@@ -96,7 +96,7 @@ export const ProjectStateContext = createContext<IProjectStateContext>(INITIAL_S
 export const ProjectActionContext = createContext<IProjectActionContext>({
   fetchAll: async () => {},
   fetchById: async () => {},
-  create: async () => {},
+  create: async () => ({} as IProjectItem),
   update: async () => {},
   remove: async () => {},
 });

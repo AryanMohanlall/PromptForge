@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   CheckIcon,
   RocketIcon,
@@ -19,6 +20,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { AxiosError } from "axios";
 import { useStyles } from "./styles";
 import {
+  ProjectStatus,
   useProjectAction,
   useProjectState,
 } from "@/providers/projects-provider";
@@ -91,8 +93,12 @@ const PipelineStep = ({ name, status, duration, isLast }: PipelineStepProps) => 
 
 export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const { styles, cx } = useStyles();
-  const { items } = useProjectState();
-  const { fetchAll } = useProjectAction();
+  const searchParams = useSearchParams();
+  const projectIdParam = searchParams.get("id");
+  const projectId = projectIdParam ? parseInt(projectIdParam, 10) : null;
+
+  const { selected: project } = useProjectState();
+  const { fetchById } = useProjectAction();
   const [generationStep, setGenerationStep] = useState(0);
   const [isDeploying, setIsDeploying] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState(-1);
@@ -128,23 +134,54 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
     []
   );
 
+  // Poll for real project status every 3 seconds
   useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+    if (!projectId) return;
+    fetchById(projectId);
+    const interval = setInterval(() => {
+      fetchById(projectId);
+    }, 3000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
-  const latestProject = useMemo(() => {
-    if (!items.length) {
-      return null;
-    }
-
-    return [...items].sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    )[0];
-  }, [items]);
-
-  const projectTitle = latestProject?.name ?? "New PromptForge build";
+  const projectTitle = project?.name ?? "New PromptForge build";
   const configuredOwner = (process.env.NEXT_PUBLIC_GITHUB_OWNER ?? "").trim();
   const displayOwner = configuredOwner || "owner";
+
+  // Derive real codegen state from backend status
+  const isCodeGenInProgress = !project ||
+    project.status === ProjectStatus.Draft ||
+    project.status === ProjectStatus.PromptSubmitted ||
+    project.status === ProjectStatus.CodeGenerationInProgress;
+  const isCodeGenFailed = project?.status === ProjectStatus.Failed;
+  const isCodeGenDone = !isCodeGenInProgress && !isCodeGenFailed;
+
+  // Slowly advance step indicator while codegen is running (caps at second-to-last step)
+  useEffect(() => {
+    if (!isCodeGenInProgress || generationStep >= generationSteps.length - 1) return undefined;
+    const timer = window.setTimeout(() => {
+      setGenerationStep((prev) => prev + 1);
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, [generationStep, isCodeGenInProgress, generationSteps.length]);
+
+  // Jump all steps to complete when backend confirms codegen finished
+  useEffect(() => {
+    if (isCodeGenDone && generationStep < generationSteps.length) {
+      setGenerationStep(generationSteps.length);
+    }
+  }, [isCodeGenDone, generationStep, generationSteps.length]);
+
+  // Update default repo name once project loads
+  useEffect(() => {
+    if (project?.name && repoName === "promptforge-app") {
+      setRepoName(
+        project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50) || "promptforge-app"
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.name]);
 
   const isGenerated = generationStep >= generationSteps.length;
   const isDeployed = isDeploying && deploymentStep >= deploymentSteps.length;
@@ -168,15 +205,6 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
   };
 
   useEffect(() => {
-    if (isGenerated) return undefined;
-    const timer = window.setTimeout(() => {
-      setGenerationStep((prev) => prev + 1);
-    }, 1700);
-
-    return () => window.clearTimeout(timer);
-  }, [generationStep, generationSteps.length, isGenerated]);
-
-  useEffect(() => {
     if (!isDeploying || isDeployed) return undefined;
     const timer = window.setTimeout(() => {
       setDeploymentStep((prev) => prev + 1);
@@ -191,7 +219,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       return;
     }
 
-    if (!latestProject?.id) {
+    if (!project?.id) {
       setDeployError("No generated project was found to commit.");
       return;
     }
@@ -221,7 +249,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       const repoFromFullName = fullName.includes("/") ? fullName.split("/")[1] : repository?.name ?? sanitizedRepoName;
 
       await instance.post("/api/github-app/commit-generated", {
-        projectId: latestProject.id,
+        projectId: project.id,
         owner: ownerFromFullName,
         repositoryName: repoFromFullName,
         repositoryFullName: fullName || undefined,
@@ -291,6 +319,14 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
           </div>
         </div>
       </div>
+
+      {isCodeGenFailed && (
+        <div className={styles.card} style={{ borderColor: "var(--ant-color-error)", marginBottom: 16 }}>
+          <p style={{ color: "var(--ant-color-error)", margin: 0, fontWeight: 600 }}>
+            Code generation failed. Please go back and create a new project.
+          </p>
+        </div>
+      )}
 
       <div className={styles.grid}>
         <div className={styles.card}>

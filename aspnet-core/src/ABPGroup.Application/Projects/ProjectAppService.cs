@@ -84,44 +84,63 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
         input.Status = entity.Status;
         input.PromptVersion = prompt.Version;
 
-        // Signal that generation is starting
+        // Signal that generation is starting, then fire-and-forget codegen
         entity.Status = ProjectStatus.CodeGenerationInProgress;
         entity.UpdatedAt = DateTime.UtcNow;
         await Repository.UpdateAsync(entity);
         await CurrentUnitOfWork.SaveChangesAsync();
 
-        Logger.Info($"Generating project code for: {input.Name} in codegen service.");
-
-        ABPGroup.CodeGen.CodeGenResult codeGenResult;
-        try
-        {
-            codeGenResult = await _codeGenAppService.GenerateProjectAsync(input);
-        }
-        catch (Exception ex)
-        {
-            Logger.Error("Code generation failed for project " + entity.Id, ex);
-            entity.Status = ProjectStatus.Failed;
-            entity.UpdatedAt = DateTime.UtcNow;
-            await Repository.UpdateAsync(entity);
-            await CurrentUnitOfWork.SaveChangesAsync();
-            throw new Exception("Code generation failed for project " + entity.Id + ": " + ex.Message, ex);
-        }
-
-        // Persist architecture summary and module list
-        if (codeGenResult != null)
-        {
-            entity.ArchitectureSummary = codeGenResult.ArchitectureSummary;
-            if (codeGenResult.ModuleList?.Count > 0)
-            {
-                var modules = string.Join(",", codeGenResult.ModuleList);
-                entity.GeneratedModules = modules.Length > 500 ? modules[..497] + "..." : modules;
-            }
-            entity.UpdatedAt = DateTime.UtcNow;
-            await Repository.UpdateAsync(entity);
-            await CurrentUnitOfWork.SaveChangesAsync();
-        }
+        Logger.Info($"Queuing background code generation for project: {input.Name} ({entity.Id}).");
+        StartCodeGenInBackground(entity.Id, input);
 
         return MapToEntityDto(entity);
+    }
+
+    private void StartCodeGenInBackground(long projectId, CreateUpdateProjectDto input)
+    {
+        var unitOfWorkManager = UnitOfWorkManager;
+        var codeGenAppService = _codeGenAppService;
+        var repository = Repository;
+
+        // SuppressFlow so the background task does not inherit the ambient UoW from the HTTP request.
+        using (System.Threading.ExecutionContext.SuppressFlow())
+        {
+            _ = System.Threading.Tasks.Task.Run(async () =>
+            {
+                using var uow = unitOfWorkManager.Begin();
+                try
+                {
+                    var codeGenResult = await codeGenAppService.GenerateProjectAsync(input);
+                    var project = await repository.GetAsync(projectId);
+                    if (codeGenResult != null)
+                    {
+                        project.ArchitectureSummary = codeGenResult.ArchitectureSummary;
+                        if (codeGenResult.ModuleList?.Count > 0)
+                        {
+                            var modules = string.Join(",", codeGenResult.ModuleList);
+                            project.GeneratedModules = modules.Length > 500 ? modules[..497] + "..." : modules;
+                        }
+                    }
+                    project.UpdatedAt = DateTime.UtcNow;
+                    await repository.UpdateAsync(project);
+                    await uow.CompleteAsync();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error("Background code generation failed for project " + projectId, ex);
+                    try
+                    {
+                        using var errUow = unitOfWorkManager.Begin();
+                        var project = await repository.GetAsync(projectId);
+                        project.Status = ProjectStatus.Failed;
+                        project.UpdatedAt = DateTime.UtcNow;
+                        await repository.UpdateAsync(project);
+                        await errUow.CompleteAsync();
+                    }
+                    catch { /* best-effort status update */ }
+                }
+            });
+        }
     }
 
     public override async Task<ProjectDto> UpdateAsync(CreateUpdateProjectDto input)
