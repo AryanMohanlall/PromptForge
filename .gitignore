@@ -10,4 +10,5 @@ aspnet-core/src/ABPGroup.Migrator/Logs/Logs.txt
 aspnet-core/build/outputs/
 aspnet-core/docker/mvc/Mvc-Logs/
 
-*.env
+.env
+.env.local
