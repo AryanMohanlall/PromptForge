@@ -11,7 +11,9 @@ using System.IO;
 using System.Linq;
 using ABPGroup.Projects;
 using ABPGroup.Projects.Dto;
+using ABPGroup.Templates;
 using Abp.Application.Services;
+using Abp.Domain.Repositories;
 using Microsoft.Extensions.Configuration;
 
 namespace ABPGroup.CodeGen
@@ -20,6 +22,7 @@ namespace ABPGroup.CodeGen
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
+        private readonly IRepository<Template, int> _templateRepository;
 
         private const string GroqEndpoint  = "https://api.groq.com/openai/v1/chat/completions";
         private const string DefaultOutput = "/app/GeneratedApps";
@@ -29,13 +32,17 @@ namespace ABPGroup.CodeGen
         private readonly string _localCopyPath;
         private readonly bool   _skipBuild;
 
-        public CodeGenAppService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
+        public CodeGenAppService(
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration,
+            IRepository<Template, int> templateRepository)
         {
-            _httpClientFactory = httpClientFactory;
-            _configuration     = configuration;
-            _outputBase        = _configuration["CodeGen:OutputPath"] ?? DefaultOutput;
-            _localCopyPath     = _configuration["CodeGen:LocalCopyPath"];
-            _skipBuild         = string.Equals(_configuration["CodeGen:SkipBuild"], "true", StringComparison.OrdinalIgnoreCase);
+            _httpClientFactory  = httpClientFactory;
+            _configuration      = configuration;
+            _templateRepository = templateRepository;
+            _outputBase         = _configuration["CodeGen:OutputPath"] ?? DefaultOutput;
+            _localCopyPath      = _configuration["CodeGen:LocalCopyPath"];
+            _skipBuild          = string.Equals(_configuration["CodeGen:SkipBuild"], "true", StringComparison.OrdinalIgnoreCase);
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -64,7 +71,7 @@ namespace ABPGroup.CodeGen
 
             // 4. Validate build & auto-fix
             if (!_skipBuild)
-                await BuildAndFixAsync(projectDir, result);
+                await BuildAndFixAsync(projectDir, result, request.Framework);
 
             // 5. Copy to local output path if configured
             if (!string.IsNullOrWhiteSpace(_localCopyPath))
@@ -83,8 +90,12 @@ namespace ABPGroup.CodeGen
         private async Task<CodeGenResult> GenerateWithRetryAsync(
             CreateUpdateProjectDto request, List<GeneratedFile> scaffold)
         {
+            var template = request.TemplateId.HasValue
+                ? await _templateRepository.FirstOrDefaultAsync(request.TemplateId.Value)
+                : null;
+
             var scaffoldedPaths = scaffold.Select(f => f.Path).ToHashSet();
-            var systemPrompt    = BuildSystemPrompt(request, scaffoldedPaths);
+            var systemPrompt    = BuildSystemPrompt(request, scaffoldedPaths, template);
             var userPrompt      = BuildUserPrompt(request);
 
             var result = await CallGroqAsync(systemPrompt, userPrompt);
@@ -112,11 +123,11 @@ namespace ABPGroup.CodeGen
             return merged;
         }
 
-        private async Task BuildAndFixAsync(string projectDir, CodeGenResult result)
+        private async Task BuildAndFixAsync(string projectDir, CodeGenResult result, Framework framework)
         {
             for (var attempt = 1; attempt <= MaxFixRetries; attempt++)
             {
-                var (success, output) = await RunNpmBuildAsync(projectDir);
+                var (success, output) = await RunBuildAsync(projectDir, framework);
                 if (success)
                 {
                     Logger.Info($"Build passed on attempt {attempt}.");
@@ -146,12 +157,19 @@ namespace ABPGroup.CodeGen
         //  BOILERPLATE SCAFFOLDING — saves ~3k tokens per generation
         // ══════════════════════════════════════════════════════════════════════
 
-        private static List<GeneratedFile> ScaffoldBoilerplate(CreateUpdateProjectDto input)
-        {
-            if (input.Framework != Framework.NextJS)
-                return new List<GeneratedFile>();
+        private static List<GeneratedFile> ScaffoldBoilerplate(CreateUpdateProjectDto input) =>
+            input.Framework switch
+            {
+                Framework.NextJS    => ScaffoldNextJs(input),
+                Framework.ReactVite => ScaffoldReactVite(input),
+                Framework.Vue       => ScaffoldVue(input),
+                Framework.Angular   => ScaffoldAngular(input),
+                _                   => new List<GeneratedFile>()
+            };
 
-            var name     = input.Name ?? "my-app";
+        private static List<GeneratedFile> ScaffoldNextJs(CreateUpdateProjectDto input)
+        {
+            var name      = input.Name ?? "my-app";
             var usePrisma = input.DatabaseOption != DatabaseOption.MongoCloud;
             var auth      = input.IncludeAuth;
 
@@ -173,6 +191,74 @@ namespace ABPGroup.CodeGen
                 files.Add(MakeAuthConfig());
 
             return files;
+        }
+
+        private static List<GeneratedFile> ScaffoldReactVite(CreateUpdateProjectDto input)
+        {
+            var name      = input.Name ?? "my-app";
+            var isTs      = input.Language != ProgrammingLanguage.JavaScript;
+            var usePrisma = input.DatabaseOption != DatabaseOption.MongoCloud;
+            var auth      = input.IncludeAuth;
+
+            var ext = isTs ? "tsx" : "jsx";
+
+            var files = new List<GeneratedFile>
+            {
+                MakeReactVitePackageJson(name, auth, usePrisma, input.DatabaseOption == DatabaseOption.MongoCloud, isTs),
+                MakeReactViteConfig(isTs),
+                isTs ? MakeReactViteTsConfig() : MakeJsConfig(),
+                MakeReactViteIndexHtml(name, ext),
+                MakeReactViteMainEntry(ext),
+                MakeReactViteApp(ext),
+                MakeViteIndexCss(),
+                MakeEnvExample(input.DatabaseOption),
+            };
+
+            if (usePrisma)
+                files.Add(MakePrismaSchema(input.DatabaseOption, auth));
+
+            return files;
+        }
+
+        private static List<GeneratedFile> ScaffoldVue(CreateUpdateProjectDto input)
+        {
+            var name      = input.Name ?? "my-app";
+            var isTs      = input.Language != ProgrammingLanguage.JavaScript;
+            var usePrisma = input.DatabaseOption != DatabaseOption.MongoCloud;
+
+            var files = new List<GeneratedFile>
+            {
+                MakeVuePackageJson(name, usePrisma, input.DatabaseOption == DatabaseOption.MongoCloud, isTs),
+                MakeVueViteConfig(isTs),
+                isTs ? MakeVueTsConfig() : MakeJsConfig(),
+                MakeVueIndexHtml(name),
+                MakeVueMainEntry(isTs),
+                MakeVueApp(),
+                MakeViteIndexCss(),
+                MakeEnvExample(input.DatabaseOption),
+            };
+
+            if (usePrisma)
+                files.Add(MakePrismaSchema(input.DatabaseOption, input.IncludeAuth));
+
+            return files;
+        }
+
+        private static List<GeneratedFile> ScaffoldAngular(CreateUpdateProjectDto input)
+        {
+            var name = input.Name ?? "my-app";
+
+            return new List<GeneratedFile>
+            {
+                MakeAngularPackageJson(name),
+                MakeAngularJson(name),
+                MakeAngularTsConfig(),
+                MakeAngularMainTs(),
+                MakeAngularAppComponent(),
+                MakeAngularAppConfig(),
+                MakeAngularStyles(),
+                MakeEnvExample(input.DatabaseOption),
+            };
         }
 
         private static GeneratedFile MakePackageJson(string name, bool auth, bool prisma, bool mongo)
@@ -347,34 +433,494 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 "
         };
 
+        // ── React + Vite helpers ──────────────────────────────────────────────
+
+        private static GeneratedFile MakeReactVitePackageJson(string name, bool auth, bool prisma, bool mongo, bool isTs)
+        {
+            var deps = new Dictionary<string, string>
+            {
+                ["react"]            = "^19.0.0",
+                ["react-dom"]        = "^19.0.0",
+                ["react-router-dom"] = "^7.0.0"
+            };
+            if (prisma) deps["@prisma/client"] = "^6.0.0";
+            if (mongo)  deps["mongoose"]       = "^8.0.0";
+
+            var devDeps = new Dictionary<string, string>
+            {
+                ["vite"]                  = "^6.0.0",
+                ["@vitejs/plugin-react"]  = "^4.0.0",
+                ["tailwindcss"]           = "^4.0.0",
+                ["@tailwindcss/vite"]     = "^4.0.0"
+            };
+            if (isTs)
+            {
+                devDeps["typescript"]       = "^5.7.0";
+                devDeps["@types/react"]     = "^19.0.0";
+                devDeps["@types/react-dom"] = "^19.0.0";
+            }
+
+            var pkg = new Dictionary<string, object>
+            {
+                ["name"]    = Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9-]", "-"),
+                ["version"] = "0.1.0",
+                ["private"] = true,
+                ["type"]    = "module",
+                ["scripts"] = new Dictionary<string, string>
+                {
+                    ["dev"]     = "vite",
+                    ["build"]   = isTs ? "tsc -b && vite build" : "vite build",
+                    ["preview"] = "vite preview"
+                },
+                ["dependencies"]    = deps,
+                ["devDependencies"] = devDeps
+            };
+
+            return new GeneratedFile
+            {
+                Path    = "package.json",
+                Content = JsonSerializer.Serialize(pkg, new JsonSerializerOptions { WriteIndented = true })
+            };
+        }
+
+        private static GeneratedFile MakeReactViteConfig(bool isTs) => new GeneratedFile
+        {
+            Path = isTs ? "vite.config.ts" : "vite.config.js",
+            Content = $@"import {{ defineConfig }} from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+
+export default defineConfig({{
+  plugins: [react(), tailwindcss()],
+  resolve: {{ alias: {{ '@': '/src' }} }},
+}});
+"
+        };
+
+        private static GeneratedFile MakeReactViteTsConfig() => new GeneratedFile
+        {
+            Path = "tsconfig.json",
+            Content = @"{
+  ""compilerOptions"": {
+    ""target"": ""ES2020"",
+    ""lib"": [""ES2020"", ""DOM"", ""DOM.Iterable""],
+    ""module"": ""ESNext"",
+    ""moduleResolution"": ""bundler"",
+    ""jsx"": ""react-jsx"",
+    ""strict"": true,
+    ""noEmit"": true,
+    ""skipLibCheck"": true,
+    ""resolveJsonModule"": true,
+    ""isolatedModules"": true,
+    ""paths"": { ""@/*"": [""./src/*""] }
+  },
+  ""include"": [""src""],
+  ""exclude"": [""node_modules""]
+}"
+        };
+
+        private static GeneratedFile MakeJsConfig() => new GeneratedFile
+        {
+            Path    = "jsconfig.json",
+            Content = "{\n  \"compilerOptions\": {\n    \"paths\": { \"@/*\": [\"./src/*\"] }\n  },\n  \"include\": [\"src\"]\n}\n"
+        };
+
+        private static GeneratedFile MakeReactViteIndexHtml(string name, string ext) => new GeneratedFile
+        {
+            Path = "index.html",
+            Content = $@"<!DOCTYPE html>
+<html lang=""en"">
+  <head>
+    <meta charset=""UTF-8"" />
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"" />
+    <title>{System.Security.SecurityElement.Escape(name)}</title>
+  </head>
+  <body>
+    <div id=""root""></div>
+    <script type=""module"" src=""/src/main.{ext}""></script>
+  </body>
+</html>
+"
+        };
+
+        private static GeneratedFile MakeReactViteMainEntry(string ext) => new GeneratedFile
+        {
+            Path = $"src/main.{ext}",
+            Content = @"import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import App from './App';
+import './index.css';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </React.StrictMode>
+);
+"
+        };
+
+        private static GeneratedFile MakeReactViteApp(string ext) => new GeneratedFile
+        {
+            Path = $"src/App.{ext}",
+            Content = @"import { Routes, Route } from 'react-router-dom';
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path=""/"" element={<div className=""p-8""><h1 className=""text-2xl font-bold"">Welcome</h1></div>} />
+    </Routes>
+  );
+}
+"
+        };
+
+        private static GeneratedFile MakeViteIndexCss() => new GeneratedFile
+        {
+            Path    = "src/index.css",
+            Content = "@import 'tailwindcss';\n"
+        };
+
+        // ── Vue helpers ───────────────────────────────────────────────────────
+
+        private static GeneratedFile MakeVuePackageJson(string name, bool prisma, bool mongo, bool isTs)
+        {
+            var deps = new Dictionary<string, string>
+            {
+                ["vue"]        = "^3.0.0",
+                ["vue-router"] = "^4.0.0",
+                ["pinia"]      = "^2.0.0"
+            };
+            if (prisma) deps["@prisma/client"] = "^6.0.0";
+            if (mongo)  deps["mongoose"]       = "^8.0.0";
+
+            var devDeps = new Dictionary<string, string>
+            {
+                ["vite"]                 = "^6.0.0",
+                ["@vitejs/plugin-vue"]   = "^5.0.0",
+                ["tailwindcss"]          = "^4.0.0",
+                ["@tailwindcss/vite"]    = "^4.0.0"
+            };
+            if (isTs)
+            {
+                devDeps["typescript"] = "^5.7.0";
+                devDeps["vue-tsc"]    = "^2.0.0";
+            }
+
+            var pkg = new Dictionary<string, object>
+            {
+                ["name"]    = Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9-]", "-"),
+                ["version"] = "0.1.0",
+                ["private"] = true,
+                ["type"]    = "module",
+                ["scripts"] = new Dictionary<string, string>
+                {
+                    ["dev"]     = "vite",
+                    ["build"]   = isTs ? "vue-tsc -b && vite build" : "vite build",
+                    ["preview"] = "vite preview"
+                },
+                ["dependencies"]    = deps,
+                ["devDependencies"] = devDeps
+            };
+
+            return new GeneratedFile
+            {
+                Path    = "package.json",
+                Content = JsonSerializer.Serialize(pkg, new JsonSerializerOptions { WriteIndented = true })
+            };
+        }
+
+        private static GeneratedFile MakeVueViteConfig(bool isTs) => new GeneratedFile
+        {
+            Path = isTs ? "vite.config.ts" : "vite.config.js",
+            Content = @"import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import tailwindcss from '@tailwindcss/vite';
+
+export default defineConfig({
+  plugins: [vue(), tailwindcss()],
+  resolve: { alias: { '@': '/src' } },
+});
+"
+        };
+
+        private static GeneratedFile MakeVueTsConfig() => new GeneratedFile
+        {
+            Path = "tsconfig.json",
+            Content = @"{
+  ""compilerOptions"": {
+    ""target"": ""ES2020"",
+    ""lib"": [""ES2020"", ""DOM"", ""DOM.Iterable""],
+    ""module"": ""ESNext"",
+    ""moduleResolution"": ""bundler"",
+    ""strict"": true,
+    ""noEmit"": true,
+    ""skipLibCheck"": true,
+    ""resolveJsonModule"": true,
+    ""paths"": { ""@/*"": [""./src/*""] }
+  },
+  ""include"": [""src/**/*.ts"", ""src/**/*.d.ts"", ""src/**/*.vue""],
+  ""exclude"": [""node_modules""]
+}"
+        };
+
+        private static GeneratedFile MakeVueIndexHtml(string name) => new GeneratedFile
+        {
+            Path = "index.html",
+            Content = $@"<!DOCTYPE html>
+<html lang=""en"">
+  <head>
+    <meta charset=""UTF-8"" />
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"" />
+    <title>{System.Security.SecurityElement.Escape(name)}</title>
+  </head>
+  <body>
+    <div id=""app""></div>
+    <script type=""module"" src=""/src/main.ts""></script>
+  </body>
+</html>
+"
+        };
+
+        private static GeneratedFile MakeVueMainEntry(bool isTs) => new GeneratedFile
+        {
+            Path = isTs ? "src/main.ts" : "src/main.js",
+            Content = @"import { createApp } from 'vue';
+import { createPinia } from 'pinia';
+import router from './router';
+import App from './App.vue';
+import './index.css';
+
+createApp(App).use(createPinia()).use(router).mount('#app');
+"
+        };
+
+        private static GeneratedFile MakeVueApp() => new GeneratedFile
+        {
+            Path = "src/App.vue",
+            Content = @"<template>
+  <RouterView />
+</template>
+
+<script setup lang=""ts"">
+</script>
+"
+        };
+
+        // ── Angular helpers ───────────────────────────────────────────────────
+
+        private static GeneratedFile MakeAngularPackageJson(string name)
+        {
+            var pkg = new Dictionary<string, object>
+            {
+                ["name"]    = Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9-]", "-"),
+                ["version"] = "0.1.0",
+                ["private"] = true,
+                ["scripts"] = new Dictionary<string, string>
+                {
+                    ["dev"]   = "ng serve",
+                    ["build"] = "ng build",
+                    ["test"]  = "ng test"
+                },
+                ["dependencies"] = new Dictionary<string, string>
+                {
+                    ["@angular/common"]          = "^19.0.0",
+                    ["@angular/compiler"]         = "^19.0.0",
+                    ["@angular/core"]             = "^19.0.0",
+                    ["@angular/forms"]            = "^19.0.0",
+                    ["@angular/platform-browser"] = "^19.0.0",
+                    ["@angular/router"]           = "^19.0.0",
+                    ["rxjs"]                      = "^7.8.0",
+                    ["zone.js"]                   = "^0.15.0",
+                    ["tailwindcss"]               = "^4.0.0"
+                },
+                ["devDependencies"] = new Dictionary<string, string>
+                {
+                    ["@angular/cli"]          = "^19.0.0",
+                    ["@angular/compiler-cli"] = "^19.0.0",
+                    ["typescript"]            = "^5.7.0"
+                }
+            };
+
+            return new GeneratedFile
+            {
+                Path    = "package.json",
+                Content = JsonSerializer.Serialize(pkg, new JsonSerializerOptions { WriteIndented = true })
+            };
+        }
+
+        private static GeneratedFile MakeAngularJson(string name)
+        {
+            var safeName = Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9-]", "-");
+            var content = $@"{{
+  ""$schema"": ""./node_modules/@angular/cli/lib/config/schema.json"",
+  ""version"": 1,
+  ""newProjectRoot"": ""projects"",
+  ""projects"": {{
+    ""{safeName}"": {{
+      ""projectType"": ""application"",
+      ""root"": """",
+      ""sourceRoot"": ""src"",
+      ""architect"": {{
+        ""build"": {{
+          ""builder"": ""@angular-devkit/build-angular:application"",
+          ""options"": {{
+            ""outputPath"": ""dist/{safeName}"",
+            ""index"": ""src/index.html"",
+            ""browser"": ""src/main.ts"",
+            ""tsConfig"": ""tsconfig.json"",
+            ""styles"": [""src/styles.css""],
+            ""scripts"": []
+          }},
+          ""configurations"": {{
+            ""production"": {{ ""optimization"": true }},
+            ""development"": {{ ""optimization"": false }}
+          }},
+          ""defaultConfiguration"": ""production""
+        }},
+        ""serve"": {{
+          ""builder"": ""@angular-devkit/build-angular:dev-server"",
+          ""configurations"": {{
+            ""development"": {{ ""buildTarget"": ""{safeName}:build:development"" }}
+          }},
+          ""defaultConfiguration"": ""development""
+        }}
+      }}
+    }}
+  }}
+}}";
+            return new GeneratedFile { Path = "angular.json", Content = content };
+        }
+
+        private static GeneratedFile MakeAngularTsConfig() => new GeneratedFile
+        {
+            Path = "tsconfig.json",
+            Content = @"{
+  ""compilerOptions"": {
+    ""target"": ""ES2022"",
+    ""lib"": [""ES2022"", ""dom""],
+    ""module"": ""ES2022"",
+    ""moduleResolution"": ""bundler"",
+    ""experimentalDecorators"": true,
+    ""useDefineForClassFields"": false,
+    ""strict"": true,
+    ""skipLibCheck"": true,
+    ""paths"": { ""@/*"": [""./src/*""] }
+  },
+  ""angularCompilerOptions"": {
+    ""strictInjectionParameters"": true,
+    ""strictInputAccessModifiers"": true,
+    ""strictTemplates"": true
+  },
+  ""include"": [""src""],
+  ""exclude"": [""node_modules""]
+}"
+        };
+
+        private static GeneratedFile MakeAngularMainTs() => new GeneratedFile
+        {
+            Path = "src/main.ts",
+            Content = @"import { bootstrapApplication } from '@angular/platform-browser';
+import { appConfig } from './app/app.config';
+import { AppComponent } from './app/app.component';
+
+bootstrapApplication(AppComponent, appConfig)
+  .catch(err => console.error(err));
+"
+        };
+
+        private static GeneratedFile MakeAngularAppComponent() => new GeneratedFile
+        {
+            Path = "src/app/app.component.ts",
+            Content = @"import { Component } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [RouterOutlet],
+  template: `<router-outlet />`,
+})
+export class AppComponent {}
+"
+        };
+
+        private static GeneratedFile MakeAngularAppConfig() => new GeneratedFile
+        {
+            Path = "src/app/app.config.ts",
+            Content = @"import { ApplicationConfig } from '@angular/core';
+import { provideRouter } from '@angular/router';
+
+export const appConfig: ApplicationConfig = {
+  providers: [provideRouter([])],
+};
+"
+        };
+
+        private static GeneratedFile MakeAngularStyles() => new GeneratedFile
+        {
+            Path    = "src/styles.css",
+            Content = "@import 'tailwindcss';\n"
+        };
+
         // ══════════════════════════════════════════════════════════════════════
         //  PROMPT BUILDERS — lean and targeted
         // ══════════════════════════════════════════════════════════════════════
 
-        private string BuildSystemPrompt(CreateUpdateProjectDto input, HashSet<string> scaffolded)
+        private string BuildSystemPrompt(CreateUpdateProjectDto input, HashSet<string> scaffolded, Template template = null)
         {
             var framework = FormatFramework(input.Framework);
             var db        = FormatDatabase(input.DatabaseOption);
-            var auth      = input.IncludeAuth ? "next-auth v5 (pre-configured in src/lib/auth.ts)" : "none";
+
+            var langLabel = input.Language switch
+            {
+                ProgrammingLanguage.JavaScript => "JavaScript",
+                ProgrammingLanguage.CSharp     => "C#",
+                _                              => "TypeScript strict"
+            };
+
+            var auth = input.IncludeAuth
+                ? input.Framework switch
+                {
+                    Framework.NextJS    => "next-auth v5 (pre-configured in src/lib/auth.ts)",
+                    Framework.Angular   => "Angular Guards + JWT interceptor",
+                    Framework.Vue       => "Pinia auth store + route guards",
+                    Framework.ReactVite => "React Context auth + protected routes",
+                    _                   => "authentication"
+                }
+                : "none";
 
             var scaffoldNote = scaffolded.Count > 0
                 ? $"\nThese files are ALREADY generated — do NOT output them:\n{string.Join(", ", scaffolded)}"
                 : "";
 
+            var templateContext = template != null
+                ? $"\n===APPLICATION CONTEXT===\n" +
+                  $"Template: {template.Name}\n" +
+                  $"Category: {template.Category}\n" +
+                  $"Description: {template.Description}\n" +
+                  (template.Tags != null ? $"Tags: {template.Tags}\n" : "") +
+                  "Use this as domain guidance. Generate complete code — do NOT import or reference the template itself.\n" +
+                  "===END APPLICATION CONTEXT==="
+                : "";
+
             var stackRules = input.Framework switch
             {
                 Framework.NextJS     => "- Next.js 15 App Router, React 19, Tailwind CSS v4\n- Imports use @/ alias (mapped to ./src/*)\n- 'use client' only on components with hooks/events/browser APIs",
-                Framework.ReactVite  => "- React 19, Vite, Tailwind CSS v4, react-router-dom v7",
-                Framework.Angular    => "- Angular 19 standalone components, signals",
-                Framework.Vue        => "- Vue 3 Composition API, Vite, Tailwind CSS v4",
+                Framework.ReactVite  => "- React 19 + Vite 6, react-router-dom v7, Tailwind CSS v4 via @tailwindcss/vite\n- Imports use @/ alias (mapped to ./src/*)\n- Client-side SPA only — no SSR",
+                Framework.Angular    => "- Angular 19 standalone components, Angular Router, Tailwind CSS v4\n- Use @tailwindcss/vite or postcss for Tailwind integration\n- Signals preferred over observables for local state",
+                Framework.Vue        => "- Vue 3 Composition API, Vite 6, vue-router v4, Pinia, Tailwind CSS v4 via @tailwindcss/vite\n- Imports use @/ alias (mapped to ./src/*)\n- Use <script setup> syntax in all SFC files",
                 _                    => "- Follow framework best practices"
             };
 
             return $@"You are a code generator. Output ONLY files. No markdown, no explanations, no commentary.
-{scaffoldNote}
+{scaffoldNote}{templateContext}
 
-Stack: {framework} | TypeScript strict | {db} | Auth: {auth}
+Stack: {framework} | {langLabel} | {db} | Auth: {auth}
 {stackRules}
+- ALWAYS generate README.md with: project overview, tech stack, getting started steps, env var descriptions, folder structure
 - Every file COMPLETE — no TODOs, no placeholders, no ""..."", no truncation
 - Must compile: npm install && npm run build
 
@@ -473,19 +1019,25 @@ path/to/file.tsx
         //  NPM BUILD
         // ══════════════════════════════════════════════════════════════════════
 
-        private async Task<(bool success, string output)> RunNpmBuildAsync(string projectDir)
+        private async Task<(bool success, string output)> RunBuildAsync(string projectDir, Framework framework)
         {
             if (!Directory.Exists(projectDir))
                 return (false, $"Directory missing: {projectDir}");
 
             var sb = new StringBuilder();
 
-            var (installCode, installOut) = await RunProcessAsync("npm", "install --prefer-offline", projectDir, 120);
+            var (installCode, installOut) = await RunProcessAsync("npm", "install --prefer-offline", projectDir, 180);
             sb.AppendLine("=== npm install ===").AppendLine(installOut);
             if (installCode != 0) return (false, sb.ToString());
 
-            var (buildCode, buildOut) = await RunProcessAsync("npm", "run build", projectDir, 180);
-            sb.AppendLine("=== npm run build ===").AppendLine(buildOut);
+            // Angular CLI may not be in PATH — use npx to run the locally installed binary
+            var (buildCmd, buildArgs) = framework == Framework.Angular
+                ? ("npx", "ng build")
+                : ("npm", "run build");
+            var buildTimeout = framework == Framework.Angular ? 300 : 180;
+
+            var (buildCode, buildOut) = await RunProcessAsync(buildCmd, buildArgs, projectDir, buildTimeout);
+            sb.AppendLine($"=== {buildCmd} {buildArgs} ===").AppendLine(buildOut);
 
             return (buildCode == 0, sb.ToString());
         }

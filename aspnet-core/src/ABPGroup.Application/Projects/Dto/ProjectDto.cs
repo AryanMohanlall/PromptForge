@@ -32,4 +32,10 @@ public class ProjectDto : EntityDto<long>
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
+
+    public int? TemplateId { get; set; }
+
+    public string ArchitectureSummary { get; set; }
+
+    public string GeneratedModules { get; set; }
 }

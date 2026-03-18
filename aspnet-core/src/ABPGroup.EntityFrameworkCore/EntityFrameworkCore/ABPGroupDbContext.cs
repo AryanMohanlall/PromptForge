@@ -39,6 +39,8 @@ public class ABPGroupDbContext : AbpZeroDbContext<Tenant, Role, User, ABPGroupDb
                 .WithMany()
                 .HasForeignKey(x => x.PromptId)
                 .OnDelete(DeleteBehavior.SetNull);
+            b.Property(x => x.ArchitectureSummary).HasMaxLength(1000);
+            b.Property(x => x.GeneratedModules).HasMaxLength(500);
         });
 
         modelBuilder.Entity<Prompt>(b =>

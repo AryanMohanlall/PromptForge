@@ -84,9 +84,42 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
         input.Status = entity.Status;
         input.PromptVersion = prompt.Version;
 
+        // Signal that generation is starting
+        entity.Status = ProjectStatus.CodeGenerationInProgress;
+        entity.UpdatedAt = DateTime.UtcNow;
+        await Repository.UpdateAsync(entity);
+        await CurrentUnitOfWork.SaveChangesAsync();
+
         Logger.Info($"Generating project code for: {input.Name} in codegen service.");
 
-        await _codeGenAppService.GenerateProjectAsync(input);
+        ABPGroup.CodeGen.CodeGenResult codeGenResult;
+        try
+        {
+            codeGenResult = await _codeGenAppService.GenerateProjectAsync(input);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("Code generation failed for project " + entity.Id, ex);
+            entity.Status = ProjectStatus.Failed;
+            entity.UpdatedAt = DateTime.UtcNow;
+            await Repository.UpdateAsync(entity);
+            await CurrentUnitOfWork.SaveChangesAsync();
+            throw new Exception("Code generation failed for project " + entity.Id + ": " + ex.Message, ex);
+        }
+
+        // Persist architecture summary and module list
+        if (codeGenResult != null)
+        {
+            entity.ArchitectureSummary = codeGenResult.ArchitectureSummary;
+            if (codeGenResult.ModuleList?.Count > 0)
+            {
+                var modules = string.Join(",", codeGenResult.ModuleList);
+                entity.GeneratedModules = modules.Length > 500 ? modules[..497] + "..." : modules;
+            }
+            entity.UpdatedAt = DateTime.UtcNow;
+            await Repository.UpdateAsync(entity);
+            await CurrentUnitOfWork.SaveChangesAsync();
+        }
 
         return MapToEntityDto(entity);
     }

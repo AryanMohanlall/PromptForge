@@ -177,7 +177,8 @@ namespace ABPGroup.Controllers
 
         private string GetGitHubOAuthConfig(string key)
         {
-            return _appConfiguration[$"GitHubOAuth:{key}"] ?? _appConfiguration[$"GitHub:{key}"];
+            var value = _appConfiguration[$"GitHubOAuth:{key}"];
+            return string.IsNullOrEmpty(value) ? _appConfiguration[$"GitHub:{key}"] : value;
         }
 
         private string GetTenancyNameOrNull()

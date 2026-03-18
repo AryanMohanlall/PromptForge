@@ -32,4 +32,6 @@ public class CreateUpdateProjectDto : EntityDto<long>
     public bool IncludeAuth { get; set; }
 
     public ProjectStatus Status { get; set; } = ProjectStatus.Draft;
+
+    public int? TemplateId { get; set; }
 }
