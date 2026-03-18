@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Auth page", () => {
+test.describe("Auth pages", () => {
   test("signs in with mocked auth response", async ({ page }) => {
     await page.route("**/api/TokenAuth/Authenticate", route =>
       route.fulfill({
@@ -12,7 +12,7 @@ test.describe("Auth page", () => {
       })
     );
 
-    await page.goto("/auth");
+    await page.goto("/login");
     await page.getByPlaceholder("Email address").fill("user@example.com");
     await page.getByPlaceholder("Password").fill("Password1!");
     await Promise.all([
@@ -44,8 +44,7 @@ test.describe("Auth page", () => {
       })
     );
 
-    await page.goto("/auth?tenant=Nw==");
-    await page.getByRole("button", { name: "Sign up" }).click();
+    await page.goto("/register?tenant=Nw==");
 
     await page.getByPlaceholder("First name").fill("Jane");
     await page.getByPlaceholder("Surname").fill("Doe");
