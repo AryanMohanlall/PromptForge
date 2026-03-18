@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Abp.Application.Services;
@@ -7,7 +8,7 @@ namespace ABPGroup.CodeGen
 {
     public interface ICodeGenAppService : IApplicationService
     {
-        Task<CodeGenResult> GenerateProjectAsync(CreateUpdateProjectDto request);
+        Task<CodeGenResult> GenerateProjectAsync(CreateUpdateProjectDto request, Func<string, Task> onProgress = null);
     }
 
     public class CodeGenResult

@@ -110,7 +110,25 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
                 using var uow = unitOfWorkManager.Begin();
                 try
                 {
-                    var codeGenResult = await codeGenAppService.GenerateProjectAsync(input);
+                    async Task OnProgress(string message)
+                    {
+                        try
+                        {
+                            using var progressUow = unitOfWorkManager.Begin(
+                                new Abp.Domain.Uow.UnitOfWorkOptions
+                                {
+                                    Scope = System.Transactions.TransactionScopeOption.RequiresNew
+                                });
+                            var p = await repository.GetAsync(projectId);
+                            p.StatusMessage = message;
+                            p.UpdatedAt = DateTime.UtcNow;
+                            await repository.UpdateAsync(p);
+                            await progressUow.CompleteAsync();
+                        }
+                        catch { /* best-effort */ }
+                    }
+
+                    var codeGenResult = await codeGenAppService.GenerateProjectAsync(input, OnProgress);
                     var project = await repository.GetAsync(projectId);
                     if (codeGenResult != null)
                     {
@@ -121,6 +139,8 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
                             project.GeneratedModules = modules.Length > 500 ? modules[..497] + "..." : modules;
                         }
                     }
+                    project.Status = ProjectStatus.CodeGenerationCompleted;
+                    project.StatusMessage = "Code generation completed";
                     project.UpdatedAt = DateTime.UtcNow;
                     await repository.UpdateAsync(project);
                     await uow.CompleteAsync();

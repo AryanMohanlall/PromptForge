@@ -49,7 +49,7 @@ namespace ABPGroup.CodeGen
         //  MAIN ENTRY POINT
         // ══════════════════════════════════════════════════════════════════════
 
-        public async Task<CodeGenResult> GenerateProjectAsync(CreateUpdateProjectDto request)
+        public async Task<CodeGenResult> GenerateProjectAsync(CreateUpdateProjectDto request, Func<string, Task> onProgress = null)
         {
             if (request == null)
                 throw new ArgumentNullException(nameof(request));
@@ -58,22 +58,28 @@ namespace ABPGroup.CodeGen
             var projectDir  = Path.Combine(_outputBase, projectName);
 
             // 1. Scaffold boilerplate (zero LLM tokens)
+            await Emit(onProgress, "Setting up project structure");
             var scaffold = ScaffoldBoilerplate(request);
             if (scaffold.Count > 0)
                 WriteFiles(projectDir, scaffold);
+            await Emit(onProgress, $"Created {scaffold.Count} starter files");
 
             // 2. Generate app-specific code via LLM
-            var result = await GenerateWithRetryAsync(request, scaffold);
+            await Emit(onProgress, "Generating application code with AI");
+            var result = await GenerateWithRetryAsync(request, scaffold, onProgress);
+            await Emit(onProgress, $"Generated {result.Files?.Count ?? 0} files from your prompt");
 
             // 3. Merge scaffold + LLM files, write to disk
+            await Emit(onProgress, "Assembling final project");
             result.Files = MergeFiles(scaffold, result.Files);
             WriteFiles(projectDir, result.Files);
+            await Emit(onProgress, $"Project assembled — {result.Files.Count} files total");
 
             // 4. Validate build & auto-fix
             if (!_skipBuild)
-                await BuildAndFixAsync(projectDir, result, request.Framework);
+                await BuildAndFixAsync(projectDir, result, request.Framework, onProgress);
 
-            // 5. Copy to local output path if configured
+            // 5. Copy to local output path when running locally (online: pushed to GitHub after generation)
             if (!string.IsNullOrWhiteSpace(_localCopyPath))
             {
                 var localDir = Path.Combine(_localCopyPath, projectName);
@@ -81,14 +87,18 @@ namespace ABPGroup.CodeGen
                 Logger.Info($"Copied project to local path: {localDir}");
             }
 
+            await Emit(onProgress, "Ready to deploy");
             result.OutputPath         = projectDir;
             result.GeneratedProjectId = request.Id;
             Logger.Info($"Generation complete. {result.Files.Count} files in {projectDir}");
             return result;
         }
 
+        private static Task Emit(Func<string, Task> onProgress, string message)
+            => onProgress != null ? onProgress(message) : Task.CompletedTask;
+
         private async Task<CodeGenResult> GenerateWithRetryAsync(
-            CreateUpdateProjectDto request, List<GeneratedFile> scaffold)
+            CreateUpdateProjectDto request, List<GeneratedFile> scaffold, Func<string, Task> onProgress = null)
         {
             var template = request.TemplateId.HasValue
                 ? await _templateRepository.FirstOrDefaultAsync(request.TemplateId.Value)
@@ -103,6 +113,7 @@ namespace ABPGroup.CodeGen
                 return result;
 
             Logger.Warn("First LLM call returned no files — retrying.");
+            await Emit(onProgress, "Retrying code generation");
             result = await CallGroqAsync(systemPrompt, userPrompt);
             if (result?.Files == null || result.Files.Count == 0)
                 throw new InvalidOperationException("LLM returned no files after retry.");
@@ -123,10 +134,15 @@ namespace ABPGroup.CodeGen
             return merged;
         }
 
-        private async Task BuildAndFixAsync(string projectDir, CodeGenResult result, Framework framework)
+        private async Task BuildAndFixAsync(string projectDir, CodeGenResult result, Framework framework, Func<string, Task> onProgress = null)
         {
             for (var attempt = 1; attempt <= MaxFixRetries; attempt++)
             {
+                var message = attempt == 1
+                    ? "Installing dependencies and verifying build"
+                    : $"Resolving build issues — attempt {attempt} of {MaxFixRetries}";
+                await Emit(onProgress, message);
+
                 var (success, output) = await RunBuildAsync(projectDir, framework);
                 if (success)
                 {

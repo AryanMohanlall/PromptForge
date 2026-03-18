@@ -26,6 +26,7 @@ export enum ProjectStatus {
   Draft = 1,
   PromptSubmitted = 2,
   CodeGenerationInProgress = 3,
+  CodeGenerationCompleted = 8,
   RepositoryPushInProgress = 4,
   Deployed = 5,
   Failed = 6,
@@ -45,6 +46,8 @@ export interface IProjectItem {
   databaseOption: ProjectDatabaseOption;
   includeAuth: boolean;
   status: ProjectStatus;
+  statusMessage?: string | null;
+  templateId?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -61,6 +64,7 @@ export interface IProjectCreateInput {
   databaseOption: ProjectDatabaseOption;
   includeAuth: boolean;
   status?: ProjectStatus;
+  templateId?: number;
 }
 
 export interface IProjectUpdateInput extends IProjectCreateInput {

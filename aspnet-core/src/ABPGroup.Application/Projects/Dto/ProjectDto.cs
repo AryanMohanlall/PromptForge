@@ -38,4 +38,6 @@ public class ProjectDto : EntityDto<long>
     public string ArchitectureSummary { get; set; }
 
     public string GeneratedModules { get; set; }
+
+    public string StatusMessage { get; set; }
 }

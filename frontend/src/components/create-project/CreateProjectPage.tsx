@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SparklesIcon, Edit2Icon, CheckIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { StepIndicator } from "../StepIndicator";
@@ -13,6 +13,14 @@ import {
   ProjectStatus,
   useProjectAction,
 } from "@/providers/projects-provider";
+import { getAxiosInstance } from "@/utils/axiosInstance";
+
+interface ITemplate {
+  id: number;
+  name: string;
+  description?: string;
+  category?: string;
+}
 
 interface CreateProjectPageProps {
   onNavigate: (page: string) => void;
@@ -28,6 +36,18 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
   const [framework, setFramework] = useState("Next.js");
   const [language, setLanguage] = useState("TypeScript");
   const [styling, setStyling] = useState("Tailwind CSS");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [templates, setTemplates] = useState<ITemplate[]>([]);
+
+  useEffect(() => {
+    const instance = getAxiosInstance();
+    instance
+      .get<{ result: { items: ITemplate[] } }>("/api/services/app/Template/GetAll", {
+        params: { MaxResultCount: 50, SkipCount: 0 },
+      })
+      .then((res) => setTemplates(res.data.result.items))
+      .catch(() => {/* templates are optional — silently ignore */});
+  }, []);
   const [database, setDatabase] = useState("PostgreSQL");
   const [authEnabled, setAuthEnabled] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -120,10 +140,14 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
         databaseOption: mapDatabase(database),
         includeAuth: authEnabled,
         status: ProjectStatus.PromptSubmitted,
+        templateId: selectedTemplateId ?? undefined,
       });
 
       markProjectCreated();
-      onNavigate(`generation?id=${project.id}`);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("generatingProjectId", String(project.id));
+      }
+      onNavigate("generation");
     } catch {
       setSubmitError("We could not create the project. Please try again.");
     } finally {
@@ -276,6 +300,51 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
                   {renderSelectionCard(databases, database, setDatabase)}
                 </div>
               </div>
+
+              {templates.length > 0 && (
+                <div>
+                  <h3 className={styles.sectionLabel}>Template (optional)</h3>
+                  <div className={styles.selectionGrid}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTemplateId(null)}
+                      className={cx(
+                        styles.selectionCard,
+                        styles.focusRing,
+                        selectedTemplateId === null ? styles.selectionCardSelected : styles.selectionCardDefault
+                      )}
+                    >
+                      {selectedTemplateId === null && (
+                        <div className={styles.selectionCheck}>
+                          <CheckIcon className={styles.iconSmall} />
+                        </div>
+                      )}
+                      <span className={styles.selectionLabel}>No template</span>
+                    </button>
+                    {templates.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setSelectedTemplateId(t.id)}
+                        className={cx(
+                          styles.selectionCard,
+                          styles.focusRing,
+                          selectedTemplateId === t.id ? styles.selectionCardSelected : styles.selectionCardDefault
+                        )}
+                        title={t.description}
+                      >
+                        {selectedTemplateId === t.id && (
+                          <div className={styles.selectionCheck}>
+                            <CheckIcon className={styles.iconSmall} />
+                          </div>
+                        )}
+                        <span className={styles.selectionLabel}>{t.name}</span>
+                        {t.category && <span style={{ fontSize: 11, opacity: 0.6 }}>{t.category}</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className={styles.divider} />
 

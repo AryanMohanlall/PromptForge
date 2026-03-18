@@ -94,12 +94,27 @@ const PipelineStep = ({ name, status, duration, isLast }: PipelineStepProps) => 
 export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const { styles, cx } = useStyles();
   const searchParams = useSearchParams();
-  const projectIdParam = searchParams.get("id");
-  const projectId = projectIdParam ? parseInt(projectIdParam, 10) : null;
 
   const { selected: project } = useProjectState();
   const { fetchById } = useProjectAction();
-  const [generationStep, setGenerationStep] = useState(0);
+
+  // Resolve project ID from state, URL param, or sessionStorage (set by CreateProjectPage)
+  const [projectId, setProjectId] = useState<number | null>(null);
+  useEffect(() => {
+    if (projectId) return;
+    const fromState = project?.id ?? null;
+    const urlParam = searchParams.get("id");
+    const fromUrl = urlParam ? parseInt(urlParam, 10) : NaN;
+    const stored = typeof window !== "undefined"
+      ? parseInt(sessionStorage.getItem("generatingProjectId") ?? "", 10)
+      : NaN;
+    const resolved = fromState
+      ?? (!Number.isNaN(fromUrl) ? fromUrl : null)
+      ?? (!Number.isNaN(stored) ? stored : null);
+    if (resolved) setProjectId(resolved);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id]);
+
   const [isDeploying, setIsDeploying] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState(-1);
   const [repoName, setRepoName] = useState("promptforge-app");
@@ -110,18 +125,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const [githubRepoUrl, setGithubRepoUrl] = useState<string | null>(null);
   const [githubRepoFullName, setGithubRepoFullName] = useState<string | null>(null);
 
-  const generationSteps = useMemo(
-    () => [
-      { name: "Capturing AppRequest", duration: "1.6s" },
-      { name: "Starting PromptSession", duration: "3.1s" },
-      { name: "Selecting template & stack", duration: "2.2s" },
-      { name: "Generating GeneratedProject", duration: "9.4s" },
-      { name: "Packaging GeneratedArtifacts", duration: "4.5s" },
-      { name: "Preparing Repository", duration: "2.8s" },
-      { name: "Queueing BuildJob", duration: "1.9s" },
-    ],
-    []
-  );
+  // Track generation steps dynamically from real backend status messages
+  const [completedMessages, setCompletedMessages] = useState<string[]>([]);
+  const [activeMessage, setActiveMessage] = useState<string | null>(null);
 
   const deploymentSteps = useMemo(
     () => [
@@ -155,23 +161,49 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
     project.status === ProjectStatus.PromptSubmitted ||
     project.status === ProjectStatus.CodeGenerationInProgress;
   const isCodeGenFailed = project?.status === ProjectStatus.Failed;
-  const isCodeGenDone = !isCodeGenInProgress && !isCodeGenFailed;
+  const isCodeGenDone = project?.status === ProjectStatus.CodeGenerationCompleted ||
+    project?.status === ProjectStatus.RepositoryPushInProgress ||
+    project?.status === ProjectStatus.Deployed;
 
-  // Slowly advance step indicator while codegen is running (caps at second-to-last step)
+  // Build dynamic step list from real backend statusMessage updates
   useEffect(() => {
-    if (!isCodeGenInProgress || generationStep >= generationSteps.length - 1) return undefined;
-    const timer = window.setTimeout(() => {
-      setGenerationStep((prev) => prev + 1);
-    }, 8000);
-    return () => window.clearTimeout(timer);
-  }, [generationStep, isCodeGenInProgress, generationSteps.length]);
+    if (!project?.statusMessage) return;
+    const msg = project.statusMessage.replace(/\.{2,}$/, "").trim();
+    if (!msg) return;
 
-  // Jump all steps to complete when backend confirms codegen finished
+    setActiveMessage((prev) => {
+      // If we got a new message, push the old one to completed
+      if (prev && prev !== msg) {
+        setCompletedMessages((list) =>
+          list.includes(prev) ? list : [...list, prev]
+        );
+      }
+      return msg;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.statusMessage]);
+
+  // When codegen finishes, move active message to completed
   useEffect(() => {
-    if (isCodeGenDone && generationStep < generationSteps.length) {
-      setGenerationStep(generationSteps.length);
+    if (isCodeGenDone && activeMessage) {
+      setCompletedMessages((list) =>
+        list.includes(activeMessage) ? list : [...list, activeMessage]
+      );
+      setActiveMessage(null);
     }
-  }, [isCodeGenDone, generationStep, generationSteps.length]);
+  }, [isCodeGenDone, activeMessage]);
+
+  // Build the visual step list: completed steps + active step
+  const generationSteps = useMemo(() => {
+    const steps = completedMessages.map((name) => ({ name, status: "completed" as StepStatus }));
+    if (activeMessage) {
+      steps.push({ name: activeMessage, status: "active" as StepStatus });
+    }
+    if (isCodeGenDone && steps.length === 0) {
+      steps.push({ name: "Code generation completed", status: "completed" as StepStatus });
+    }
+    return steps;
+  }, [completedMessages, activeMessage, isCodeGenDone]);
 
   // Update default repo name once project loads
   useEffect(() => {
@@ -183,7 +215,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.name]);
 
-  const isGenerated = generationStep >= generationSteps.length;
+  const isGenerated = isCodeGenDone;
   const isDeployed = isDeploying && deploymentStep >= deploymentSteps.length;
 
   const generationStatus: StatusBadgeState = isDeployed
@@ -196,22 +228,15 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
   const progressPercentage = isGenerated
     ? 100
-    : Math.round((generationStep / generationSteps.length) * 100);
+    : generationSteps.length > 0 && activeMessage
+      ? Math.round((completedMessages.length / (completedMessages.length + 1)) * 100)
+      : 0;
 
   const getStepStatus = (index: number, currentStep: number): StepStatus => {
     if (index < currentStep) return "completed";
     if (index === currentStep) return "active";
     return "pending";
   };
-
-  useEffect(() => {
-    if (!isDeploying || isDeployed) return undefined;
-    const timer = window.setTimeout(() => {
-      setDeploymentStep((prev) => prev + 1);
-    }, 1500);
-
-    return () => window.clearTimeout(timer);
-  }, [isDeploying, deploymentStep, isDeployed, deploymentSteps.length]);
 
   const handleDeploy = async () => {
     const sanitizedRepoName = repoName.trim();
@@ -226,9 +251,13 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
     setDeployError(null);
     setIsCreatingRepo(true);
+    setIsDeploying(true);
+    setDeploymentStep(0);
 
     try {
       const instance = getAxiosInstance();
+
+      // Step 0: Creating GitHub repository
       const response = await instance.post<{
         repository?: {
           name?: string;
@@ -248,6 +277,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       const ownerFromFullName = fullName.includes("/") ? fullName.split("/")[0] : configuredOwner || undefined;
       const repoFromFullName = fullName.includes("/") ? fullName.split("/")[1] : repository?.name ?? sanitizedRepoName;
 
+      // Step 1: Committing generated code
+      setDeploymentStep(1);
+
       await instance.post("/api/github-app/commit-generated", {
         projectId: project.id,
         owner: ownerFromFullName,
@@ -257,11 +289,15 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
         commitMessage: `feat: initial generated project commit (${projectTitle})`,
       });
 
+      // Step 2–4: Mark remaining steps as complete (no real build/deploy pipeline yet)
+      setDeploymentStep(2);
+      setDeploymentStep(deploymentSteps.length);
+
       setGithubRepoUrl(repository?.htmlUrl ?? null);
       setGithubRepoFullName(repository?.fullName ?? repository?.name ?? sanitizedRepoName);
-      setIsDeploying(true);
-      setDeploymentStep(0);
     } catch (error) {
+      setIsDeploying(false);
+      setDeploymentStep(-1);
       const axiosError = error as AxiosError<{
         result?: {
           message?: string;
@@ -339,15 +375,34 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
           </div>
 
           <div className={styles.stepStack}>
-            {generationSteps.map((step, index) => (
-              <PipelineStep
-                key={step.name}
-                name={step.name}
-                duration={index < generationStep ? step.duration : undefined}
-                status={getStepStatus(index, generationStep)}
-                isLast={index === generationSteps.length - 1}
-              />
-            ))}
+            {generationSteps.length > 0 ? (
+              generationSteps.map((step, index) => (
+                <PipelineStep
+                  key={step.name}
+                  name={step.name}
+                  status={step.status}
+                  isLast={index === generationSteps.length - 1}
+                />
+              ))
+            ) : isCodeGenInProgress ? (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "10px 16px",
+                background: "var(--ant-color-fill-quaternary)",
+                borderRadius: 8,
+                fontSize: 13,
+                color: "var(--ant-color-text-secondary)",
+              }}>
+                <motion.span
+                  animate={{ opacity: [1, 0.3, 1] }}
+                  transition={{ duration: 1.2, repeat: Infinity }}
+                  style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--ant-color-primary)", display: "inline-block", flexShrink: 0 }}
+                />
+                Waiting for generation to start...
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -443,25 +498,22 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
               Generation log
             </summary>
             <div className={styles.logBody}>
-              [10:42:01] AppRequest captured for tenant workspace
-              <br />
-              [10:42:03] PromptSession created + PromptSnapshot frozen
-              <br />
-              [10:42:06] Template resolved and StackSelection validated
-              <br />
-              [10:42:09] GeneratedProject scaffolding started
-              <br />
-              {generationStep > 3 && (
-                <>
-                  [10:42:16] GeneratedArtifacts packaged and stored
+              {completedMessages.map((msg) => (
+                <span key={msg}>
+                  ✓ {msg}
                   <br />
-                </>
+                </span>
+              ))}
+              {activeMessage && (
+                <span style={{ color: "var(--ant-color-primary)" }}>
+                  ▸ {activeMessage}
+                  <br />
+                </span>
               )}
-              {generationStep > 4 && (
-                <>
-                  [10:42:20] RepositoryContext received ArtifactPackageReady
-                  <br />
-                </>
+              {generationSteps.length === 0 && isCodeGenInProgress && (
+                <span style={{ color: "var(--ant-color-text-tertiary)" }}>
+                  Waiting for generation to start...
+                </span>
               )}
             </div>
           </details>

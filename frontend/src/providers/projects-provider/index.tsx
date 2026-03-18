@@ -70,6 +70,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
 		try {
 			const res = await instance.post<AbpResult<IProjectItem>>(`${ENDPOINT}/Create`, data);
 			dispatch(createSuccess());
+			dispatch(fetchOneSuccess(res.data.result));
 			return res.data.result;
 		} catch (error) {
 			dispatch(createError());

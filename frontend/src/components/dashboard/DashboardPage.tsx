@@ -46,6 +46,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       [ProjectStatus.Draft]: "Draft",
       [ProjectStatus.PromptSubmitted]: "Generating",
       [ProjectStatus.CodeGenerationInProgress]: "Generating",
+      [ProjectStatus.CodeGenerationCompleted]: "Generated",
       [ProjectStatus.RepositoryPushInProgress]: "Deploying",
       [ProjectStatus.Deployed]: "Live",
       [ProjectStatus.Failed]: "Failed",
