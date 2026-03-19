@@ -71,8 +71,28 @@ public class UserRegistrationManager : DomainService
 
             await _userManager.InitializeOptionsAsync(tenant.Id);
 
-            CheckErrors(await _userManager.CreateAsync(user, plainPassword));
-            await CurrentUnitOfWork.SaveChangesAsync();
+            var identityResult = await _userManager.CreateAsync(user, plainPassword);
+            Logger.Info($"UserManager.CreateAsync returned: Succeeded={identityResult.Succeeded}, UserId={user.Id}, Username={user.UserName}, Email={user.EmailAddress}, Tenant={tenant.Id}");
+            if (!identityResult.Succeeded)
+            {
+                var errorMessages = string.Join("; ", identityResult.Errors.Select(e => $"{e.Code}: {e.Description}"));
+                Logger.Error($"UserManager.CreateAsync failed for user registration: {user.UserName}, {user.EmailAddress}, tenant: {tenant.Id}. Errors: {errorMessages}");
+            }
+            CheckErrors(identityResult);
+            Logger.Info($"About to call SaveChangesAsync for user: {user.UserName}, UserId={user.Id}, Tenant={tenant.Id}");
+            try
+            {
+                await CurrentUnitOfWork.SaveChangesAsync();
+                Logger.Info($"SaveChangesAsync succeeded for user: {user.UserName}, UserId={user.Id}, Tenant={tenant.Id}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                Logger.Error($"SaveChangesAsync failed for user registration: {user.UserName}, {user.EmailAddress}, tenant: {tenant.Id}", ex);
+                throw new UserFriendlyException("User registration failed due to a database error.", ex.Message);
+            }
+
+            Logger.Info($"Returning user from RegisterAsync: UserId={user.Id}, Username={user.UserName}, Tenant={tenant.Id}");
 
             return user;
         }

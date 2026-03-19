@@ -24,36 +24,71 @@ const GITHUB_CONNECTED_KEY = "github_connected";
 const PROJECT_STORAGE_KEY = "project_created";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:44311";
 
+const clearStoredAuth = () => {
+  removeAuthToken();
+  sessionStorage.removeItem(AUTH_USER_KEY);
+  sessionStorage.removeItem(GITHUB_CONNECTED_KEY);
+};
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const instance = getAxiosInstance();
   const [state, dispatch] = useReducer(AuthReducer, INITIAL_STATE);
 
   useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(AUTH_USER_KEY);
-      const hasCreatedProject = sessionStorage.getItem(PROJECT_STORAGE_KEY) === "true";
+    const initialize = async () => {
+      try {
+        const stored = sessionStorage.getItem(AUTH_USER_KEY);
+        const hasCreatedProject = sessionStorage.getItem(PROJECT_STORAGE_KEY) === "true";
+        const isGithubConnected = sessionStorage.getItem(GITHUB_CONNECTED_KEY) === "true";
 
-      if (stored) {
-        const user: IUser = JSON.parse(stored);
-        if (user?.accessToken && user?.userId) {
-          setAuthToken(user.accessToken);
-          dispatch(loginSuccess(user));
-          const isGithubConnected = sessionStorage.getItem(GITHUB_CONNECTED_KEY) === "true";
-          dispatch(loadLocalState({ isGithubConnected, hasCreatedProject }));
-          dispatch(authInitialized());
-          return;
+        if (!stored) {
+          // Prevent orphaned cookies from sending stale JWTs when session user is absent.
+          removeAuthToken();
         }
-      }
 
-      const isGithubConnected = sessionStorage.getItem(GITHUB_CONNECTED_KEY) === "true";
-      if (isGithubConnected || hasCreatedProject) {
-        dispatch(loadLocalState({ isGithubConnected, hasCreatedProject }));
+        if (stored) {
+          const user: IUser = JSON.parse(stored);
+          if (user?.accessToken && user?.userId) {
+            try {
+              const res = await instance.get(
+                "/api/services/app/Session/GetCurrentLoginInformations",
+                {
+                  headers: {
+                    Authorization: `Bearer ${user.accessToken}`,
+                  },
+                }
+              );
+              const backendUserId = res?.data?.result?.user?.id;
+              if (backendUserId && Number(backendUserId) !== Number(user.userId)) {
+                clearStoredAuth();
+              } else {
+                setAuthToken(user.accessToken);
+                dispatch(loginSuccess(user));
+                if (isGithubConnected || hasCreatedProject) {
+                  dispatch(loadLocalState({ isGithubConnected, hasCreatedProject }));
+                }
+                return;
+              }
+            } catch {
+              clearStoredAuth();
+            }
+          } else {
+            clearStoredAuth();
+          }
+        }
+
+        if (isGithubConnected || hasCreatedProject) {
+          dispatch(loadLocalState({ isGithubConnected, hasCreatedProject }));
+        }
+      } catch {
+        clearStoredAuth();
+      } finally {
+        dispatch(authInitialized());
       }
-    } catch {
-      // ignore parse errors
-    }
-    dispatch(authInitialized());
-  }, []);
+    };
+
+    void initialize();
+  }, [instance]);
 
   const login = async (userNameOrEmailAddress: string, password: string) => {
     dispatch(loginPending());

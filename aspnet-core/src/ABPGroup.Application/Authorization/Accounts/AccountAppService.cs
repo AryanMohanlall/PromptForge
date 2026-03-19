@@ -64,60 +64,80 @@ public class AccountAppService : ABPGroupAppServiceBase, IAccountAppService
         return new IsTenantAvailableOutput(TenantAvailabilityState.Available, tenant.Id);
     }
 
-    public async Task<RegisterOutput> Register(RegisterInput input)
+public async Task<RegisterOutput> Register(RegisterInput input)
+{
+    bool createdNewTenant = false;
+    int tenantId;
+    if (input.CreateTenant)
     {
-        bool createdNewTenant = false;
-        int tenantId;
-        if (input.CreateTenant)
-        {
-            tenantId = await CreateTenantForRegistrationAsync(input);
-            createdNewTenant = true;
-        }
-        else if (input.TenantId.HasValue && input.TenantId.Value > 0)
-        {
-            tenantId = input.TenantId.Value;
-        }
-        else if (TryGetTenantIdFromHeader(out var headerTenantId))
-        {
-            tenantId = headerTenantId;
-        }
-        else
-        {
-            // Auto-generate a tenant from the user's email address
-            tenantId = await CreateAutoTenantFromEmailAsync(input.EmailAddress);
-            createdNewTenant = true;
-        }
-
-        var user = await _userRegistrationManager.RegisterAsync(
-            input.Name,
-            input.Surname,
-            input.EmailAddress,
-            input.UserName,
-            input.Password,
-            tenantId,
-            true // Assumed email address is always confirmed. Change this if you want to implement email confirmation.
-        );
-
-        user.Role = input.Role; // defaults to Admin if not provided
-        await _userManager.UpdateAsync(user);
-
-        if (createdNewTenant)
-        {
-            using (CurrentUnitOfWork.SetTenantId(tenantId))
-            {
-                var adminRole = _roleManager.Roles.Single(r => r.Name == StaticRoleNames.Tenants.Admin);
-                CheckErrors(await _userManager.AddToRoleAsync(user, adminRole.Name));
-                await CurrentUnitOfWork.SaveChangesAsync();
-            }
-        }
-
-        var isEmailConfirmationRequiredForLogin = await SettingManager.GetSettingValueAsync<bool>(AbpZeroSettingNames.UserManagement.IsEmailConfirmationRequiredForLogin);
-
-        return new RegisterOutput
-        {
-            CanLogin = user.IsActive && (user.IsEmailConfirmed || !isEmailConfirmationRequiredForLogin)
-        };
+        tenantId = await CreateTenantForRegistrationAsync(input);
+        createdNewTenant = true;
     }
+    else if (input.TenantId.HasValue && input.TenantId.Value > 0)
+    {
+        tenantId = input.TenantId.Value;
+    }
+    else if (TryGetTenantIdFromHeader(out var headerTenantId))
+    {
+        tenantId = headerTenantId;
+    }
+    else
+    {
+        tenantId = await CreateAutoTenantFromEmailAsync(input.EmailAddress);
+        createdNewTenant = true;
+    }
+
+    // Register the user — this creates and saves the user internally
+    var user = await _userRegistrationManager.RegisterAsync(
+        input.Name,
+        input.Surname,
+        input.EmailAddress,
+        input.UserName,
+        input.Password,
+        tenantId,
+        true
+    );
+
+    // Re-fetch the user and apply Role within a properly scoped tenant context.
+    // We do NOT use the `user` object returned from RegisterAsync for UpdateAsync
+    // because it was tracked inside a different UoW/DbContext instance.
+    using (CurrentUnitOfWork.SetTenantId(tenantId))
+    {
+        var trackedUser = await _userManager.FindByIdAsync(user.Id.ToString());
+
+        if (trackedUser == null)
+        {
+            Logger.Error($"User not found after registration. UserId={user.Id}, Username={input.UserName}, Tenant={tenantId}");
+            throw new UserFriendlyException("User registration failed. User was not saved to the database.");
+        }
+
+        trackedUser.Role = input.Role;
+        await CurrentUnitOfWork.SaveChangesAsync();
+    }
+
+    // Assign admin role if a new tenant was created
+    if (createdNewTenant)
+    {
+        using (CurrentUnitOfWork.SetTenantId(tenantId))
+        {
+            // Use FindByNameAsync instead of .Roles.Single() to respect tenant query filter
+            var adminRole = await _roleManager.FindByNameAsync(StaticRoleNames.Tenants.Admin);
+            var trackedUser = await _userManager.FindByIdAsync(user.Id.ToString());
+
+            CheckErrors(await _userManager.AddToRoleAsync(trackedUser, adminRole.Name));
+            await CurrentUnitOfWork.SaveChangesAsync();
+        }
+    }
+
+    var isEmailConfirmationRequiredForLogin = await SettingManager.GetSettingValueAsync<bool>(
+        AbpZeroSettingNames.UserManagement.IsEmailConfirmationRequiredForLogin);
+
+    return new RegisterOutput
+    {
+        CanLogin = user.IsActive && (user.IsEmailConfirmed || !isEmailConfirmationRequiredForLogin),
+        UserId = user.Id
+    };
+}
 
     private bool TryGetTenantIdFromHeader(out int tenantId)
     {
