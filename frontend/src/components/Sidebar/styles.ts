@@ -219,9 +219,6 @@ export const useStyles = createStyles(({ token, css }) => ({
   footer: css`
     margin-top: auto;
     padding-top: ${token.padding}px;
-    display: flex;
-    flex-direction: column;
-    gap: ${token.marginSM}px;
     border-top: 1px solid rgba(34, 197, 94, 0.25);
   `,
   profileCard: css`
@@ -295,14 +292,12 @@ export const useStyles = createStyles(({ token, css }) => ({
     justify-content: center;
     font-size: ${token.fontSizeSM}px;
     font-weight: ${token.fontWeightStrong};
-    color: ${token.colorBgContainer};
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.24);
+    color: #ffffff;
   `,
   profileName: css`
     font-size: ${token.fontSizeLG}px;
     font-weight: ${token.fontWeightStrong};
-    color: white;
-    line-height: 1.25;
+    color: #ffffff;
   `,
   profileTextBlock: css`
     display: flex;

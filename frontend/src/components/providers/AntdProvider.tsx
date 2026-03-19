@@ -14,7 +14,6 @@ export default function AntdProvider({ children }: { readonly children: React.Re
             colorPrimary: '#22c55e', // vivid green
             colorSuccess: '#2dd4a8',
             colorWarning: '#facc15', // yellow
-            colorInfo: '#6d28d9',
 
             colorBgLayout: '#050b13',
             colorBgContainer: '#0f1a27',
