@@ -1,7 +1,16 @@
 "use client";
 
 import { useStyles } from "./styles/style";
-import { Card, Switch, Typography, Space, Spin, Tag, Button, Empty } from "antd";
+import {
+  Card,
+  Switch,
+  Typography,
+  Space,
+  Spin,
+  Tag,
+  Button,
+  Empty,
+} from "antd";
 import { useEffect, useState } from "react";
 import { getAxiosInstance } from "@/utils/axiosInstance";
 import { GithubIcon, CheckCircleIcon, AlertCircleIcon } from "lucide-react";
@@ -20,15 +29,19 @@ export default function SettingsPage() {
   const [githubStatus, setGithubStatus] = useState<GitHubStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:44311";
+  const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:44311";
 
   useEffect(() => {
     const fetchGitHubStatus = async () => {
       try {
         setLoading(true);
         const axiosInstance = getAxiosInstance();
-        const response = await axiosInstance.get<GitHubStatus>("/api/github-app/status");
+        const response = await axiosInstance.get<GitHubStatus>(
+          "/api/github-app/status",
+        );
         setGithubStatus(response.data);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (error: any) {
         // GitHub App status fails because credentials aren't configured
         // But GitHub OAuth might still be available
@@ -36,12 +49,14 @@ export default function SettingsPage() {
           // GitHub App not configured, but OAuth might be
           setGithubStatus({
             connected: false,
-            message: "Ready to connect GitHub account. Click Connect to link your GitHub profile.",
+            message:
+              "Ready to connect GitHub account. Click Connect to link your GitHub profile.",
           });
         } else {
           setGithubStatus({
             connected: false,
-            message: "GitHub integration not available. Please configure GitHub OAuth credentials.",
+            message:
+              "GitHub integration not available. Please configure GitHub OAuth credentials.",
             error: error instanceof Error ? error.message : "Unknown error",
           });
         }
@@ -55,12 +70,17 @@ export default function SettingsPage() {
 
   const handleGitHubConnect = async () => {
     try {
-      console.log("Initiating GitHub login to:", `${API_BASE_URL}/api/tokenauth/GitHubLogin`);
+      console.log(
+        "Initiating GitHub login to:",
+        `${API_BASE_URL}/api/tokenauth/GitHubLogin`,
+      );
       // Direct navigation to the GitHub OAuth endpoint
       window.location.href = `${API_BASE_URL}/api/tokenauth/GitHubLogin`;
     } catch (error) {
       console.error("Failed to initiate GitHub login:", error);
-      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(
+        `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     }
   };
 
@@ -113,7 +133,13 @@ export default function SettingsPage() {
                   <span className={styles.settingLabel}>Status</span>
                   <Tag
                     color={githubStatus.connected ? "green" : "red"}
-                    icon={githubStatus.connected ? <CheckCircleIcon size={16} /> : <AlertCircleIcon size={16} />}
+                    icon={
+                      githubStatus.connected ? (
+                        <CheckCircleIcon size={16} />
+                      ) : (
+                        <AlertCircleIcon size={16} />
+                      )
+                    }
                   >
                     {githubStatus.connected ? "Connected" : "Disconnected"}
                   </Tag>
@@ -139,7 +165,10 @@ export default function SettingsPage() {
                 {!githubStatus.connected && (
                   <div>
                     {githubStatus.message && (
-                      <Typography.Paragraph type="secondary" style={{ fontSize: "12px" }}>
+                      <Typography.Paragraph
+                        type="secondary"
+                        style={{ fontSize: "12px" }}
+                      >
                         {githubStatus.message}
                       </Typography.Paragraph>
                     )}

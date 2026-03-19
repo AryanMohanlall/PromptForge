@@ -3,6 +3,7 @@ using System;
 using ABPGroup.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ABPGroup.Migrations
 {
     [DbContext(typeof(ABPGroupDbContext))]
-    partial class ABPGroupDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260319143731_UpdateTemplates")]
+    partial class UpdateTemplates
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -478,9 +481,6 @@ namespace ABPGroup.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<int?>("TenantId")
-                        .HasColumnType("integer");
-
                     b.Property<string>("ThumbnailUrl")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -498,41 +498,6 @@ namespace ABPGroup.Migrations
                     b.HasIndex("Status");
 
                     b.ToTable("Templates", (string)null);
-                });
-
-            modelBuilder.Entity("ABPGroup.Templates.UserFavoriteTemplate", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTime>("CreationTime")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long?>("CreatorUserId")
-                        .HasColumnType("bigint");
-
-                    b.Property<int>("TemplateId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("TenantId")
-                        .HasColumnType("integer");
-
-                    b.Property<long>("UserId")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TemplateId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("UserId", "TemplateId")
-                        .IsUnique();
-
-                    b.ToTable("UserFavoriteTemplates", (string)null);
                 });
 
             modelBuilder.Entity("Abp.Application.Editions.Edition", b =>
@@ -2039,25 +2004,6 @@ namespace ABPGroup.Migrations
                         .IsRequired();
 
                     b.Navigation("Project");
-                });
-
-            modelBuilder.Entity("ABPGroup.Templates.UserFavoriteTemplate", b =>
-                {
-                    b.HasOne("ABPGroup.Templates.Template", "Template")
-                        .WithMany()
-                        .HasForeignKey("TemplateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ABPGroup.Authorization.Users.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Template");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Abp.Authorization.Roles.RoleClaim", b =>
