@@ -4,14 +4,16 @@ export const useStyles = createStyles(({ token, css }) => ({
   sidebar: css`
     width: var(--sidebar-width, ${token.paddingXL * 6.5}px);
     height: 100vh;
-    background: ${token.colorText};
-    color: ${token.colorBgContainer};
+    background: rgba(18, 30, 35, 0.88);
+    color: ${token.colorText};
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
     position: fixed;
     left: 0;
     top: 0;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.35);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
   `,
   content: css`
     padding: ${token.paddingLG}px;
@@ -58,6 +60,115 @@ export const useStyles = createStyles(({ token, css }) => ({
     display: flex;
     flex-direction: column;
     gap: ${token.marginSM / 2}px;
+
+    /* Dashboard: 90deg left-to-right (green → purple → yellow → white → black) */
+    & button:nth-child(1):hover {
+      background: linear-gradient(
+        90deg,
+        rgba(34, 197, 94, 0.18),
+        rgba(109, 40, 217, 0.16),
+        rgba(250, 204, 21, 0.18),
+        rgba(255, 255, 255, 0.08),
+        rgba(0, 0, 0, 0.34)
+      );
+      color: ${token.colorText};
+    }
+
+    /* My Projects: 135deg diagonal (yellow → purple → green → black → white) */
+    & button:nth-child(2):hover {
+      background: linear-gradient(
+        135deg,
+        rgba(250, 204, 21, 0.18),
+        rgba(109, 40, 217, 0.16),
+        rgba(34, 197, 94, 0.18),
+        rgba(0, 0, 0, 0.34),
+        rgba(255, 255, 255, 0.08)
+      );
+      color: ${token.colorText};
+    }
+
+    /* Templates: 45deg diagonal (purple → yellow → white → green → black) */
+    & button:nth-child(3):hover {
+      background: linear-gradient(
+        45deg,
+        rgba(109, 40, 217, 0.16),
+        rgba(250, 204, 21, 0.18),
+        rgba(255, 255, 255, 0.08),
+        rgba(34, 197, 94, 0.18),
+        rgba(0, 0, 0, 0.34)
+      );
+      color: ${token.colorText};
+    }
+
+    /* Settings: 75deg diagonal (green → yellow → purple → black → white) */
+    & button:nth-child(4):hover {
+      background: linear-gradient(
+        75deg,
+        rgba(34, 197, 94, 0.18),
+        rgba(250, 204, 21, 0.18),
+        rgba(109, 40, 217, 0.16),
+        rgba(0, 0, 0, 0.34),
+        rgba(255, 255, 255, 0.08)
+      );
+      color: ${token.colorText};
+    }
+
+    /* Admin buttons with varying gradients */
+    /* Admin 1 (Overview): 225deg diagonal (green → purple → yellow) */
+    & button:nth-child(6):hover {
+      background: linear-gradient(
+        225deg,
+        rgba(34, 197, 94, 0.18),
+        rgba(109, 40, 217, 0.16),
+        rgba(250, 204, 21, 0.18)
+      );
+      color: ${token.colorText};
+    }
+
+    /* Admin 2 (Users): -45deg (white → yellow → purple) */
+    & button:nth-child(7):hover {
+      background: linear-gradient(
+        -45deg,
+        rgba(255, 255, 255, 0.08),
+        rgba(250, 204, 21, 0.18),
+        rgba(109, 40, 217, 0.16)
+      );
+      color: ${token.colorText};
+    }
+
+    /* Admin 3 (Projects): 0deg (top-to-bottom, purple → black → green) */
+    & button:nth-child(8):hover {
+      background: linear-gradient(
+        0deg,
+        rgba(109, 40, 217, 0.16),
+        rgba(0, 0, 0, 0.34),
+        rgba(34, 197, 94, 0.18)
+      );
+      color: ${token.colorText};
+    }
+
+    /* Admin 4 (Deployments): 270deg (bottom-to-top, yellow → green → white) */
+    & button:nth-child(9):hover {
+      background: linear-gradient(
+        270deg,
+        rgba(250, 204, 21, 0.18),
+        rgba(34, 197, 94, 0.18),
+        rgba(255, 255, 255, 0.08)
+      );
+      color: ${token.colorText};
+    }
+
+    /* Admin 5 (System Health): 315deg (purple → white → black → yellow) */
+    & button:nth-child(10):hover {
+      background: linear-gradient(
+        315deg,
+        rgba(109, 40, 217, 0.16),
+        rgba(255, 255, 255, 0.08),
+        rgba(0, 0, 0, 0.34),
+        rgba(250, 204, 21, 0.18)
+      );
+      color: ${token.colorText};
+    }
   `,
   navButton: css`
     width: 100%;
@@ -70,15 +181,18 @@ export const useStyles = createStyles(({ token, css }) => ({
     color: ${token.colorTextSecondary};
     cursor: pointer;
     transition: background 0.2s ease, color 0.2s ease;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.06);
-      color: ${token.colorBgContainer};
-    }
   `,
   navButtonActive: css`
-    background: rgba(255, 255, 255, 0.12);
-    color: ${token.colorBgContainer};
+    background: linear-gradient(
+      90deg,
+      rgba(34, 197, 94, 0.28),
+      rgba(109, 40, 217, 0.18),
+      rgba(250, 204, 21, 0.22),
+      rgba(255, 255, 255, 0.1),
+      rgba(0, 0, 0, 0.5)
+    );
+    border-left: 4px solid rgba(34, 197, 94, 0.85);
+    color: ${token.colorText};
     font-weight: ${token.fontWeightStrong};
   `,
   navIcon: css`
@@ -99,13 +213,13 @@ export const useStyles = createStyles(({ token, css }) => ({
   `,
   divider: css`
     height: 1px;
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(34, 197, 94, 0.2);
     margin: 0 ${token.paddingSM}px ${token.marginSM}px;
   `,
   footer: css`
     margin-top: auto;
     padding-top: ${token.padding}px;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid rgba(34, 197, 94, 0.25);
   `,
   profileButton: css`
     width: 100%;
@@ -164,10 +278,12 @@ export const useStyles = createStyles(({ token, css }) => ({
     justify-content: center;
     font-size: ${token.fontSizeSM}px;
     font-weight: ${token.fontWeightStrong};
+    color: #ffffff;
   `,
   profileName: css`
     font-size: ${token.fontSizeSM}px;
     font-weight: ${token.fontWeightStrong};
+    color: #ffffff;
   `,
   chevron: css`
     width: ${token.fontSize}px;
