@@ -2,9 +2,9 @@
 
 import { createContext } from "react";
 import {
-  Framework,
-  ProgrammingLanguage,
-  DatabaseOption,
+  ProjectFramework,
+  ProjectProgrammingLanguage,
+  ProjectDatabaseOption,
 } from "../projects-provider/context";
 
 export enum TemplateCategory {
@@ -33,9 +33,9 @@ export interface ITemplateItem {
   author?: string | null;
   category: TemplateCategory;
   categoryName?: string | null;
-  framework: Framework;
-  language: ProgrammingLanguage;
-  database: DatabaseOption;
+  framework: ProjectFramework;
+  language: ProjectProgrammingLanguage;
+  database: ProjectDatabaseOption;
   includesAuth: boolean;
   tags: string[];
   thumbnailUrl?: string | null;
@@ -53,9 +53,9 @@ export interface ITemplateCreateInput {
   description?: string;
   author?: string;
   category: TemplateCategory;
-  framework: Framework;
-  language: ProgrammingLanguage;
-  database: DatabaseOption;
+  framework: ProjectFramework;
+  language: ProjectProgrammingLanguage;
+  database: ProjectDatabaseOption;
   includesAuth: boolean;
   tags?: string; // Comma-separated
   thumbnailUrl?: string;
@@ -72,8 +72,8 @@ export interface ITemplateUpdateInput extends ITemplateCreateInput {
 
 export interface ITemplateListInput {
   category?: TemplateCategory;
-  framework?: Framework;
-  database?: DatabaseOption;
+  framework?: ProjectFramework;
+  database?: ProjectDatabaseOption;
   includesAuth?: boolean;
   status?: TemplateStatus;
   searchTerm?: string;
