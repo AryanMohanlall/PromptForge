@@ -22,7 +22,7 @@ import { TemplateCategory } from "@/providers/templates-provider/context";
 import { useRouter } from "next/navigation";
 
 export default function TemplatesPage() {
-  const { styles, cx } = useStyles();
+  const { styles } = useStyles();
   const router = useRouter();
   const { fetchAll, toggleFavorite } = useTemplateAction();
   const { items, isPending, isError } = useTemplateState();
@@ -49,7 +49,10 @@ export default function TemplatesPage() {
       await toggleFavorite(id);
       message.success("Collection updated");
     } catch (error) {
-      message.error("Failed to update collection");
+      message.error(
+        "Failed to update collection" +
+          (error instanceof Error ? `: ${error.message}` : ""),
+      );
     }
   };
 
@@ -177,7 +180,9 @@ export default function TemplatesPage() {
               <Card key={template.id} className={styles.templateCard}>
                 <div className={styles.templateHeader}>
                   <h2 className={styles.templateName}>{template.name}</h2>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
                     <Tag color="blue">{template.categoryName}</Tag>
                     <Button
                       type="text"
@@ -185,7 +190,9 @@ export default function TemplatesPage() {
                         <HeartIcon
                           size={18}
                           fill={template.isFavorite ? "#ff4d4f" : "none"}
-                          color={template.isFavorite ? "#ff4d4f" : "currentColor"}
+                          color={
+                            template.isFavorite ? "#ff4d4f" : "currentColor"
+                          }
                         />
                       }
                       onClick={() => handleToggleFavorite(template.id)}

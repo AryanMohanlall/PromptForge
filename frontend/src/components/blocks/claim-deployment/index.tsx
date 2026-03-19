@@ -3,6 +3,7 @@
 import React from "react";
 import { CheckCircle2, ExternalLink } from "lucide-react";
 import { useStyles } from "./styles";
+import Image from "next/image";
 
 interface ClaimDeploymentProps {
   url: string;
@@ -32,7 +33,13 @@ export const ClaimDeployment = ({
       </div>
 
       <div className={cx(styles.preview, "preview")}>
-        <img src={previewImage} alt="Preview" className={styles.previewImage} />
+        <Image
+          width={400}
+          height={200}
+          src={previewImage}
+          alt="Preview"
+          className={styles.previewImage}
+        />
         <div className={cx(styles.overlay, "overlay")}>
           <a
             href={url}

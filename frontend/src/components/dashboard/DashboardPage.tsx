@@ -25,7 +25,9 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [deletingProjectId, setDeletingProjectId] = useState<number | null>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<number | null>(
+    null,
+  );
 
   const statuses = [
     "All",
@@ -92,7 +94,9 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       return;
     }
 
-    const confirmed = window.confirm(`Delete \"${project.name}\"? This action cannot be undone.`);
+    const confirmed = window.confirm(
+      `Delete \"${project.name}\"? This action cannot be undone.`,
+    );
     if (!confirmed) {
       return;
     }
@@ -109,6 +113,10 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   };
 
   const handleClaimProject = (project: ProjectData) => {
+    const projectId = Number(project.id);
+    if (!Number.isFinite(projectId)) {
+      return;
+    }
     const claimUrl = `https://vercel.com/oauth/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=${encodeURIComponent(
       window.location.origin,
     )}/vercel/callback&response_type=code`;
@@ -175,7 +183,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                     }}
                     className={cx(
                       styles.filterItem,
-                      statusFilter === status && styles.filterItemActive
+                      statusFilter === status && styles.filterItemActive,
                     )}
                   >
                     {status}
@@ -190,7 +198,9 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       {isPending ? (
         <div className={styles.emptyState}>Loading projects...</div>
       ) : isError ? (
-        <div className={styles.emptyState}>Failed to load projects. Please try again.</div>
+        <div className={styles.emptyState}>
+          Failed to load projects. Please try again.
+        </div>
       ) : filteredProjects.length > 0 ? (
         <motion.div
           variants={containerVariants}
