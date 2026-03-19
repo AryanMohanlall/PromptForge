@@ -66,15 +66,12 @@ namespace ABPGroup.Migrations
                 oldType: "text",
                 oldNullable: true);
 
-            migrationBuilder.AlterColumn<int>(
-                name: "Category",
-                table: "Templates",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldNullable: true);
+            migrationBuilder.Sql(@"
+    ALTER TABLE ""Templates"" ALTER COLUMN ""Category"" TYPE integer USING ""Category""::integer;
+    ALTER TABLE ""Templates"" ALTER COLUMN ""Category"" SET DEFAULT 1;
+    UPDATE ""Templates"" SET ""Category"" = 1 WHERE ""Category"" IS NULL;
+    ALTER TABLE ""Templates"" ALTER COLUMN ""Category"" SET NOT NULL;
+");
 
             migrationBuilder.AlterColumn<string>(
                 name: "Author",
@@ -138,7 +135,7 @@ namespace ABPGroup.Migrations
             migrationBuilder.AddColumn<string>(
                 name: "ScaffoldConfig",
                 table: "Templates",
-                type: "nvarchar(max)",
+                type: "text",
                 nullable: true);
 
             migrationBuilder.AddColumn<int>(

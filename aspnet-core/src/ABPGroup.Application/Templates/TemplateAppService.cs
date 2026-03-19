@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 
 namespace ABPGroup.Templates;
 
-[AbpAuthorize(PermissionNames.Pages_Templates)]
 public class TemplateAppService
     : AsyncCrudAppService<Template, TemplateDto, int, TemplateListInput, CreateUpdateTemplateDto, CreateUpdateTemplateDto, EntityDto<int>, EntityDto<int>>,
       ITemplateAppService
@@ -34,14 +33,12 @@ public class TemplateAppService
     }
 
     // PlatformAdministrator only
-    [AbpAuthorize(PermissionNames.Pages_Templates_Edit)]
     public async Task<TemplateDto> UpdateAsync(int id, CreateUpdateTemplateDto input)
     {
         input.Id = id;
         return await base.UpdateAsync(input);
     }
 
-    [AbpAuthorize(PermissionNames.Pages_Templates_Delete)]
     public async Task DeleteAsync(int id)
     {
         await base.DeleteAsync(new EntityDto<int>(id));
@@ -75,7 +72,6 @@ public class TemplateAppService
         return base.ApplySorting(query, input);
     }
 
-    [AbpAuthorize(PermissionNames.Pages_Templates_Edit)]
     public async Task<TemplateDto> PublishAsync(int id)
     {
         var template = await Repository.GetAsync(id);
@@ -86,7 +82,6 @@ public class TemplateAppService
         return MapToEntityDto(template);
     }
 
-    [AbpAuthorize(PermissionNames.Pages_Templates_Edit)]
     public async Task<TemplateDto> DeprecateAsync(int id)
     {
         var template = await Repository.GetAsync(id);
@@ -97,7 +92,6 @@ public class TemplateAppService
         return MapToEntityDto(template);
     }
 
-    [AbpAuthorize(PermissionNames.Pages_Templates_Edit)]
     public async Task<TemplateDto> SetFeaturedAsync(int id, bool featured)
     {
         var template = await Repository.GetAsync(id);
