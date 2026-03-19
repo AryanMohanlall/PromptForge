@@ -39,9 +39,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (user?.accessToken && user?.userId) {
           setAuthToken(user.accessToken);
           dispatch(loginSuccess(user));
-          // OAuth callback stores auth_user in sessionStorage; treat that as GitHub-connected.
-          sessionStorage.setItem(GITHUB_CONNECTED_KEY, "true");
-          dispatch(loadLocalState({ isGithubConnected: true, hasCreatedProject }));
+          const isGithubConnected = sessionStorage.getItem(GITHUB_CONNECTED_KEY) === "true";
+          dispatch(loadLocalState({ isGithubConnected, hasCreatedProject }));
           dispatch(authInitialized());
           return;
         }
@@ -68,6 +67,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const { accessToken, expireInSeconds, userId } = res.data.result;
       const user: IUser = { accessToken, expireInSeconds, userId };
       setAuthToken(accessToken);
+      sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
       dispatch(loginSuccess(user));
       return user;
     } catch {

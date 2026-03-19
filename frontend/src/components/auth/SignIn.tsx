@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button, Input, Divider } from "antd";
 import {
   usePageStyles,
@@ -132,6 +132,7 @@ function AuthLogo() {
 
 // ─── Sign In ──────────────────────────────────────────────────────────────────
 function SignInPage({ onSwitch }: PageProps) {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [attempted, setAttempted] = useState(false);
@@ -140,15 +141,17 @@ function SignInPage({ onSwitch }: PageProps) {
   const { isPending, isError } = useAuthState();
   const { styles } = useAuthStyles();
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     setAttempted(true);
     if (!email || !password) {
       setValidationError("Please enter your email and password.");
       return;
     }
     setValidationError("");
-    void login(email, password);
-    redirect("/dashboard");
+    const user = await login(email, password);
+    if (user) {
+      router.replace("/dashboard");
+    }
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { setAuthToken } from "@/utils/axiosInstance";
 
 const AUTH_USER_KEY = "auth_user";
+const GITHUB_CONNECTED_KEY = "github_connected";
 
 function getCookie(name: string): string | null {
   const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
@@ -45,8 +46,11 @@ function GitHubCallback() {
         expireInSeconds: Number(expireInSeconds ?? 86400),
       }),
     );
+    sessionStorage.setItem(GITHUB_CONNECTED_KEY, "true");
 
-    router.replace("/dashboard");
+    // Use a full navigation so the auth provider rehydrates from session storage
+    // before protected routes evaluate authentication state.
+    window.location.replace("/dashboard");
   }, [router]);
 
   return (
