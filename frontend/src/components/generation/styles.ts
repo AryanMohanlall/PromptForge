@@ -588,6 +588,11 @@ export const useStyles = createStyles(({ token, css }) => ({
     font-size: ${token.fontSizeSM}px;
     font-weight: ${token.fontWeightStrong};
   `,
+  infoText: css`
+    margin: 0;
+    color: ${token.colorTextSecondary};
+    font-size: ${token.fontSizeSM}px;
+  `,
   deployWrap: css`
     display: flex;
     flex-direction: column;
@@ -690,6 +695,11 @@ export const useStyles = createStyles(({ token, css }) => ({
     color: ${token.colorSuccess};
     font-weight: ${token.fontWeightStrong};
     cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   `,
   successGhost: css`
     display: inline-flex;
@@ -702,6 +712,11 @@ export const useStyles = createStyles(({ token, css }) => ({
     color: ${token.colorBgContainer};
     font-weight: ${token.fontWeightStrong};
     cursor: pointer;
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   `,
   iconSmall: css`
     width: ${token.fontSize}px;
