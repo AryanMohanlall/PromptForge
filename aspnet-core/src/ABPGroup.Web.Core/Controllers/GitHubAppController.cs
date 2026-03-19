@@ -302,7 +302,7 @@ namespace ABPGroup.Controllers
                 });
             }
 
-            var outputBase = _configuration["CodeGen:OutputPath"] ?? "/app/GeneratedApps";
+            var outputBase = _configuration["CodeGen:OutputPath"] ?? "/tmp/GeneratedApps";
             var projectDir = ResolveExistingProjectDirectory(outputBase, project.Name);
             if (string.IsNullOrWhiteSpace(projectDir))
             {
@@ -531,13 +531,7 @@ namespace ABPGroup.Controllers
         private static string SanitizeDirName(string name)
         {
             if (string.IsNullOrWhiteSpace(name)) return "unnamed-project";
-
-            var safe = Regex.Replace(name.Trim(), @"[^\w\-.]", "-");
-            safe = Regex.Replace(safe, @"-{2,}", "-").Trim('-');
-
-            if (safe.Length > 80) safe = safe.Substring(0, 80).TrimEnd('-');
-
-            return string.IsNullOrWhiteSpace(safe) ? "unnamed-project" : safe.ToLowerInvariant();
+            return Regex.Replace(name.Trim(), @"[^a-zA-Z0-9\-_]", "-").ToLowerInvariant();
         }
 
         private async Task<string> GetCurrentUserGitHubAccessTokenAsync()
