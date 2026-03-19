@@ -3,11 +3,15 @@ import { renderHook, act } from "@testing-library/react";
 import { AuthProvider, useAuthAction } from "./index";
 
 const postMock = vi.hoisted(() => vi.fn());
+const getMock = vi.hoisted(() => vi.fn());
 const setAuthTokenMock = vi.hoisted(() => vi.fn());
 const removeAuthTokenMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/utils/axiosInstance", () => ({
-  getAxiosInstance: () => ({ post: postMock }),
+  getAxiosInstance: () => ({
+    get: getMock,
+    post: postMock,
+  }),
   setAuthToken: setAuthTokenMock,
   removeAuthToken: removeAuthTokenMock,
 }));
@@ -15,6 +19,7 @@ vi.mock("@/utils/axiosInstance", () => ({
 describe("AuthProvider actions", () => {
   beforeEach(() => {
     postMock.mockReset();
+    getMock.mockReset();
     setAuthTokenMock.mockReset();
     removeAuthTokenMock.mockReset();
     sessionStorage.clear();
@@ -58,7 +63,7 @@ describe("AuthProvider actions", () => {
         surname: "Doe",
         emailAddress: "jane@example.com",
         roleNames: ["PlatformAdministrator"],
-      })
+      }),
     );
   });
 
@@ -100,7 +105,9 @@ describe("AuthProvider actions", () => {
       });
     });
 
-    expect(postMock.mock.calls[0][0]).toBe("/api/services/app/Account/Register");
+    expect(postMock.mock.calls[0][0]).toBe(
+      "/api/services/app/Account/Register",
+    );
     expect(postMock.mock.calls[0][2]).toEqual({
       headers: {
         "Abp.TenantId": "12",
@@ -145,7 +152,9 @@ describe("AuthProvider actions", () => {
       });
     });
 
-    expect(postMock.mock.calls[0][0]).toBe("/api/services/app/Account/Register");
+    expect(postMock.mock.calls[0][0]).toBe(
+      "/api/services/app/Account/Register",
+    );
     expect(postMock.mock.calls[0][2]).toBeUndefined();
   });
 });

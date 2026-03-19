@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { TemplateProvider, useTemplateAction, useTemplateState } from "./index";
+import { TemplateCategory } from "./context";
 
 const getMock = vi.hoisted(() => vi.fn());
 const postMock = vi.hoisted(() => vi.fn());
@@ -59,7 +60,9 @@ describe("TemplateProvider actions", () => {
       await result.current.actions.fetchAll();
     });
 
-    expect(getMock).toHaveBeenCalledWith("/api/services/app/Template/GetAll");
+    expect(getMock).toHaveBeenCalledWith("/api/services/app/Template/GetList", {
+      params: undefined,
+    });
     expect(result.current.state.items).toHaveLength(1);
     expect(result.current.state.totalCount).toBe(1);
     expect(result.current.state.isSuccess).toBe(true);
@@ -74,8 +77,7 @@ describe("TemplateProvider actions", () => {
             {
               id: 3,
               name: "Marketing Site",
-              slug: "marketing-site",
-              category: "Marketing",
+              category: TemplateCategory.LandingPages,
             },
           ],
           totalCount: 1,
@@ -98,17 +100,23 @@ describe("TemplateProvider actions", () => {
     await act(async () => {
       await result.current.actions.create({
         name: "Marketing Site",
-        slug: "marketing-site",
-        category: "Marketing",
+        description: "A marketing landing page template",
+        category: TemplateCategory.LandingPages,
+        framework: 1,
+        language: 1,
+        database: 1,
+        includesAuth: false,
+        tags: "landing,marketing",
+        status: 2,
+        version: "1.0.0",
+        isFeatured: false,
       });
     });
 
-    expect(postMock).toHaveBeenCalledWith("/api/services/app/Template/Create", {
-      name: "Marketing Site",
-      slug: "marketing-site",
-      category: "Marketing",
+    expect(postMock).toHaveBeenCalledTimes(1);
+    expect(getMock).toHaveBeenCalledWith("/api/services/app/Template/GetList", {
+      params: undefined,
     });
-    expect(getMock).toHaveBeenCalledWith("/api/services/app/Template/GetAll");
     expect(result.current.state.items).toHaveLength(1);
     expect(result.current.state.totalCount).toBe(1);
     expect(result.current.state.isSuccess).toBe(true);

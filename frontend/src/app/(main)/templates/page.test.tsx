@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import TemplatesPage from "./page";
 
 const fetchAllMock = vi.hoisted(() => vi.fn());
@@ -10,7 +16,8 @@ const templateStateMock = vi.hoisted(() => ({
     slug: string;
     category: string;
     description?: string | null;
-    tags?: string | null;
+    tags?: string[] | null;
+    categoryName?: string | null;
     author?: string | null;
     likeCount?: number | null;
     viewCount?: number | null;
@@ -25,6 +32,12 @@ vi.mock("@/providers/templates-provider", () => ({
     fetchAll: fetchAllMock,
   }),
   useTemplateState: () => templateStateMock,
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+  }),
 }));
 
 vi.mock("./styles/style", () => ({
@@ -53,16 +66,18 @@ describe("TemplatesPage", () => {
         name: "Admin Dashboard",
         slug: "admin-dashboard",
         category: "Internal",
+        categoryName: "Internal",
         description: "Internal analytics dashboard template",
-        tags: "admin,analytics",
+        tags: ["admin", "analytics"],
       },
       {
         id: 2,
         name: "Marketing Landing",
         slug: "marketing-landing",
         category: "Marketing",
+        categoryName: "Marketing",
         description: "Landing page starter",
-        tags: "landing,seo",
+        tags: ["landing", "seo"],
       },
     ];
 
