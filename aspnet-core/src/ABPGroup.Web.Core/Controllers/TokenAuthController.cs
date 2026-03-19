@@ -33,9 +33,9 @@ namespace ABPGroup.Controllers
         private readonly TokenAuthConfiguration _configuration;
         private readonly IRepository<User, long> _userRepository;
         private readonly IUnitOfWorkManager _unitOfWorkManager;
-        private readonly UserManager _userManager;
         private readonly IUserClaimsPrincipalFactory<User> _userClaimsPrincipalFactory;
-        private readonly GitHubApiService _gitHubApiService;
+        private readonly IGitHubApiService _gitHubApiService;
+        private readonly IGitHubUserService _gitHubUserService;
         private readonly IConfiguration _appConfiguration;
 
         public TokenAuthController(
@@ -45,9 +45,9 @@ namespace ABPGroup.Controllers
             TokenAuthConfiguration configuration,
             IRepository<User, long> userRepository,
             IUnitOfWorkManager unitOfWorkManager,
-            UserManager userManager,
             IUserClaimsPrincipalFactory<User> userClaimsPrincipalFactory,
-            GitHubApiService gitHubApiService,
+            IGitHubApiService gitHubApiService,
+            IGitHubUserService gitHubUserService,
             IConfiguration appConfiguration)
         {
             _logInManager = logInManager;
@@ -56,9 +56,9 @@ namespace ABPGroup.Controllers
             _configuration = configuration;
             _userRepository = userRepository;
             _unitOfWorkManager = unitOfWorkManager;
-            _userManager = userManager;
             _userClaimsPrincipalFactory = userClaimsPrincipalFactory;
             _gitHubApiService = gitHubApiService;
+            _gitHubUserService = gitHubUserService;
             _appConfiguration = appConfiguration;
         }
 
@@ -106,57 +106,57 @@ namespace ABPGroup.Controllers
                 MaxAge = TimeSpan.FromMinutes(10)
             });
 
-            var clientId = _appConfiguration["GitHub:ClientId"];
-            var redirectUri = Uri.EscapeDataString(_appConfiguration["GitHub:RedirectUri"]);
+            var clientId = GetGitHubOAuthConfig("ClientId");
+            var redirectUri = Uri.EscapeDataString(GetGitHubOAuthConfig("RedirectUri"));
             var scope = Uri.EscapeDataString("user:email repo");
 
             return Redirect(
-                $"https://github.com/login/oauth/authorize" +
-                $"?client_id={clientId}" +
-                $"&redirect_uri={redirectUri}" +
-                $"&scope={scope}" +
-                $"&state={state}");
+                "https://github.com/login/oauth/authorize" +
+                "?client_id=" + clientId +
+                "&redirect_uri=" + redirectUri +
+                "&scope=" + scope +
+                "&state=" + state);
         }
 
         [HttpGet]
         public async Task<IActionResult> GitHubCallback([FromQuery] string code, [FromQuery] string state)
         {
-            var clientRoot = _appConfiguration["App:ClientRootAddress"]?.TrimEnd('/') ?? "";
+            var clientRoot = (_appConfiguration["App:ClientRootAddress"] ?? "").TrimEnd('/');
 
             var savedState = Request.Cookies["github_oauth_state"];
             if (string.IsNullOrEmpty(savedState) || savedState != state)
             {
-                return Redirect($"{clientRoot}/auth?error=invalid_state");
+                return Redirect(clientRoot + "/auth?error=invalid_state");
             }
 
             Response.Cookies.Delete("github_oauth_state");
 
             var githubAccessToken = await _gitHubApiService.ExchangeCodeForAccessTokenAsync(
                 code,
-                _appConfiguration["GitHub:ClientId"],
-                _appConfiguration["GitHub:ClientSecret"],
-                _appConfiguration["GitHub:RedirectUri"]);
+                GetGitHubOAuthConfig("ClientId"),
+                GetGitHubOAuthConfig("ClientSecret"),
+                GetGitHubOAuthConfig("RedirectUri"));
 
             if (string.IsNullOrEmpty(githubAccessToken))
             {
-                return Redirect($"{clientRoot}/auth?error=token_exchange_failed");
+                return Redirect(clientRoot + "/auth?error=token_exchange_failed");
             }
 
             var githubUser = await _gitHubApiService.GetUserInfoAsync(githubAccessToken);
             if (githubUser == null)
             {
-                return Redirect($"{clientRoot}/auth?error=user_info_failed");
+                return Redirect(clientRoot + "/auth?error=user_info_failed");
             }
 
             User user;
             try
             {
-                user = await GetOrCreateGitHubUserAsync(githubUser, githubAccessToken);
+                user = await _gitHubUserService.GetOrCreateAsync(githubUser, githubAccessToken);
             }
             catch (Exception ex)
             {
                 Logger.Error("GitHub user creation failed", ex);
-                return Redirect($"{clientRoot}/auth?error=user_creation_failed");
+                return Redirect(clientRoot + "/auth?error=user_creation_failed");
             }
 
             var principal = await _userClaimsPrincipalFactory.CreateAsync(user);
@@ -164,7 +164,7 @@ namespace ABPGroup.Controllers
             var accessToken = CreateAccessToken(CreateJwtClaims(identity));
             var expireInSeconds = (int)_configuration.Expiration.TotalSeconds;
 
-            Response.Cookies.Append("github_auth_result", $"{accessToken}|{user.Id}|{expireInSeconds}", new CookieOptions
+            Response.Cookies.Append("github_auth_result", accessToken + "|" + user.Id + "|" + expireInSeconds, new CookieOptions
             {
                 HttpOnly = false,
                 Secure = HttpContext.Request.IsHttps,
@@ -175,75 +175,9 @@ namespace ABPGroup.Controllers
             return Redirect($"{clientRoot}/auth/github/callback");
         }
 
-        private async Task<User> GetOrCreateGitHubUserAsync(GitHubUserInfo githubUser, string githubAccessToken)
+        private string GetGitHubOAuthConfig(string key)
         {
-            using (var uow = _unitOfWorkManager.Begin())
-            using (_unitOfWorkManager.Current.DisableFilter(AbpDataFilters.MustHaveTenant, AbpDataFilters.MayHaveTenant))
-            {
-                var githubIdString = githubUser.Id.ToString();
-                var user = await _userRepository.FirstOrDefaultAsync(
-                    u => u.GitHubUsername == githubIdString);
-
-                if (user == null && !string.IsNullOrEmpty(githubUser.Email))
-                {
-                    var normalizedEmail = githubUser.Email.ToUpperInvariant();
-                    user = await _userRepository.FirstOrDefaultAsync(
-                        u => u.NormalizedEmailAddress == normalizedEmail);
-                }
-
-                if (user == null)
-                {
-                    var nameParts = (githubUser.Name ?? githubUser.Login).Split(' ', 2);
-                    var userName = await EnsureUniqueUserNameAsync(githubUser.Login);
-
-                    user = new User
-                    {
-                        TenantId = null,
-                        UserName = userName,
-                        Name = nameParts[0],
-                        Surname = nameParts.Length > 1 ? nameParts[1] : nameParts[0],
-                        EmailAddress = githubUser.Email ?? $"{githubUser.Login}@users.noreply.github.com",
-                        IsEmailConfirmed = !string.IsNullOrEmpty(githubUser.Email),
-                        IsActive = true,
-                        GitHubUsername = githubIdString,
-                        GitHubAccessToken = githubAccessToken,
-                        AvatarUrl = githubUser.AvatarUrl
-                    };
-                    user.SetNormalizedNames();
-
-                    var result = await _userManager.CreateAsync(user, Authorization.Users.User.CreateRandomPassword());
-                    if (!result.Succeeded)
-                    {
-                        var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                        throw new Exception($"Failed to create user: {errors}");
-                    }
-                }
-                else
-                {
-                    user.GitHubUsername = githubIdString;
-                    user.GitHubAccessToken = githubAccessToken;
-                    if (!string.IsNullOrEmpty(githubUser.AvatarUrl))
-                        user.AvatarUrl = githubUser.AvatarUrl;
-
-                    await _userRepository.UpdateAsync(user);
-                }
-
-                await uow.CompleteAsync();
-                return user;
-            }
-        }
-
-        private async Task<string> EnsureUniqueUserNameAsync(string desiredUserName)
-        {
-            var candidate = desiredUserName;
-            var suffix = 1;
-
-            while (await _userRepository.FirstOrDefaultAsync(u => u.UserName == candidate) != null)
-            {
-                candidate = $"{desiredUserName}{suffix++}";
-            }
-
-            return candidate;
+            return _appConfiguration[$"GitHubOAuth:{key}"] ?? _appConfiguration[$"GitHub:{key}"];
         }
 
         private string GetTenancyNameOrNull()

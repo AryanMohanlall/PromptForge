@@ -263,3 +263,88 @@ logout();
 const isHRAdmin = user?.roleNames?.includes('HRAdmin');
 ```
 
+---
+
+## Provider Composition (after creating or modifying AuthProvider)
+
+After building or updating the auth provider, register it in the project's provider composition file. Follow these steps exactly.
+
+### Step 1 — Find the composition file
+
+Look for an existing composition file in the providers directory. Common names:
+- `src/providers/index.tsx`
+- `src/providers/AppProviders.tsx`
+- `src/providers/Providers.tsx`
+
+Read it if it exists. If it does not exist, create it at `src/providers/index.tsx`.
+
+### Step 2 — Position AuthProvider as the outermost wrapper
+
+`AuthProvider` must always wrap all other providers. Per the nesting order rule:
+
+```
+AuthProvider          ← outermost (Auth / Session)
+  ThemeProvider       ← Theme / Style
+    QueryProvider     ← Data / Query
+      OtherProviders  ← Domain feature providers
+        {children}
+```
+
+If the composition file already exists and `AuthProvider` is not the outermost wrapper, move it to the outside. Preserve all other providers' order.
+
+### Step 3 — Generate or update the composition file
+
+The file must follow this shape (adapt `'use client'` and import style to match existing files):
+
+```tsx
+'use client';
+
+import { AuthProvider } from './auth-provider';
+// … one import per other provider …
+
+interface AppProvidersProps {
+  children: React.ReactNode;
+}
+
+export const AppProviders: React.FC<AppProvidersProps> = ({ children }) => {
+  return (
+    <AuthProvider>
+      {/* other providers nested here */}
+      {children}
+    </AuthProvider>
+  );
+};
+```
+
+Rules:
+- Use named export `AppProviders` unless the file already uses a different name — preserve the existing name.
+- Do not double-wrap providers already composed inside another provider in this list.
+- Do not add logic, state, or side-effects to this file — pure composition only.
+
+### Step 4 — Verify root layout usage
+
+Check the root layout file (typically `src/app/layout.tsx`) to confirm `AppProviders` (or the existing composition component) wraps the app. If the composition file was newly created, import and add it:
+
+```tsx
+import { AppProviders } from '@/providers';
+
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        <AppProviders>{children}</AppProviders>
+      </body>
+    </html>
+  );
+}
+```
+
+If it already wraps the app, no changes are needed at the consumption site.
+
+### Step 5 — Report
+
+After completing composition, summarise:
+- Providers included (outermost → innermost)
+- Path of the written/updated composition file
+- Whether the root layout needed updating
+

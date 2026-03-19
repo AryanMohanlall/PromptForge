@@ -17,7 +17,7 @@ export const withAuth = <P extends object>(
 ) => {
   const {
     requiredRoles,
-    redirectTo = "/auth",
+    redirectTo = "/login",
     unauthorizedRedirectTo = "/dashboard",
   } = options;
 
@@ -37,7 +37,7 @@ export const withAuth = <P extends object>(
       if (!hasRequiredRole) {
         router.replace(unauthorizedRedirectTo);
       }
-    }, [hasRequiredRole, isAuthenticated, redirectTo, router, unauthorizedRedirectTo]);
+    }, [hasRequiredRole, isAuthenticated, router]);
 
     if (!isAuthenticated || !hasRequiredRole) {
       return null;

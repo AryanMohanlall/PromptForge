@@ -69,13 +69,16 @@ namespace ABPGroup
             IocManager.Register<ExternalAuthConfiguration>();
             var externalAuthConfig = IocManager.Resolve<ExternalAuthConfiguration>();
 
-            if (!string.IsNullOrWhiteSpace(_appConfiguration["GitHub:ClientId"]))
+            var githubClientId = _appConfiguration["GitHubOAuth:ClientId"] ?? _appConfiguration["GitHub:ClientId"];
+            var githubClientSecret = _appConfiguration["GitHubOAuth:ClientSecret"] ?? _appConfiguration["GitHub:ClientSecret"];
+
+            if (!string.IsNullOrWhiteSpace(githubClientId))
             {
                 externalAuthConfig.Providers.Add(
                     new ExternalLoginProviderInfo(
                         "GitHub",
-                        _appConfiguration["GitHub:ClientId"],
-                        _appConfiguration["GitHub:ClientSecret"],
+                        githubClientId,
+                        githubClientSecret,
                         typeof(GitHubAuthProvider)));
             }
         }

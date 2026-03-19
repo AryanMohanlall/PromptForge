@@ -41,6 +41,16 @@
   }
 }
 
+/* Override autofill for Ant Design Inputs */
+.ant-input:-webkit-autofill,
+.ant-input:-webkit-autofill:hover,
+.ant-input:-webkit-autofill:focus,
+.ant-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #101820 inset;
+  -webkit-text-fill-color: #e8edf2;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

@@ -14,6 +14,7 @@ export interface IAuthStateContext {
   isSuccess: boolean;
   isError: boolean;
   isAuthenticated: boolean;
+  isInitialized: boolean;
   isGithubConnected: boolean;
   hasCreatedProject: boolean;
   user?: IUser;
@@ -41,6 +42,7 @@ export const INITIAL_STATE: IAuthStateContext = {
   isSuccess: false,
   isError: false,
   isAuthenticated: false,
+  isInitialized: false,
   isGithubConnected: false,
   hasCreatedProject: false,
 };

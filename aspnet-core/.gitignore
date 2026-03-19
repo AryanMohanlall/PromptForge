@@ -254,3 +254,7 @@ paket-files/
 src/ABPGroup.Web.Mvc/secrets.json
 src/ABPGroup.Web.Host/secrets.json
 src/ABPGroup.Migrator/secrets.json
+
+
+*/GeneratedApps
+*/LocalOutput

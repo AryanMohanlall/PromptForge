@@ -23,4 +23,9 @@ public static class PermissionNames
     public const string Pages_Projects_Create = "Pages.Projects.Create";
     public const string Pages_Projects_Edit = "Pages.Projects.Edit";
     public const string Pages_Projects_Delete = "Pages.Projects.Delete";
+
+    public const string Pages_Templates = "Pages.Templates";
+    public const string Pages_Templates_Create = "Pages.Templates.Create";
+    public const string Pages_Templates_Edit = "Pages.Templates.Edit";
+    public const string Pages_Templates_Delete = "Pages.Templates.Delete";
 }

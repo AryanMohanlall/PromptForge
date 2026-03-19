@@ -17,6 +17,7 @@ import {
   loadLocalState,
   githubConnect,
   projectCreated,
+  authInitialized,
 } from "./actions";
 
 const AUTH_USER_KEY = "auth_user";
@@ -41,6 +42,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           // OAuth callback stores auth_user in sessionStorage; treat that as GitHub-connected.
           sessionStorage.setItem(GITHUB_CONNECTED_KEY, "true");
           dispatch(loadLocalState({ isGithubConnected: true, hasCreatedProject }));
+          dispatch(authInitialized());
           return;
         }
       }
@@ -52,6 +54,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch {
       // ignore parse errors
     }
+    dispatch(authInitialized());
   }, []);
 
   const login = async (userNameOrEmailAddress: string, password: string) => {

@@ -18,6 +18,7 @@ public static class ServiceCollectionRegistrar
         IdentityRegistrar.Register(services);
 
         services.AddEntityFrameworkInMemoryDatabase();
+        services.AddHttpContextAccessor();
 
         var serviceProvider = WindsorRegistrationHelper.CreateServiceProvider(iocManager.IocContainer, services);
 
