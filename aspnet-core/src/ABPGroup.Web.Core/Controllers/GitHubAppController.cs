@@ -1,6 +1,7 @@
 using Abp.Authorization;
 using Abp.Domain.Repositories;
 using ABPGroup.Authentication.External.GitHub;
+using ABPGroup.Deployment.Vercel;
 using ABPGroup.Projects;
 using ABPGroup.Authorization.Users;
 using Microsoft.AspNetCore.Mvc;
@@ -36,21 +37,28 @@ namespace ABPGroup.Controllers
             public string Owner { get; set; }
             public string Branch { get; set; } = "main";
             public string CommitMessage { get; set; }
+            public bool AutoDeploy { get; set; } = true;
         }
 
         private readonly IConfiguration _configuration;
         private readonly GitHubApiService _gitHubApiService;
+        private readonly IVercelDeploymentService _vercelDeploymentService;
+        private readonly IVercelDeploymentPolicy _vercelDeploymentPolicy;
         private readonly IRepository<User, long> _userRepository;
         private readonly IRepository<Project, long> _projectRepository;
 
         public GitHubAppController(
             IConfiguration configuration,
             GitHubApiService gitHubApiService,
+            IVercelDeploymentService vercelDeploymentService,
+            IVercelDeploymentPolicy vercelDeploymentPolicy,
             IRepository<User, long> userRepository,
             IRepository<Project, long> projectRepository)
         {
             _configuration = configuration;
             _gitHubApiService = gitHubApiService;
+            _vercelDeploymentService = vercelDeploymentService;
+            _vercelDeploymentPolicy = vercelDeploymentPolicy;
             _userRepository = userRepository;
             _projectRepository = projectRepository;
         }
@@ -345,6 +353,39 @@ namespace ABPGroup.Controllers
                     input.CommitMessage,
                     commitFiles);
 
+                var repositoryFullName = string.Format("{0}/{1}", owner, repository);
+                var deploymentDecision = _vercelDeploymentPolicy.Evaluate(
+                    input.AutoDeploy,
+                    project.Framework,
+                    repositoryFullName);
+
+                VercelDeploymentResult deploymentResult = null;
+                if (deploymentDecision.ShouldDeploy)
+                {
+                    deploymentResult = await _vercelDeploymentService.TriggerDeploymentAsync(
+                        repositoryFullName,
+                        result.Branch,
+                        project.Name);
+
+                    if (deploymentResult == null)
+                    {
+                        deploymentResult = new VercelDeploymentResult
+                        {
+                            Triggered = false,
+                            ErrorMessage = "Vercel deployment service returned an empty result."
+                        };
+                    }
+
+                    if (!deploymentResult.Triggered && !string.IsNullOrWhiteSpace(deploymentResult.ErrorMessage))
+                    {
+                        Logger.Warn(string.Format(
+                            "Vercel deployment was not triggered for project {0} ({1}). Reason: {2}",
+                            project.Id,
+                            repositoryFullName,
+                            deploymentResult.ErrorMessage));
+                    }
+                }
+
                 return Ok(new
                 {
                     committed = true,
@@ -352,7 +393,18 @@ namespace ABPGroup.Controllers
                     repository,
                     branch = result.Branch,
                     commitSha = result.CommitSha,
-                    committedFiles = commitFiles.Count
+                    committedFiles = commitFiles.Count,
+                    deployment = new
+                    {
+                        attempted = deploymentDecision.ShouldDeploy,
+                        triggered = deploymentResult != null && deploymentResult.Triggered,
+                        skippedReason = deploymentDecision.ShouldDeploy ? null : deploymentDecision.Reason,
+                        deploymentId = deploymentResult != null ? deploymentResult.DeploymentId : null,
+                        url = deploymentResult != null ? deploymentResult.Url : null,
+                        inspectorUrl = deploymentResult != null ? deploymentResult.InspectorUrl : null,
+                        state = deploymentResult != null ? deploymentResult.State : null,
+                        errorMessage = deploymentResult != null ? deploymentResult.ErrorMessage : null
+                    }
                 });
             }
             catch (Exception ex)

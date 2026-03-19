@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { AxiosError } from "axios";
 import { useStyles } from "./styles";
 import {
+  ProjectFramework,
   useProjectAction,
   useProjectState,
 } from "@/providers/projects-provider";
@@ -26,6 +27,27 @@ import { getAxiosInstance } from "@/utils/axiosInstance";
 
 interface GenerationPageProps {
   onNavigate: (page: string) => void;
+}
+
+interface CommitGeneratedDeploymentResult {
+  attempted?: boolean;
+  triggered?: boolean;
+  skippedReason?: string | null;
+  deploymentId?: string | null;
+  url?: string | null;
+  inspectorUrl?: string | null;
+  state?: string | null;
+  errorMessage?: string | null;
+}
+
+interface CommitGeneratedResponse {
+  committed?: boolean;
+  owner?: string;
+  repository?: string;
+  branch?: string;
+  commitSha?: string;
+  committedFiles?: number;
+  deployment?: CommitGeneratedDeploymentResult;
 }
 
 type StepStatus = "completed" | "active" | "pending";
@@ -55,7 +77,12 @@ interface PipelineStepProps {
   isLast?: boolean;
 }
 
-const PipelineStep = ({ name, status, duration, isLast }: PipelineStepProps) => {
+const PipelineStep = ({
+  name,
+  status,
+  duration,
+  isLast,
+}: PipelineStepProps) => {
   const { styles, cx } = useStyles();
   const isCompleted = status === "completed";
   const isActive = status === "active";
@@ -67,7 +94,7 @@ const PipelineStep = ({ name, status, duration, isLast }: PipelineStepProps) => 
           className={cx(
             styles.stepDot,
             isCompleted && styles.stepDotCompleted,
-            isActive && styles.stepDotActive
+            isActive && styles.stepDotActive,
           )}
         >
           {isCompleted && <CheckIcon className={styles.stepCheck} />}
@@ -76,7 +103,7 @@ const PipelineStep = ({ name, status, duration, isLast }: PipelineStepProps) => 
           <div
             className={cx(
               styles.stepLine,
-              isCompleted && styles.stepLineCompleted
+              isCompleted && styles.stepLineCompleted,
             )}
           />
         )}
@@ -101,8 +128,15 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const [autoDeploy, setAutoDeploy] = useState(true);
   const [isCreatingRepo, setIsCreatingRepo] = useState(false);
   const [deployError, setDeployError] = useState<string | null>(null);
+  const [deployInfo, setDeployInfo] = useState<string | null>(null);
   const [githubRepoUrl, setGithubRepoUrl] = useState<string | null>(null);
-  const [githubRepoFullName, setGithubRepoFullName] = useState<string | null>(null);
+  const [githubRepoFullName, setGithubRepoFullName] = useState<string | null>(
+    null,
+  );
+  const [liveUrl, setLiveUrl] = useState<string | null>(null);
+  const [deploymentInspectorUrl, setDeploymentInspectorUrl] = useState<
+    string | null
+  >(null);
 
   const generationSteps = useMemo(
     () => [
@@ -114,7 +148,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       { name: "Preparing Repository", duration: "2.8s" },
       { name: "Queueing BuildJob", duration: "1.9s" },
     ],
-    []
+    [],
   );
 
   const deploymentSteps = useMemo(
@@ -125,7 +159,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       { name: "Running deployment" },
       { name: "Publishing LiveUrl" },
     ],
-    []
+    [],
   );
 
   useEffect(() => {
@@ -138,16 +172,20 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
     }
 
     return [...items].sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     )[0];
   }, [items]);
 
   const projectTitle = latestProject?.name ?? "New PromptForge build";
   const configuredOwner = (process.env.NEXT_PUBLIC_GITHUB_OWNER ?? "").trim();
   const displayOwner = configuredOwner || "owner";
+  const isDotNetProject =
+    latestProject?.framework === ProjectFramework.DotNetBlazor;
 
   const isGenerated = generationStep >= generationSteps.length;
   const isDeployed = isDeploying && deploymentStep >= deploymentSteps.length;
+  const resolvedLiveUrl = liveUrl ?? deploymentInspectorUrl;
 
   const generationStatus: StatusBadgeState = isDeployed
     ? "Live"
@@ -197,7 +235,12 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
     }
 
     setDeployError(null);
+    setDeployInfo(null);
     setIsCreatingRepo(true);
+    setIsDeploying(false);
+    setDeploymentStep(-1);
+    setLiveUrl(null);
+    setDeploymentInspectorUrl(null);
 
     try {
       const instance = getAxiosInstance();
@@ -217,22 +260,56 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
       const repository = response.data.repository;
       const fullName = repository?.fullName ?? "";
-      const ownerFromFullName = fullName.includes("/") ? fullName.split("/")[0] : configuredOwner || undefined;
-      const repoFromFullName = fullName.includes("/") ? fullName.split("/")[1] : repository?.name ?? sanitizedRepoName;
+      const ownerFromFullName = fullName.includes("/")
+        ? fullName.split("/")[0]
+        : configuredOwner || undefined;
+      const repoFromFullName = fullName.includes("/")
+        ? fullName.split("/")[1]
+        : (repository?.name ?? sanitizedRepoName);
 
-      await instance.post("/api/github-app/commit-generated", {
-        projectId: latestProject.id,
-        owner: ownerFromFullName,
-        repositoryName: repoFromFullName,
-        repositoryFullName: fullName || undefined,
-        branch: branchName,
-        commitMessage: `feat: initial generated project commit (${projectTitle})`,
-      });
+      const commitResponse = await instance.post<CommitGeneratedResponse>(
+        "/api/github-app/commit-generated",
+        {
+          projectId: latestProject.id,
+          owner: ownerFromFullName,
+          repositoryName: repoFromFullName,
+          repositoryFullName: fullName || undefined,
+          branch: branchName,
+          commitMessage: `feat: initial generated project commit (${projectTitle})`,
+          autoDeploy,
+        },
+      );
 
       setGithubRepoUrl(repository?.htmlUrl ?? null);
-      setGithubRepoFullName(repository?.fullName ?? repository?.name ?? sanitizedRepoName);
-      setIsDeploying(true);
-      setDeploymentStep(0);
+      setGithubRepoFullName(
+        repository?.fullName ?? repository?.name ?? sanitizedRepoName,
+      );
+
+      const deployment = commitResponse.data?.deployment;
+      if (deployment?.attempted && deployment?.triggered) {
+        setLiveUrl(deployment.url ?? null);
+        setDeploymentInspectorUrl(deployment.inspectorUrl ?? null);
+        setDeployInfo(
+          deployment.state
+            ? `Vercel deployment started (${deployment.state}).`
+            : "Vercel deployment started.",
+        );
+        setIsDeploying(true);
+        setDeploymentStep(0);
+      } else {
+        if (deployment?.errorMessage) {
+          setDeployError(
+            `Repository committed, but deployment failed: ${deployment.errorMessage}`,
+          );
+        } else {
+          setDeployInfo(
+            deployment?.skippedReason ||
+              (autoDeploy
+                ? "Repository committed successfully, but deployment was not triggered."
+                : "Repository committed successfully. Automatic deploy was disabled."),
+          );
+        }
+      }
     } catch (error) {
       const axiosError = error as AxiosError<{
         result?: {
@@ -256,7 +333,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
       setDeployError(
         backendMessage ||
-          "Repository creation failed. Verify GitHub App credentials and installation access."
+          "Repository commit/deploy failed. Verify GitHub and Vercel configuration.",
       );
     } finally {
       setIsCreatingRepo(false);
@@ -270,7 +347,10 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
           <div>
             <p className={styles.eyebrow}>Generation workspace</p>
             <h1 className={styles.title}>{projectTitle}</h1>
-            <p className={styles.subtitle}>Tracking your AppRequest through PromptSession, GeneratedProject, BuildJob, and Deployment.</p>
+            <p className={styles.subtitle}>
+              Tracking your AppRequest through PromptSession, GeneratedProject,
+              BuildJob, and Deployment.
+            </p>
           </div>
           <StatusBadge status={generationStatus} />
         </div>
@@ -297,7 +377,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
           <div className={styles.cardHeader}>
             <div>
               <h3 className={styles.cardTitle}>Generation pipeline</h3>
-              <p className={styles.cardSubtitle}>From AppRequest to GeneratedProject</p>
+              <p className={styles.cardSubtitle}>
+                From AppRequest to GeneratedProject
+              </p>
             </div>
             <div className={styles.cardBadge}>PromptSession</div>
           </div>
@@ -325,7 +407,10 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
               </div>
               <span className={styles.codeTitle}>GeneratedProject.tsx</span>
               <div className={styles.codeActions}>
-                <button className={cx(styles.iconButton, styles.focusRing)} title="Copy path">
+                <button
+                  className={cx(styles.iconButton, styles.focusRing)}
+                  title="Copy path"
+                >
                   <CopyIcon className={styles.iconSmall} />
                 </button>
               </div>
@@ -348,7 +433,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                   <FolderIcon className={styles.treeFolder} />
                   deployment
                 </div>
-                <div className={cx(styles.treeItemIndented, styles.treeItemActive)}>
+                <div
+                  className={cx(styles.treeItemIndented, styles.treeItemActive)}
+                >
                   <FileIcon className={styles.treeFile} />
                   GeneratedProject.tsx
                 </div>
@@ -365,31 +452,51 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
               <div className={styles.codeContent}>
                 <pre className={styles.codeBlock}>
                   <code>
-                    <span className={styles.codeKeyword}>import</span> React, {" "}
-                    {"{"} useState {"}"} {" "}
+                    <span className={styles.codeKeyword}>import</span> React,{" "}
+                    {"{"} useState {"}"}{" "}
                     <span className={styles.codeKeyword}>from</span>{" "}
-                    <span className={styles.codeString}>&quot;react&quot;</span>;
-                    {"\n"}
-                    <span className={styles.codeKeyword}>import</span> {"{"} BuildJob {"}"} {" "}
+                    <span className={styles.codeString}>&quot;react&quot;</span>
+                    ;{"\n"}
+                    <span className={styles.codeKeyword}>import</span> {"{"}{" "}
+                    BuildJob {"}"}{" "}
                     <span className={styles.codeKeyword}>from</span>{" "}
-                    <span className={styles.codeString}>&quot;@/generation&quot;</span>;
-                    {"\n\n"}
-                    <span className={styles.codeKeyword}>export</span> <span className={styles.codeKeyword}>function</span>{" "}
-                    <span className={styles.codeFunction}>GeneratedProject</span>() {"{"}
+                    <span className={styles.codeString}>
+                      &quot;@/generation&quot;
+                    </span>
+                    ;{"\n\n"}
+                    <span className={styles.codeKeyword}>export</span>{" "}
+                    <span className={styles.codeKeyword}>function</span>{" "}
+                    <span className={styles.codeFunction}>
+                      GeneratedProject
+                    </span>
+                    () {"{"}
                     {"\n"}
-                    {"  "}<span className={styles.codeKeyword}>const</span> [status] = <span className={styles.codeFunction}>useState</span>(
-                    <span className={styles.codeString}>&quot;InProgress&quot;</span>);
+                    {"  "}
+                    <span className={styles.codeKeyword}>const</span> [status] ={" "}
+                    <span className={styles.codeFunction}>useState</span>(
+                    <span className={styles.codeString}>
+                      &quot;InProgress&quot;
+                    </span>
+                    );
                     {"\n\n"}
-                    {"  "}<span className={styles.codeKeyword}>return</span> (
-                    {"\n    "}&lt;<span className={styles.codeTag}>section</span>{" "}
+                    {"  "}
+                    <span className={styles.codeKeyword}>return</span> (
+                    {"\n    "}&lt;
+                    <span className={styles.codeTag}>section</span>{" "}
                     <span className={styles.codeAttr}>aria-label</span>=
-                    <span className={styles.codeString}>&quot;Generated project&quot;</span>
+                    <span className={styles.codeString}>
+                      &quot;Generated project&quot;
+                    </span>
                     &gt;
-                    {"\n      "}&lt;<span className={styles.codeTag}>h2</span>&gt;PromptSession summary&lt;/{" "}
+                    {"\n      "}&lt;<span className={styles.codeTag}>h2</span>
+                    &gt;PromptSession summary&lt;/{" "}
                     <span className={styles.codeTag}>h2</span>&gt;
-                    {"\n      "}&lt;<span className={styles.codeTag}>BuildJob</span>{" "}
+                    {"\n      "}&lt;
+                    <span className={styles.codeTag}>BuildJob</span>{" "}
                     <span className={styles.codeAttr}>status</span>=
-                    <span className={styles.codeString}>&quot;{"{status}"}&quot;</span>
+                    <span className={styles.codeString}>
+                      &quot;{"{status}"}&quot;
+                    </span>
                     /&gt;
                     {"\n    "}&lt;/{" "}
                     <span className={styles.codeTag}>section</span>&gt;
@@ -434,7 +541,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
             <div className={styles.cardHeader}>
               <div>
                 <h3 className={styles.cardTitle}>Output review</h3>
-                <p className={styles.cardSubtitle}>Architecture snapshot + Generated modules</p>
+                <p className={styles.cardSubtitle}>
+                  Architecture snapshot + Generated modules
+                </p>
               </div>
               <div className={styles.cardBadge}>GeneratedProject</div>
             </div>
@@ -447,21 +556,27 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                     <LayersIcon className={styles.reviewIcon} />
                     <div>
                       <span className={styles.reviewTitle}>Frontend</span>
-                      <span className={styles.reviewText}>Next.js + Ant Design + antd-style</span>
+                      <span className={styles.reviewText}>
+                        Next.js + Ant Design + antd-style
+                      </span>
                     </div>
                   </li>
                   <li className={styles.reviewItem}>
                     <LayersIcon className={styles.reviewIcon} />
                     <div>
                       <span className={styles.reviewTitle}>Backend</span>
-                      <span className={styles.reviewText}>ABP Framework services + DTO layer</span>
+                      <span className={styles.reviewText}>
+                        ABP Framework services + DTO layer
+                      </span>
                     </div>
                   </li>
                   <li className={styles.reviewItem}>
                     <LayersIcon className={styles.reviewIcon} />
                     <div>
                       <span className={styles.reviewTitle}>Data</span>
-                      <span className={styles.reviewText}>Postgres + migrations scaffold</span>
+                      <span className={styles.reviewText}>
+                        Postgres + migrations scaffold
+                      </span>
                     </div>
                   </li>
                 </ul>
@@ -474,21 +589,27 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                     <GitBranchIcon className={styles.reviewIcon} />
                     <div>
                       <span className={styles.reviewTitle}>AppRequest</span>
-                      <span className={styles.reviewText}>Submission + validation</span>
+                      <span className={styles.reviewText}>
+                        Submission + validation
+                      </span>
                     </div>
                   </li>
                   <li className={styles.reviewItem}>
                     <GitBranchIcon className={styles.reviewIcon} />
                     <div>
                       <span className={styles.reviewTitle}>BuildJob</span>
-                      <span className={styles.reviewText}>Queued build pipeline</span>
+                      <span className={styles.reviewText}>
+                        Queued build pipeline
+                      </span>
                     </div>
                   </li>
                   <li className={styles.reviewItem}>
                     <GitBranchIcon className={styles.reviewIcon} />
                     <div>
                       <span className={styles.reviewTitle}>Deployment</span>
-                      <span className={styles.reviewText}>LiveUrl publishing</span>
+                      <span className={styles.reviewText}>
+                        LiveUrl publishing
+                      </span>
                     </div>
                   </li>
                 </ul>
@@ -527,7 +648,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
               </div>
               <div>
                 <h2 className={styles.ctaTitle}>GeneratedProject ready</h2>
-                <p className={styles.ctaSubtitle}>52 files produced in 38 seconds</p>
+                <p className={styles.ctaSubtitle}>
+                  52 files produced in 38 seconds
+                </p>
               </div>
             </div>
 
@@ -573,7 +696,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 disabled={isCreatingRepo || !repoName.trim()}
               >
                 <RocketIcon className={styles.iconSmall} />
-                {isCreatingRepo ? "Creating repository..." : "Commit and deploy"}
+                {isCreatingRepo
+                  ? "Creating repository..."
+                  : "Commit and deploy"}
               </button>
             </div>
 
@@ -581,6 +706,10 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
               <p className={styles.errorText} role="alert">
                 {deployError}
               </p>
+            )}
+
+            {deployInfo && !deployError && (
+              <p className={styles.infoText}>{deployInfo}</p>
             )}
 
             <div className={styles.checkboxRow}>
@@ -595,6 +724,13 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 Automatically deploy after commit
               </label>
             </div>
+
+            {isDotNetProject && autoDeploy && (
+              <p className={styles.infoText}>
+                This project uses .NET Blazor, so Vercel deployment will be
+                skipped after commit.
+              </p>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -614,7 +750,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
               <div className={styles.cardHeader}>
                 <div>
                   <h3 className={styles.cardTitle}>Deployment pipeline</h3>
-                  <p className={styles.cardSubtitle}>RepositoryContext + DeploymentContext</p>
+                  <p className={styles.cardSubtitle}>
+                    RepositoryContext + DeploymentContext
+                  </p>
                 </div>
                 <div className={styles.cardBadge}>BuildJob</div>
               </div>
@@ -652,18 +790,39 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
               <div className={styles.successUrl}>
                 <span className={styles.successUrlText}>
-                  https://live.promptforge.app/{repoName}
+                  {resolvedLiveUrl ??
+                    `https://live.promptforge.app/${repoName}`}
                 </span>
                 <button
                   className={cx(styles.iconButton, styles.focusRing)}
                   title="Copy LiveUrl"
+                  disabled={!resolvedLiveUrl}
+                  onClick={() => {
+                    if (resolvedLiveUrl) {
+                      navigator.clipboard
+                        .writeText(resolvedLiveUrl)
+                        .catch(() => undefined);
+                    }
+                  }}
                 >
                   <CopyIcon className={styles.iconSmall} />
                 </button>
               </div>
 
               <div className={styles.successActions}>
-                <button className={cx(styles.successPrimary, styles.focusRing)}>
+                <button
+                  className={cx(styles.successPrimary, styles.focusRing)}
+                  onClick={() => {
+                    if (resolvedLiveUrl) {
+                      window.open(
+                        resolvedLiveUrl,
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
+                    }
+                  }}
+                  disabled={!resolvedLiveUrl}
+                >
                   <ExternalLinkIcon className={styles.iconSmall} />
                   Open live site
                 </button>
@@ -671,13 +830,19 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                   className={cx(styles.successGhost, styles.focusRing)}
                   onClick={() => {
                     if (githubRepoUrl) {
-                      window.open(githubRepoUrl, "_blank", "noopener,noreferrer");
+                      window.open(
+                        githubRepoUrl,
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
                     }
                   }}
                   disabled={!githubRepoUrl}
                 >
                   <GithubIcon className={styles.iconSmall} />
-                  {githubRepoFullName ? `View ${githubRepoFullName}` : "View on GitHub"}
+                  {githubRepoFullName
+                    ? `View ${githubRepoFullName}`
+                    : "View on GitHub"}
                 </button>
                 <button className={cx(styles.successGhost, styles.focusRing)}>
                   <RefreshCwIcon className={styles.iconSmall} />
