@@ -19,6 +19,30 @@ namespace ABPGroup.Controllers
     [Route("api/github-app")]
     public class GitHubAppController : ABPGroupControllerBase
     {
+        private const long MaxCommitFileSizeBytes = 10L * 1024L * 1024L; // 10 MB
+
+        private static readonly string[] IgnoredCommitDirectories =
+        {
+            ".git",
+            "node_modules",
+            ".next",
+            "dist",
+            "build",
+            "bin",
+            "obj",
+            ".cache",
+            ".turbo",
+            "coverage",
+            ".vercel",
+            "TestResults"
+        };
+
+        private static readonly string[] IgnoredCommitFileNames =
+        {
+            ".DS_Store",
+            "Thumbs.db"
+        };
+
         public class CreateRepositoryInput
         {
             public string Name { get; set; }
@@ -440,6 +464,11 @@ namespace ABPGroup.Controllers
 
             foreach (var filePath in absoluteFiles)
             {
+                if (!IsCommitEligibleFile(projectDir, filePath))
+                {
+                    continue;
+                }
+
                 var relativePath = filePath.Substring(projectDir.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                 if (string.IsNullOrWhiteSpace(relativePath))
                 {
@@ -456,6 +485,51 @@ namespace ABPGroup.Controllers
             }
 
             return files;
+        }
+
+        private static bool IsCommitEligibleFile(string projectDir, string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(projectDir) || string.IsNullOrWhiteSpace(filePath))
+            {
+                return false;
+            }
+
+            var relativePath = filePath.Substring(projectDir.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (string.IsNullOrWhiteSpace(relativePath))
+            {
+                return false;
+            }
+
+            var normalizedPath = relativePath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+            var pathSegments = normalizedPath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+
+            for (var i = 0; i < pathSegments.Length - 1; i++)
+            {
+                foreach (var ignoredDirectory in IgnoredCommitDirectories)
+                {
+                    if (string.Equals(pathSegments[i], ignoredDirectory, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            var fileName = Path.GetFileName(filePath);
+            foreach (var ignoredFileName in IgnoredCommitFileNames)
+            {
+                if (string.Equals(fileName, ignoredFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            var fileInfo = new FileInfo(filePath);
+            if (!fileInfo.Exists || fileInfo.Length <= 0 || fileInfo.Length > MaxCommitFileSizeBytes)
+            {
+                return false;
+            }
+
+            return true;
         }
 
         private static string ResolveExistingProjectDirectory(string outputBase, string projectName)
