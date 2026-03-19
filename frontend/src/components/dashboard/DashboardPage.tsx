@@ -73,6 +73,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       framework: frameworkMap[item.framework] ?? "Next.js",
       language: languageMap[item.language] ?? "TypeScript",
       updatedAt: `Updated ${new Date(item.updatedAt).toLocaleString()}`,
+      url: item.lastDeploymentUrl || undefined,
     }));
   }, [items]);
 
@@ -105,6 +106,13 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     } finally {
       setDeletingProjectId(null);
     }
+  };
+
+  const handleClaimProject = (project: ProjectData) => {
+    const claimUrl = `https://vercel.com/oauth/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=${encodeURIComponent(
+      window.location.origin,
+    )}/vercel/callback&response_type=code`;
+    window.location.href = claimUrl;
   };
 
   const containerVariants: Variants = {
@@ -196,6 +204,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 project={project}
                 onView={() => onNavigate("generation")}
                 onDelete={() => handleDeleteProject(project)}
+                onClaim={() => handleClaimProject(project)}
                 isDeleting={deletingProjectId === Number(project.id)}
               />
             </motion.div>

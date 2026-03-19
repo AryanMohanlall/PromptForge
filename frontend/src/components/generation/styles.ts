@@ -730,6 +730,11 @@ export const useStyles = createStyles(({ token, css }) => ({
     width: ${token.fontSizeXL}px;
     height: ${token.fontSizeXL}px;
   `,
+  claimWrap: css`
+    display: flex;
+    justify-content: center;
+    margin-top: ${token.marginXL}px;
+  `,
   focusRing: css`
     &:focus-visible {
       outline: 2px solid ${token.colorPrimary};

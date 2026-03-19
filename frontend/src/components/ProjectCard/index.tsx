@@ -16,10 +16,17 @@ interface ProjectCardProps {
   project: ProjectData;
   onView: () => void;
   onDelete?: () => void;
+  onClaim?: () => void;
   isDeleting?: boolean;
 }
 
-export function ProjectCard({ project, onView, onDelete, isDeleting = false }: ProjectCardProps) {
+export function ProjectCard({
+  project,
+  onView,
+  onDelete,
+  onClaim,
+  isDeleting = false,
+}: ProjectCardProps) {
   const { styles, cx } = useStyles();
 
   const statusClassMap: Record<ProjectData["status"], string> = {
@@ -74,6 +81,18 @@ export function ProjectCard({ project, onView, onDelete, isDeleting = false }: P
               {isDeleting ? "Deleting..." : "Delete"}
             </button>
           ) : null}
+          {project.status === "Live" && onClaim && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClaim();
+              }}
+              className={cx(styles.claimButton, styles.focusRing)}
+            >
+              Claim
+            </button>
+          )}
           <button
             type="button"
             onClick={onView}

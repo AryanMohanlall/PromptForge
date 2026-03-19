@@ -135,6 +135,25 @@ export const useStyles = createStyles(({ token, css }) => ({
       transform: scale(0.98);
     }
   `,
+  claimButton: css`
+    padding: ${token.paddingSM}px ${token.paddingLG}px;
+    border-radius: ${token.borderRadiusLG * 1.5}px;
+    border: 1px solid #000;
+    background: #000;
+    color: #fff;
+    font-size: ${token.fontSizeSM}px;
+    font-weight: ${token.fontWeightStrong};
+    cursor: pointer;
+    transition: transform 0.2s ease, filter 0.2s ease;
+
+    &:hover {
+      filter: brightness(1.2);
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+  `,
   details: css`
     font-size: ${token.fontSizeSM}px;
     color: ${token.colorTextSecondary};

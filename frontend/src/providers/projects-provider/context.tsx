@@ -45,6 +45,7 @@ export interface IProjectItem {
   databaseOption: ProjectDatabaseOption;
   includeAuth: boolean;
   status: ProjectStatus;
+  lastDeploymentUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
