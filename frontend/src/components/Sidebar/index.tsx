@@ -3,6 +3,7 @@
 import {
   LayoutGridIcon,
   FolderIcon,
+  LayoutTemplateIcon,
   SettingsIcon,
   PlusIcon,
   ChevronDownIcon,
@@ -38,6 +39,11 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       id: "projects",
       label: "My Projects",
       icon: FolderIcon,
+    },
+    {
+      id: "templates",
+      label: "Templates",
+      icon: LayoutTemplateIcon,
     },
     {
       id: "settings",
@@ -102,9 +108,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
               <button
                 key={item.id}
                 type="button"
-                onClick={() =>
-                  onNavigate(item.id === "projects" ? "dashboard" : item.id)
-                }
+                onClick={() => onNavigate(item.id === "projects" ? "dashboard" : item.id)}
                 className={cx(
                   styles.navButton,
                   styles.focusRing,

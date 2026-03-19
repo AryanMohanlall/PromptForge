@@ -27,6 +27,11 @@ public class ABPGroupAuthorizationProvider : AuthorizationProvider
         projectsPermission.CreateChildPermission(PermissionNames.Pages_Projects_Create, L("CreateProject"));
         projectsPermission.CreateChildPermission(PermissionNames.Pages_Projects_Edit, L("EditProject"));
         projectsPermission.CreateChildPermission(PermissionNames.Pages_Projects_Delete, L("DeleteProject"));
+
+        var templatesPermission = context.CreatePermission(PermissionNames.Pages_Templates, L("Templates"));
+        templatesPermission.CreateChildPermission(PermissionNames.Pages_Templates_Create, L("CreateTemplate"));
+        templatesPermission.CreateChildPermission(PermissionNames.Pages_Templates_Edit, L("EditTemplate"));
+        templatesPermission.CreateChildPermission(PermissionNames.Pages_Templates_Delete, L("DeleteTemplate"));
     }
 
     private static ILocalizableString L(string name)

@@ -3,6 +3,7 @@ using ABPGroup.Authorization.Roles;
 using ABPGroup.Authorization.Users;
 using ABPGroup.MultiTenancy;
 using ABPGroup.Projects;
+using ABPGroup.Templates;
 using Microsoft.EntityFrameworkCore;
 
 namespace ABPGroup.EntityFrameworkCore;
@@ -12,6 +13,7 @@ public class ABPGroupDbContext : AbpZeroDbContext<Tenant, Role, User, ABPGroupDb
     /* Define a DbSet for each entity of the application */
     public DbSet<Project> Projects { get; set; }
     public DbSet<Prompt> Prompts { get; set; }
+    public DbSet<Template> Templates { get; set; }
 
     public ABPGroupDbContext(DbContextOptions<ABPGroupDbContext> options)
         : base(options)

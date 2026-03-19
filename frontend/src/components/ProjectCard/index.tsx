@@ -15,9 +15,11 @@ export interface ProjectData {
 interface ProjectCardProps {
   project: ProjectData;
   onView: () => void;
+  onDelete?: () => void;
+  isDeleting?: boolean;
 }
 
-export function ProjectCard({ project, onView }: ProjectCardProps) {
+export function ProjectCard({ project, onView, onDelete, isDeleting = false }: ProjectCardProps) {
   const { styles, cx } = useStyles();
 
   const statusClassMap: Record<ProjectData["status"], string> = {
@@ -61,13 +63,25 @@ export function ProjectCard({ project, onView }: ProjectCardProps) {
 
       <div className={styles.footer}>
         <span className={styles.details}>View build details</span>
-        <button
-          type="button"
-          onClick={onView}
-          className={cx(styles.viewButton, styles.focusRing)}
-        >
-          Open
-        </button>
+        <div className={styles.footerActions}>
+          {onDelete ? (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={isDeleting}
+              className={cx(styles.deleteButton, styles.focusRing)}
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onView}
+            className={cx(styles.viewButton, styles.focusRing)}
+          >
+            Open
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import {
 } from "@ant-design/icons";
 import { useStyles } from "./styles/style";
 import Link from "next/link";
+import Image from "next/image";
 
 const features = [
   {
@@ -58,9 +59,11 @@ export default function PromptForgeLanding() {
 
       <nav className={styles.nav}>
         <div className={styles.logo}>
-          <img
+          <Image
             src="/logo.svg"
             alt="PromptForge logo"
+            width={32}
+            height={32}
             className={styles.logoImage}
           />
           PromptForge
@@ -174,9 +177,11 @@ export default function PromptForgeLanding() {
 
       <footer className={styles.footer}>
         <div className={styles.footerLogo}>
-          <img
+          <Image
             src="/logo.svg"
             alt="PromptForge logo"
+            width={24}
+            height={24}
             className={styles.logoImageSmall}
           />
           PromptForge

@@ -13,6 +13,7 @@ export enum AuthStateEnums {
   LOAD_LOCAL_STATE = "LOAD_LOCAL_STATE",
   GITHUB_CONNECT = "GITHUB_CONNECT",
   PROJECT_CREATED = "PROJECT_CREATED",
+  AUTH_INITIALIZED = "AUTH_INITIALIZED",
 }
 
 export interface AuthAction {
@@ -121,4 +122,9 @@ export const githubConnect = (): AuthAction =>
 export const projectCreated = (): AuthAction =>
   createAuthAction(AuthStateEnums.PROJECT_CREATED, {
     hasCreatedProject: true,
+  });
+
+export const authInitialized = (): AuthAction =>
+  createAuthAction(AuthStateEnums.AUTH_INITIALIZED, {
+    isInitialized: true,
   });

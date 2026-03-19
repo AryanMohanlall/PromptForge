@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { SearchIcon, ChevronDownIcon } from "lucide-react";
 import { motion, type Variants } from "framer-motion";
+import { message } from "antd";
 import { ProjectCard, ProjectData } from "../ProjectCard";
 import { useStyles } from "./styles";
 import {
@@ -20,10 +21,11 @@ interface DashboardPageProps {
 export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const { styles, cx } = useStyles();
   const { items, isPending, isError } = useProjectState();
-  const { fetchAll } = useProjectAction();
+  const { fetchAll, remove } = useProjectAction();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [deletingProjectId, setDeletingProjectId] = useState<number | null>(null);
 
   const statuses = [
     "All",
@@ -82,6 +84,28 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       statusFilter === "All" || project.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const handleDeleteProject = async (project: ProjectData) => {
+    const projectId = Number(project.id);
+    if (!Number.isFinite(projectId)) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete \"${project.name}\"? This action cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingProjectId(projectId);
+    try {
+      await remove(projectId);
+      message.success(`Deleted \"${project.name}\".`);
+    } catch {
+      message.error("Could not delete the project. Please try again.");
+    } finally {
+      setDeletingProjectId(null);
+    }
+  };
 
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -171,6 +195,8 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               <ProjectCard
                 project={project}
                 onView={() => onNavigate("generation")}
+                onDelete={() => handleDeleteProject(project)}
+                isDeleting={deletingProjectId === Number(project.id)}
               />
             </motion.div>
           ))}

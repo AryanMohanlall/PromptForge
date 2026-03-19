@@ -94,8 +94,9 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
 			await instance.delete(`${ENDPOINT}/Delete`, { params: { id } });
 			dispatch(deleteSuccess());
 			await fetchAll();
-		} catch {
+		} catch (error) {
 			dispatch(deleteError());
+			throw error;
 		}
 	};
 
