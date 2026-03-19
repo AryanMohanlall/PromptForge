@@ -1,6 +1,7 @@
 using Abp.Authorization;
 using Abp.Domain.Repositories;
 using ABPGroup.Authentication.External.GitHub;
+using ABPGroup.Deployment.Vercel;
 using ABPGroup.Projects;
 using ABPGroup.Authorization.Users;
 using Microsoft.AspNetCore.Mvc;
@@ -18,6 +19,19 @@ namespace ABPGroup.Controllers
     [Route("api/github-app")]
     public class GitHubAppController : ABPGroupControllerBase
     {
+        private const long MaxCommitFileSizeBytes = 10L * 1024L * 1024L;
+
+        private static readonly string[] IgnoredCommitDirectories =
+        {
+            ".git", "node_modules", ".next", "dist", "build",
+            "bin", "obj", ".cache", ".turbo", "coverage", ".vercel", "TestResults"
+        };
+
+        private static readonly string[] IgnoredCommitFileNames =
+        {
+            ".DS_Store", "Thumbs.db"
+        };
+
         public class CreateRepositoryInput
         {
             public string Name { get; set; }
@@ -36,21 +50,35 @@ namespace ABPGroup.Controllers
             public string Owner { get; set; }
             public string Branch { get; set; } = "main";
             public string CommitMessage { get; set; }
+            public bool AutoDeploy { get; set; } = true;
+
+            /// <summary>
+            /// Numeric GitHub repository ID returned by the GitHub API when
+            /// the repo was created (field "id"). Required for Vercel deployment.
+            /// If not provided, the controller will fetch it automatically.
+            /// </summary>
+            public long RepoId { get; set; }
         }
 
         private readonly IConfiguration _configuration;
         private readonly GitHubApiService _gitHubApiService;
+        private readonly IVercelDeploymentService _vercelDeploymentService;
+        private readonly IVercelDeploymentPolicy _vercelDeploymentPolicy;
         private readonly IRepository<User, long> _userRepository;
         private readonly IRepository<Project, long> _projectRepository;
 
         public GitHubAppController(
             IConfiguration configuration,
             GitHubApiService gitHubApiService,
+            IVercelDeploymentService vercelDeploymentService,
+            IVercelDeploymentPolicy vercelDeploymentPolicy,
             IRepository<User, long> userRepository,
             IRepository<Project, long> projectRepository)
         {
             _configuration = configuration;
             _gitHubApiService = gitHubApiService;
+            _vercelDeploymentService = vercelDeploymentService;
+            _vercelDeploymentPolicy = vercelDeploymentPolicy;
             _userRepository = userRepository;
             _projectRepository = projectRepository;
         }
@@ -74,13 +102,7 @@ namespace ABPGroup.Controllers
             try
             {
                 var appInfo = await _gitHubApiService.GetGitHubAppInfoAsync(appId, privateKeyPem);
-                return Ok(new
-                {
-                    connected = true,
-                    appInfo.Id,
-                    appInfo.Slug,
-                    appInfo.Name
-                });
+                return Ok(new { connected = true, appInfo.Id, appInfo.Slug, appInfo.Name });
             }
             catch (Exception ex)
             {
@@ -117,9 +139,7 @@ namespace ABPGroup.Controllers
             try
             {
                 var installationToken = await _gitHubApiService.CreateInstallationTokenAsync(
-                    appId,
-                    resolvedInstallationId,
-                    privateKeyPem);
+                    appId, resolvedInstallationId, privateKeyPem);
 
                 var repositories = await _gitHubApiService.GetInstallationRepositoriesAsync(installationToken);
                 return Ok(new
@@ -144,9 +164,7 @@ namespace ABPGroup.Controllers
         public async Task<IActionResult> CreateRepository([FromBody] CreateRepositoryInput input)
         {
             if (input == null || string.IsNullOrWhiteSpace(input.Name))
-            {
                 return BadRequest(new { message = "Repository name is required." });
-            }
 
             var appId = _configuration["GitHubApp:AppId"];
             var privateKeyPem = _configuration["GitHubApp:PrivateKeyPem"];
@@ -165,42 +183,25 @@ namespace ABPGroup.Controllers
                 if (canUseAppFlow && string.IsNullOrWhiteSpace(owner))
                 {
                     var installation = await _gitHubApiService.GetInstallationInfoAsync(
-                        appId,
-                        resolvedInstallationId,
-                        privateKeyPem);
+                        appId, resolvedInstallationId, privateKeyPem);
 
                     installationAccountType = installation?.Account?.Type;
                     installationAccountLogin = installation?.Account?.Login;
-
-                    owner = installationAccountType == "Organization"
-                        ? installationAccountLogin
-                        : null;
+                    owner = installationAccountType == "Organization" ? installationAccountLogin : null;
                 }
 
                 if (canUseAppFlow && !string.IsNullOrWhiteSpace(owner))
                 {
                     var installationToken = await _gitHubApiService.CreateInstallationTokenAsync(
-                        appId,
-                        resolvedInstallationId,
-                        privateKeyPem);
+                        appId, resolvedInstallationId, privateKeyPem);
 
                     var appRepository = await _gitHubApiService.CreateRepositoryAsync(
-                        installationToken,
-                        input.Name,
-                        input.IsPrivate,
-                        input.Description,
-                        input.AutoInit,
-                        owner);
+                        installationToken, input.Name, input.IsPrivate,
+                        input.Description, input.AutoInit, owner);
 
-                    return Ok(new
-                    {
-                        created = true,
-                        authMode = "github-app",
-                        repository = appRepository
-                    });
+                    return Ok(new { created = true, authMode = "github-app", repository = appRepository });
                 }
 
-                // Fallback for user-owned installations: use the authenticated user's GitHub OAuth token.
                 var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
                 if (string.IsNullOrWhiteSpace(userGitHubToken))
                 {
@@ -214,24 +215,15 @@ namespace ABPGroup.Controllers
                 }
 
                 var oauthRepository = await _gitHubApiService.CreateRepositoryWithUserTokenAsync(
-                    userGitHubToken,
-                    input.Name,
-                    input.IsPrivate,
-                    input.Description,
-                    input.AutoInit,
-                    input.Owner);
+                    userGitHubToken, input.Name, input.IsPrivate,
+                    input.Description, input.AutoInit, input.Owner);
 
-                return Ok(new
-                {
-                    created = true,
-                    authMode = "oauth-user",
-                    repository = oauthRepository
-                });
+                return Ok(new { created = true, authMode = "oauth-user", repository = oauthRepository });
             }
             catch (Exception ex)
             {
                 var duplicateRepo = ex.Message != null &&
-                                    ex.Message.IndexOf("name already exists on this account", StringComparison.OrdinalIgnoreCase) >= 0;
+                    ex.Message.IndexOf("name already exists on this account", StringComparison.OrdinalIgnoreCase) >= 0;
 
                 if (duplicateRepo)
                 {
@@ -242,11 +234,11 @@ namespace ABPGroup.Controllers
                         {
                             var owner = input.Owner;
                             if (string.IsNullOrWhiteSpace(owner))
-                            {
                                 owner = await _gitHubApiService.GetCurrentUserLoginAsync(token);
-                            }
 
-                            var existingRepository = await _gitHubApiService.GetRepositoryWithUserTokenAsync(token, owner, input.Name);
+                            var existingRepository = await _gitHubApiService
+                                .GetRepositoryWithUserTokenAsync(token, owner, input.Name);
+
                             return Ok(new
                             {
                                 created = false,
@@ -276,9 +268,7 @@ namespace ABPGroup.Controllers
         public async Task<IActionResult> CommitGenerated([FromBody] CommitGeneratedFilesInput input)
         {
             if (input == null || input.ProjectId <= 0)
-            {
                 return BadRequest(new { message = "ProjectId is required." });
-            }
 
             var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
             if (string.IsNullOrWhiteSpace(userGitHubToken))
@@ -292,22 +282,16 @@ namespace ABPGroup.Controllers
 
             var project = await _projectRepository.FirstOrDefaultAsync(input.ProjectId);
             if (project == null)
-            {
                 return NotFound(new { message = "Project not found." });
-            }
 
             var owner = input.Owner;
             var repository = input.RepositoryName;
 
             if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repository))
-            {
                 ResolveOwnerAndRepository(input.RepositoryFullName, ref owner, ref repository);
-            }
 
             if (string.IsNullOrWhiteSpace(owner) && !string.IsNullOrWhiteSpace(repository))
-            {
                 owner = await _gitHubApiService.GetCurrentUserLoginAsync(userGitHubToken);
-            }
 
             if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repository))
             {
@@ -333,9 +317,7 @@ namespace ABPGroup.Controllers
             {
                 var commitFiles = BuildCommitFiles(projectDir);
                 if (commitFiles.Count == 0)
-                {
                     return BadRequest(new { message = "No generated files were found to commit." });
-                }
 
                 var result = await _gitHubApiService.CommitFilesToBranchAsync(
                     userGitHubToken,
@@ -345,6 +327,71 @@ namespace ABPGroup.Controllers
                     input.CommitMessage,
                     commitFiles);
 
+                var repositoryFullName = string.Format("{0}/{1}", owner, repository);
+
+                var deploymentDecision = _vercelDeploymentPolicy.Evaluate(
+                    input.AutoDeploy,
+                    project.Framework,
+                    repositoryFullName);
+
+                VercelDeploymentResult deploymentResult = null;
+
+                if (deploymentDecision.ShouldDeploy)
+                {
+                    // Resolve the numeric GitHub repoId — required by Vercel API
+                    var repoId = input.RepoId;
+                    if (repoId <= 0)
+                    {
+                        // Not provided in the request — fetch it from GitHub
+                        try
+                        {
+                            repoId = await _gitHubApiService.GetRepositoryIdAsync(
+                                userGitHubToken, owner, repository);
+                        }
+                        catch (Exception repoLookupEx)
+                        {
+                            Logger.Warn($"Could not resolve GitHub repoId for {repositoryFullName}. " +
+                                        $"Vercel deployment will be skipped. {repoLookupEx.Message}");
+
+                            deploymentResult = new VercelDeploymentResult
+                            {
+                                Triggered = false,
+                                ErrorMessage = $"Could not resolve GitHub repoId: {repoLookupEx.Message}"
+                            };
+                        }
+                    }
+
+                    // Only deploy if we have a valid repoId
+                    if (repoId > 0 && deploymentResult == null)
+                    {
+                        deploymentResult = await _vercelDeploymentService.TriggerDeploymentAsync(
+                            repositoryFullName,
+                            repoId,
+                            result.Branch,
+                            project.Name,
+                            result.CommitSha);
+
+                        if (deploymentResult == null)
+                        {
+                            deploymentResult = new VercelDeploymentResult
+                            {
+                                Triggered = false,
+                                ErrorMessage = "Vercel deployment service returned an empty result."
+                            };
+                        }
+
+                        if (!deploymentResult.Triggered &&
+                            !string.IsNullOrWhiteSpace(deploymentResult.ErrorMessage))
+                        {
+                            Logger.Warn(string.Format(
+                                "Vercel deployment not triggered for project {0} ({1}). Reason: {2}",
+                                project.Id,
+                                repositoryFullName,
+                                deploymentResult.ErrorMessage));
+                        }
+                    }
+                }
+
                 return Ok(new
                 {
                     committed = true,
@@ -352,7 +399,18 @@ namespace ABPGroup.Controllers
                     repository,
                     branch = result.Branch,
                     commitSha = result.CommitSha,
-                    committedFiles = commitFiles.Count
+                    committedFiles = commitFiles.Count,
+                    deployment = new
+                    {
+                        attempted = deploymentDecision.ShouldDeploy,
+                        triggered = deploymentResult != null && deploymentResult.Triggered,
+                        skippedReason = deploymentDecision.ShouldDeploy ? null : deploymentDecision.Reason,
+                        deploymentId = deploymentResult?.DeploymentId,
+                        url = deploymentResult?.Url,
+                        inspectorUrl = deploymentResult?.InspectorUrl,
+                        state = deploymentResult?.State,
+                        errorMessage = deploymentResult?.ErrorMessage
+                    }
                 });
             }
             catch (Exception ex)
@@ -366,14 +424,16 @@ namespace ABPGroup.Controllers
             }
         }
 
-        private static void ResolveOwnerAndRepository(string repositoryFullName, ref string owner, ref string repository)
-        {
-            if (string.IsNullOrWhiteSpace(repositoryFullName))
-            {
-                return;
-            }
+        // ── Helpers ───────────────────────────────────────────────────────────
 
-            var parts = repositoryFullName.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+        private static void ResolveOwnerAndRepository(
+            string repositoryFullName, ref string owner, ref string repository)
+        {
+            if (string.IsNullOrWhiteSpace(repositoryFullName)) return;
+
+            var parts = repositoryFullName.Split(
+                new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+
             if (parts.Length >= 2)
             {
                 owner = string.IsNullOrWhiteSpace(owner) ? parts[0] : owner;
@@ -388,13 +448,18 @@ namespace ABPGroup.Controllers
 
             foreach (var filePath in absoluteFiles)
             {
-                var relativePath = filePath.Substring(projectDir.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                if (string.IsNullOrWhiteSpace(relativePath))
-                {
-                    continue;
-                }
+                if (!IsCommitEligibleFile(projectDir, filePath)) continue;
 
-                var normalizedPath = relativePath.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
+                var relativePath = filePath
+                    .Substring(projectDir.Length)
+                    .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+                if (string.IsNullOrWhiteSpace(relativePath)) continue;
+
+                var normalizedPath = relativePath
+                    .Replace(Path.DirectorySeparatorChar, '/')
+                    .Replace(Path.AltDirectorySeparatorChar, '/');
+
                 var bytes = System.IO.File.ReadAllBytes(filePath);
                 files.Add(new GitHubApiService.GitHubCommitFile
                 {
@@ -406,12 +471,48 @@ namespace ABPGroup.Controllers
             return files;
         }
 
+        private static bool IsCommitEligibleFile(string projectDir, string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(projectDir) ||
+                string.IsNullOrWhiteSpace(filePath)) return false;
+
+            var relativePath = filePath
+                .Substring(projectDir.Length)
+                .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            if (string.IsNullOrWhiteSpace(relativePath)) return false;
+
+            var normalizedPath = relativePath
+                .Replace(Path.DirectorySeparatorChar, '/')
+                .Replace(Path.AltDirectorySeparatorChar, '/');
+
+            var pathSegments = normalizedPath.Split(
+                new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+
+            for (var i = 0; i < pathSegments.Length - 1; i++)
+            {
+                foreach (var ignored in IgnoredCommitDirectories)
+                {
+                    if (string.Equals(pathSegments[i], ignored, StringComparison.OrdinalIgnoreCase))
+                        return false;
+                }
+            }
+
+            var fileName = Path.GetFileName(filePath);
+            foreach (var ignored in IgnoredCommitFileNames)
+            {
+                if (string.Equals(fileName, ignored, StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+
+            var fileInfo = new FileInfo(filePath);
+            return fileInfo.Exists && fileInfo.Length > 0 && fileInfo.Length <= MaxCommitFileSizeBytes;
+        }
+
         private static string ResolveExistingProjectDirectory(string outputBase, string projectName)
         {
             if (string.IsNullOrWhiteSpace(outputBase) || string.IsNullOrWhiteSpace(projectName))
-            {
                 return null;
-            }
 
             var candidates = new List<string>
             {
@@ -421,10 +522,7 @@ namespace ABPGroup.Controllers
 
             foreach (var candidate in candidates)
             {
-                if (Directory.Exists(candidate))
-                {
-                    return candidate;
-                }
+                if (Directory.Exists(candidate)) return candidate;
             }
 
             return null;
@@ -432,29 +530,19 @@ namespace ABPGroup.Controllers
 
         private static string SanitizeDirName(string name)
         {
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return "unnamed-project";
-            }
+            if (string.IsNullOrWhiteSpace(name)) return "unnamed-project";
 
             var safe = Regex.Replace(name.Trim(), @"[^\w\-.]", "-");
             safe = Regex.Replace(safe, @"-{2,}", "-").Trim('-');
 
-            if (safe.Length > 80)
-            {
-                safe = safe.Substring(0, 80).TrimEnd('-');
-            }
+            if (safe.Length > 80) safe = safe.Substring(0, 80).TrimEnd('-');
 
             return string.IsNullOrWhiteSpace(safe) ? "unnamed-project" : safe.ToLowerInvariant();
         }
 
         private async Task<string> GetCurrentUserGitHubAccessTokenAsync()
         {
-            if (!AbpSession.UserId.HasValue)
-            {
-                return null;
-            }
-
+            if (!AbpSession.UserId.HasValue) return null;
             var user = await _userRepository.FirstOrDefaultAsync(AbpSession.UserId.Value);
             return user?.GitHubAccessToken;
         }
