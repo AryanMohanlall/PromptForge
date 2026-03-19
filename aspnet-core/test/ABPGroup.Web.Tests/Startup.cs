@@ -5,8 +5,6 @@ using ABPGroup.Authentication.JwtBearer;
 using ABPGroup.Configuration;
 using ABPGroup.EntityFrameworkCore;
 using ABPGroup.Identity;
-using ABPGroup.Web.Resources;
-using ABPGroup.Web.Startup;
 using Castle.MicroKernel.Registration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -31,12 +29,10 @@ public class Startup
     {
         services.AddEntityFrameworkInMemoryDatabase();
 
-        services.AddMvc();
+        services.AddControllersWithViews();
 
         IdentityRegistrar.Register(services);
-        AuthConfigurer.Configure(services, _appConfiguration);
-
-        services.AddScoped<IWebResourceManager, WebResourceManager>();
+        ABPGroup.Web.Host.Startup.AuthConfigurer.Configure(services, _appConfiguration);
 
         //Configure Abp and Dependency Injection
         return services.AddAbp<ABPGroupWebTestModule>(options =>
@@ -58,7 +54,7 @@ public class Startup
 
         app.UseAuthentication();
 
-        app.UseJwtTokenMiddleware();
+        app.UseJwtTokenMiddleware("JwtBearer");
 
         app.UseAuthorization();
 

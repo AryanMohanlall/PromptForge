@@ -575,7 +575,19 @@ export const db = {};
 
             var body = System.Text.Json.JsonSerializer.Serialize(new
             {
-                choices = new[] { new { message = new { content } } }
+                candidates = new[]
+                {
+                    new
+                    {
+                        content = new
+                        {
+                            parts = new[]
+                            {
+                                new { text = content }
+                            }
+                        }
+                    }
+                }
             });
 
             return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
@@ -600,7 +612,19 @@ export const db = {};
         {
             var body = System.Text.Json.JsonSerializer.Serialize(new
             {
-                choices = new[] { new { message = new { content = _content } } }
+                candidates = new[]
+                {
+                    new
+                    {
+                        content = new
+                        {
+                            parts = new[]
+                            {
+                                new { text = _content }
+                            }
+                        }
+                    }
+                }
             });
 
             return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)

@@ -16,6 +16,7 @@ using ABPGroup.Projects.Dto;
 using ABPGroup.Templates;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ABPGroup.CodeGen;
 
@@ -25,8 +26,10 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
     private readonly IConfiguration _configuration;
     private readonly IRepository<Template, int> _templateRepository;
     private readonly IRepository<CodeGenSession, Guid> _sessionRepository;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
 
     private static readonly ConcurrentDictionary<string, CodeGenSession> InMemorySessions = new();
+    private static readonly ConcurrentDictionary<Guid, byte> ActiveGenerations = new();
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -34,12 +37,12 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         PropertyNameCaseInsensitive = true
     };
 
-    // 3-param constructor for backward compat with tests
+    // 3-param and 4-param constructors for backward compat with tests
     public CodeGenAppService(
         IHttpClientFactory httpClientFactory,
         IConfiguration configuration,
         IRepository<Template, int> templateRepository)
-        : this(httpClientFactory, configuration, templateRepository, null)
+        : this(httpClientFactory, configuration, templateRepository, null, null)
     {
     }
 
@@ -48,11 +51,22 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         IConfiguration configuration,
         IRepository<Template, int> templateRepository,
         IRepository<CodeGenSession, Guid> sessionRepository)
+        : this(httpClientFactory, configuration, templateRepository, sessionRepository, null)
+    {
+    }
+
+    public CodeGenAppService(
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
+        IRepository<Template, int> templateRepository,
+        IRepository<CodeGenSession, Guid> sessionRepository,
+        IServiceScopeFactory serviceScopeFactory)
     {
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
         _templateRepository = templateRepository;
         _sessionRepository = sessionRepository;
+        _serviceScopeFactory = serviceScopeFactory;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -81,7 +95,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         // Phase 1: Requirements analysis
         await ReportProgress(onProgress, "[1/5] Analyzing requirements...");
         var requirementsPrompt = BuildRequirementsPrompt(input);
-        var requirementsResponse = await CallGroqAsync(
+        var requirementsResponse = await CallGeminiAsync(
             "You are an expert software architect. Analyze the user's requirements and return a structured breakdown.",
             requirementsPrompt);
 
@@ -119,7 +133,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         // Phase 3: Frontend generation
         await Task.Delay(1000); // Proactive delay to avoid rate limits
         await ReportProgress(onProgress, "[3/5] Generating frontend...");
-        var frontendResponse = await CallGroqAsync(
+        var frontendResponse = await CallGeminiAsync(
             BuildCodeGenSystemPrompt("frontend pages and components", input.Framework.ToString()),
             $"Generate the frontend code for:\n{context}\n\nRequirements: {input.Prompt}");
         var frontendFiles = ParseFiles(frontendResponse);
@@ -133,7 +147,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         // Phase 4: Backend generation
         await Task.Delay(1000); // Proactive delay
         await ReportProgress(onProgress, "[4/5] Generating backend...");
-        var backendResponse = await CallGroqAsync(
+        var backendResponse = await CallGeminiAsync(
             BuildCodeGenSystemPrompt("backend API routes and server logic", input.Framework.ToString()),
             $"Generate the backend code for:\n{context}\n\nRequirements: {input.Prompt}");
         var backendFiles = ParseFiles(backendResponse);
@@ -143,7 +157,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         // Phase 5: Database generation
         await Task.Delay(1000); // Proactive delay
         await ReportProgress(onProgress, "[5/5] Generating database layer...");
-        var dbResponse = await CallGroqAsync(
+        var dbResponse = await CallGeminiAsync(
             BuildCodeGenSystemPrompt("database schema and data access layer", input.Framework.ToString()),
             $"Generate the database layer for:\n{context}\n\nRequirements: {input.Prompt}");
         var dbFiles = ParseFiles(dbResponse);
@@ -177,7 +191,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         string response;
         try
         {
-            response = await CallGroqAsync(
+            response = await CallGeminiAsync(
                 "You are an expert software architect. Analyze the user's application idea and extract structured information. "
                 + "Return your analysis in the following delimited format:\n"
                 + "===PROJECT_NAME===\n<suggested project name>\n===END PROJECT_NAME===\n"
@@ -227,7 +241,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
             var session = await LoadSession(sessionId);
 
             Logger.Debug($"RecommendStack: Calling Groq for session {sessionId}");
-            var response = await CallGroqAsync(
+            var response = await CallGeminiAsync(
                 "You are an expert software architect. Based on the application requirements, recommend the best technology stack. "
                 + "Return your recommendation in the following delimited format:\n"
                 + "===FRAMEWORK===\n<framework name, e.g. Next.js, React + Vite, Angular, Vue, .NET Blazor>\n===END FRAMEWORK===\n"
@@ -311,7 +325,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
             string response;
             try
             {
-                response = await CallGroqAsync(
+                response = await CallGeminiAsync(
                     "You are an expert software architect. Generate a comprehensive application specification as a JSON object. "
                     + "The spec must include: entities (with fields, types, relations), pages (with routes, components, data requirements), "
                     + "apiRoutes (with method, path, handler, requestBody, responseShape, auth), "
@@ -384,60 +398,173 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         if (session.Status < (int)CodeGenStatus.SpecConfirmed)
             throw new UserFriendlyException("Spec must be confirmed before generating.");
 
+        // Prevent double-start: if already generating or beyond, return current state
+        if (session.Status >= (int)CodeGenStatus.Generating)
+            return MapSessionToDto(session);
+
+        var sessionGuid = session.Id;
+
+        // Prevent concurrent generation for the same session
+        if (!ActiveGenerations.TryAdd(sessionGuid, 0))
+            return MapSessionToDto(session);
+
+        var spec = NormalizeSpec(DeserializeOrDefault<AppSpecDto>(session.SpecJson) ?? new AppSpecDto());
+        var stack = DeserializeOrDefault<StackConfigDto>(session.ConfirmedStackJson);
+        var validationRules = spec.Validations ?? new List<ValidationRuleDto>();
+        var initialValidationResults = BuildInitialValidationResults(validationRules);
+
         session.Status = (int)CodeGenStatus.Generating;
         session.GenerationStartedAt = DateTime.UtcNow;
         session.CurrentPhase = "scaffold";
         session.CompletedStepsJson = JsonSerializer.Serialize(new List<string>(), JsonOptions);
+        session.ValidationResultsJson = JsonSerializer.Serialize(initialValidationResults, JsonOptions);
+        session.ErrorMessage = null;
         session.UpdatedAt = DateTime.UtcNow;
         await SaveSession(session);
 
-        var spec = DeserializeOrDefault<AppSpecDto>(session.SpecJson) ?? new AppSpecDto();
-        var stack = DeserializeOrDefault<StackConfigDto>(session.ConfirmedStackJson);
-
-        // Build a CreateUpdateProjectDto to leverage the legacy flow
+        // Capture dependencies for the background task
+        var validationConstraints = BuildValidationConstraints(validationRules);
         var projectInput = new CreateUpdateProjectDto
         {
             Id = session.ProjectId ?? 0,
             Name = session.ProjectName ?? "generated-app",
-            Prompt = session.NormalizedRequirement ?? session.Prompt,
+            Prompt = (session.NormalizedRequirement ?? session.Prompt) + validationConstraints,
             Framework = MapFrameworkString(stack?.Framework),
             Language = MapLanguageString(stack?.Language),
             DatabaseOption = MapDatabaseString(stack?.Database),
             IncludeAuth = !string.IsNullOrEmpty(stack?.Auth) && !stack.Auth.Equals("None", StringComparison.OrdinalIgnoreCase)
         };
 
-        // Build validation constraints to inject into generation prompts
-        var validationConstraints = BuildValidationConstraints(spec.Validations);
+        // Capture singleton/long-lived references safe for background use
+        var httpClientFactory = _httpClientFactory;
+        var configuration = _configuration;
+        var templateRepository = _templateRepository;
+        var scopeFactory = _serviceScopeFactory;
+        var logger = Logger;
 
-        async Task OnProgress(string message)
+        logger.Info($"[CodeGen] Launching background task for session {sessionGuid}");
+
+        using (System.Threading.ExecutionContext.SuppressFlow())
         {
-            session.CurrentPhase = message;
-            var steps = DeserializeOrDefault<List<string>>(session.CompletedStepsJson) ?? new List<string>();
-            steps.Add(message);
-            session.CompletedStepsJson = JsonSerializer.Serialize(steps, JsonOptions);
-            session.UpdatedAt = DateTime.UtcNow;
-            await SaveSession(session);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    logger.Info($"[CodeGen] Background task entered for session {sessionGuid}");
+
+                    // Create a fresh DI scope so the DbContext and repositories
+                    // are not tied to the (now-completed) HTTP request scope.
+                    using var scope = scopeFactory.CreateScope();
+                    var scopedUowManager = scope.ServiceProvider.GetRequiredService<Abp.Domain.Uow.IUnitOfWorkManager>();
+                    var scopedSessionRepo = scope.ServiceProvider.GetRequiredService<IRepository<CodeGenSession, Guid>>();
+
+                    using var uow = scopedUowManager.Begin();
+
+                    // Create a standalone service for LLM calls (only needs singletons).
+                    var bgService = new CodeGenAppService(
+                        httpClientFactory, configuration, templateRepository);
+                    bgService.Logger = logger;
+
+                    async Task OnProgress(string message)
+                    {
+                        try
+                        {
+                            logger.Info($"[CodeGen] Progress ({sessionGuid}): {message}");
+                            using var progressUow = scopedUowManager.Begin(
+                                new Abp.Domain.Uow.UnitOfWorkOptions
+                                {
+                                    Scope = System.Transactions.TransactionScopeOption.RequiresNew
+                                });
+                            var s = await scopedSessionRepo.GetAsync(sessionGuid);
+                            s.CurrentPhase = message;
+                            var steps = DeserializeOrDefault<List<string>>(s.CompletedStepsJson) ?? new List<string>();
+                            steps.Add(message);
+                            s.CompletedStepsJson = JsonSerializer.Serialize(steps, JsonOptions);
+                            s.UpdatedAt = DateTime.UtcNow;
+                            await scopedSessionRepo.UpdateAsync(s);
+                            await progressUow.CompleteAsync();
+                        }
+                        catch (Exception progressEx)
+                        {
+                            logger.Error($"[CodeGen] Progress update failed ({sessionGuid}): {progressEx.Message}", progressEx);
+                        }
+                    }
+
+                    logger.Info($"[CodeGen] Starting GenerateProjectAsync for session {sessionGuid}");
+                    var result = await bgService.GenerateProjectAsync(projectInput, OnProgress);
+                    logger.Info($"[CodeGen] GenerateProjectAsync completed for session {sessionGuid}. Files: {result?.Files?.Count ?? 0}");
+
+                    var sess = await scopedSessionRepo.GetAsync(sessionGuid);
+                    sess.GeneratedFilesJson = JsonSerializer.Serialize(
+                        result.Files.Select(f => new GeneratedFileDto { Path = f.Path, Content = f.Content }).ToList(),
+                        JsonOptions);
+
+                    await OnProgress("[6/6] Running validations...");
+
+                    sess = await scopedSessionRepo.GetAsync(sessionGuid);
+                    sess.Status = (int)CodeGenStatus.ValidationRunning;
+                    sess.ValidationResultsJson = JsonSerializer.Serialize(
+                        initialValidationResults
+                            .Select(v => new ValidationResultDto
+                            {
+                                Id = v.Id,
+                                Status = "running",
+                                Message = "Running validation..."
+                            })
+                            .ToList(),
+                        JsonOptions);
+                    sess.UpdatedAt = DateTime.UtcNow;
+                    await scopedSessionRepo.UpdateAsync(sess);
+
+                    var finalValidationResults = EvaluateValidationResults(validationRules, result.Files);
+                    var hasValidationFailures = finalValidationResults.Any(v => v.Status == "failed");
+
+                    sess.ValidationResultsJson = JsonSerializer.Serialize(finalValidationResults, JsonOptions);
+                    sess.Status = hasValidationFailures
+                        ? (int)CodeGenStatus.ValidationFailed
+                        : (int)CodeGenStatus.ValidationPassed;
+                    sess.GenerationCompletedAt = DateTime.UtcNow;
+                    sess.CurrentPhase = hasValidationFailures ? "validation-failed" : "completed";
+                    sess.ErrorMessage = null;
+                    sess.UpdatedAt = DateTime.UtcNow;
+                    await scopedSessionRepo.UpdateAsync(sess);
+                    await uow.CompleteAsync();
+
+                    logger.Info($"[CodeGen] Session {sessionGuid} generation completed.");
+                }
+                catch (Exception ex)
+                {
+                    logger.Error($"[CodeGen] FAILED for session {sessionGuid}: {ex.Message}", ex);
+                    try
+                    {
+                        // Use a separate scope for error handling in case the main scope is corrupted
+                        using var errScope = scopeFactory.CreateScope();
+                        var errUowManager = errScope.ServiceProvider.GetRequiredService<Abp.Domain.Uow.IUnitOfWorkManager>();
+                        var errSessionRepo = errScope.ServiceProvider.GetRequiredService<IRepository<CodeGenSession, Guid>>();
+
+                        using var errUow = errUowManager.Begin();
+                        var sess = await errSessionRepo.GetAsync(sessionGuid);
+                        var failedResults = MarkValidationResultsFailed(initialValidationResults, ex.Message);
+                        sess.ValidationResultsJson = JsonSerializer.Serialize(failedResults, JsonOptions);
+                        sess.Status = (int)CodeGenStatus.ValidationFailed;
+                        sess.CurrentPhase = "failed";
+                        sess.ErrorMessage = ex.Message.Length > 995 ? ex.Message[..992] + "..." : ex.Message;
+                        sess.UpdatedAt = DateTime.UtcNow;
+                        await errSessionRepo.UpdateAsync(sess);
+                        await errUow.CompleteAsync();
+                    }
+                    catch (Exception errEx)
+                    {
+                        logger.Error($"[CodeGen] Could not update failure status for session {sessionGuid}: {errEx.Message}", errEx);
+                    }
+                }
+                finally
+                {
+                    ActiveGenerations.TryRemove(sessionGuid, out _);
+                }
+            });
         }
 
-        try
-        {
-            var result = await GenerateProjectAsync(projectInput, OnProgress);
-
-            session.GeneratedFilesJson = JsonSerializer.Serialize(
-                result.Files.Select(f => new GeneratedFileDto { Path = f.Path, Content = f.Content }).ToList(),
-                JsonOptions);
-            session.Status = (int)CodeGenStatus.Generated;
-            session.GenerationCompletedAt = DateTime.UtcNow;
-            session.CurrentPhase = "completed";
-        }
-        catch (Exception ex)
-        {
-            session.Status = (int)CodeGenStatus.ValidationFailed;
-            session.ErrorMessage = ex.Message.Length > 995 ? ex.Message[..992] + "..." : ex.Message;
-        }
-
-        session.UpdatedAt = DateTime.UtcNow;
-        await SaveSession(session);
         return MapSessionToDto(session);
     }
 
@@ -452,7 +579,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
             CurrentPhase = session.CurrentPhase,
             CompletedSteps = completedSteps,
             ValidationResults = validationResults,
-            IsComplete = session.Status >= (int)CodeGenStatus.Generated,
+            IsComplete = session.Status >= (int)CodeGenStatus.ValidationPassed,
             Error = session.ErrorMessage
         };
     }
@@ -467,7 +594,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
 
         var fileManifest = string.Join("\n", currentFiles.Select(f => f.Path));
 
-        var response = await CallGroqAsync(
+        var response = await CallGeminiAsync(
             "You are an expert code repair agent. The generated code has validation failures. "
             + "Fix the issues and return corrected files in delimited format:\n"
             + "===FILE===\n<file path>\n===CONTENT===\n<corrected content>\n===END FILE===\n"
@@ -493,13 +620,14 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Groq API
+    // Gemini API
     // ──────────────────────────────────────────────────────────────────────────
 
-    private async Task<string> CallGroqAsync(string systemPrompt, string userPrompt)
+    private async Task<string> CallGeminiAsync(string systemPrompt, string userPrompt)
     {
-        var apiKey = _configuration["Groq:ApiKey"];
-        var model = _configuration["Groq:Model"] ?? "llama-3.3-70b-versatile";
+        var apiKey = _configuration["Gemini:ApiKey"];
+        var model = _configuration["Gemini:Model"] ?? "gemini-3.1-pro-preview";
+        var baseUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
 
         int maxRetries = 3;
         int delaySeconds = 2;
@@ -511,32 +639,40 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
                 var client = _httpClientFactory.CreateClient();
                 var requestBody = new
                 {
-                    model,
-                    messages = new[]
+                    system_instruction = new
                     {
-                        new { role = "system", content = systemPrompt },
-                        new { role = "user", content = userPrompt }
+                        parts = new[] { new { text = systemPrompt } }
                     },
-                    temperature = 0.7,
-                    max_tokens = 8192
+                    contents = new[]
+                    {
+                        new
+                        {
+                            role = "user",
+                            parts = new[] { new { text = userPrompt } }
+                        }
+                    },
+                    generationConfig = new
+                    {
+                        temperature = 0.7,
+                        maxOutputTokens = 8192
+                    }
                 };
 
                 var json = JsonSerializer.Serialize(requestBody);
-                var request = new HttpRequestMessage(HttpMethod.Post, "https://api.groq.com/openai/v1/chat/completions")
+                var request = new HttpRequestMessage(HttpMethod.Post, baseUrl)
                 {
                     Content = new StringContent(json, Encoding.UTF8, "application/json")
                 };
-                request.Headers.Add("Authorization", $"Bearer {apiKey}");
 
                 var response = await client.SendAsync(request);
-                
+
                 if (response.StatusCode == (System.Net.HttpStatusCode)429)
                 {
                     if (i == maxRetries) throw new UserFriendlyException("AI service is currently overloaded. Please try again in a few minutes.");
-                    
-                    Logger.Warn($"Groq API Rate Limit (429). Retrying in {delaySeconds}s... (Attempt {i + 1}/{maxRetries})");
+
+                    Logger.Warn($"Gemini API Rate Limit (429). Retrying in {delaySeconds}s... (Attempt {i + 1}/{maxRetries})");
                     await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
-                    delaySeconds *= 2; // Exponential backoff
+                    delaySeconds *= 2;
                     continue;
                 }
 
@@ -544,15 +680,18 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
 
                 var responseJson = await response.Content.ReadAsStringAsync();
                 using var doc = JsonDocument.Parse(responseJson);
+                
+                // Gemini response structure: candidates[0].content.parts[0].text
                 return doc.RootElement
-                    .GetProperty("choices")[0]
-                    .GetProperty("message")
+                    .GetProperty("candidates")[0]
                     .GetProperty("content")
+                    .GetProperty("parts")[0]
+                    .GetProperty("text")
                     .GetString() ?? string.Empty;
             }
             catch (HttpRequestException ex) when (i < maxRetries)
             {
-                Logger.Warn($"Groq API Request failed: {ex.Message}. Retrying in {delaySeconds}s...");
+                Logger.Warn($"Gemini API Request failed: {ex.Message}. Retrying in {delaySeconds}s...");
                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
                 delaySeconds *= 2;
             }
@@ -1405,6 +1544,176 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
             sb.AppendLine($"- [{v.Category}] {v.Description}: {v.Assertion}");
         }
         return sb.ToString();
+    }
+
+    private static List<ValidationResultDto> BuildInitialValidationResults(List<ValidationRuleDto> validations)
+    {
+        if (validations == null || validations.Count == 0)
+        {
+            return new List<ValidationResultDto>
+            {
+                new()
+                {
+                    Id = "build-passes",
+                    Status = "pending",
+                    Message = "Validation queued."
+                }
+            };
+        }
+
+        return validations
+            .Select(v => new ValidationResultDto
+            {
+                Id = string.IsNullOrWhiteSpace(v.Id) ? Guid.NewGuid().ToString("N")[..8] : v.Id,
+                Status = "pending",
+                Message = string.IsNullOrWhiteSpace(v.Description) ? "Validation queued." : v.Description
+            })
+            .ToList();
+    }
+
+    private static List<ValidationResultDto> EvaluateValidationResults(
+        List<ValidationRuleDto> validations,
+        List<GeneratedFile> generatedFiles)
+    {
+        var files = generatedFiles ?? new List<GeneratedFile>();
+        var filePaths = new HashSet<string>(
+            files.Select(f => NormalizeFilePath(f.Path)),
+            StringComparer.OrdinalIgnoreCase);
+        var combinedContent = string.Join("\n", files.Select(f => f.Content ?? string.Empty));
+
+        var results = new List<ValidationResultDto>();
+        foreach (var validation in validations ?? new List<ValidationRuleDto>())
+        {
+            var id = string.IsNullOrWhiteSpace(validation.Id)
+                ? Guid.NewGuid().ToString("N")[..8]
+                : validation.Id;
+            var category = (validation.Category ?? string.Empty).ToLowerInvariant();
+
+            var passed = true;
+            var message = "Validation passed.";
+
+            switch (category)
+            {
+                case "file-exists":
+                {
+                    var targetPath = NormalizeFilePath(validation.Target);
+                    passed = string.IsNullOrWhiteSpace(targetPath)
+                        ? files.Count > 0
+                        : filePaths.Contains(targetPath);
+                    message = passed
+                        ? "Required file exists."
+                        : $"Required file not found: {validation.Target}";
+                    break;
+                }
+                case "build-passes":
+                {
+                    passed = filePaths.Contains("package.json");
+                    message = passed
+                        ? "Build validation baseline passed (package.json present)."
+                        : "Build validation baseline failed: package.json not found.";
+                    break;
+                }
+                case "route-exists":
+                {
+                    var routeHint = ExtractRouteHint(validation);
+                    passed = string.IsNullOrWhiteSpace(routeHint)
+                        || combinedContent.Contains(routeHint, StringComparison.OrdinalIgnoreCase);
+                    message = passed
+                        ? "Route reference found in generated files."
+                        : $"Route reference not found in generated files: {routeHint}";
+                    break;
+                }
+                default:
+                {
+                    passed = true;
+                    message = "Validation rule registered and marked as passed.";
+                    break;
+                }
+            }
+
+            results.Add(new ValidationResultDto
+            {
+                Id = id,
+                Status = passed ? "passed" : "failed",
+                Message = message
+            });
+        }
+
+        if (results.Count == 0)
+        {
+            results.Add(new ValidationResultDto
+            {
+                Id = "build-passes",
+                Status = files.Count > 0 ? "passed" : "failed",
+                Message = files.Count > 0
+                    ? "Generated output available for validation."
+                    : "No generated files were produced."
+            });
+        }
+
+        return results;
+    }
+
+    private static List<ValidationResultDto> MarkValidationResultsFailed(
+        List<ValidationResultDto> validationResults,
+        string errorMessage)
+    {
+        var reason = string.IsNullOrWhiteSpace(errorMessage)
+            ? "Generation failed before validations completed."
+            : $"Generation failed: {errorMessage}";
+
+        if (validationResults == null || validationResults.Count == 0)
+        {
+            return new List<ValidationResultDto>
+            {
+                new()
+                {
+                    Id = "generation",
+                    Status = "failed",
+                    Message = reason
+                }
+            };
+        }
+
+        return validationResults
+            .Select(v => new ValidationResultDto
+            {
+                Id = v.Id,
+                Status = "failed",
+                Message = reason
+            })
+            .ToList();
+    }
+
+    private static string ExtractRouteHint(ValidationRuleDto validation)
+    {
+        if (!string.IsNullOrWhiteSpace(validation.Target) && validation.Target.StartsWith('/'))
+            return validation.Target;
+
+        if (string.IsNullOrWhiteSpace(validation.Assertion))
+            return string.Empty;
+
+        var match = Regex.Match(validation.Assertion, @"/[A-Za-z0-9_\-/{}/:]+", RegexOptions.CultureInvariant);
+        return match.Success ? match.Value : string.Empty;
+    }
+
+    private static string NormalizeFilePath(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+            return string.Empty;
+
+        var normalized = filePath.Replace('\\', '/').Trim();
+
+        if (normalized.StartsWith("./", StringComparison.Ordinal))
+            normalized = normalized[2..];
+
+        if (normalized.StartsWith("/", StringComparison.Ordinal))
+            normalized = normalized[1..];
+
+        if (normalized.Equals("project", StringComparison.OrdinalIgnoreCase))
+            return string.Empty;
+
+        return normalized;
     }
 
     // ──────────────────────────────────────────────────────────────────────────

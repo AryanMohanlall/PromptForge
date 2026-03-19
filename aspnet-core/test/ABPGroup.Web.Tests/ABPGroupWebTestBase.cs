@@ -6,7 +6,7 @@ using Abp.MultiTenancy;
 using Abp.Web.Models;
 using ABPGroup.EntityFrameworkCore;
 using ABPGroup.Models.TokenAuth;
-using ABPGroup.Web.Startup;
+using ABPGroup.Web.Host.Startup;
 using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
 using Microsoft.AspNetCore.Hosting;
@@ -36,7 +36,7 @@ public abstract class ABPGroupWebTestBase : AbpAspNetCoreIntegratedTestBase<Star
         return base
             .CreateWebHostBuilder()
             .UseContentRoot(ContentRootFolder.Value)
-            .UseSetting(WebHostDefaults.ApplicationKey, typeof(ABPGroupWebMvcModule).Assembly.FullName);
+            .UseSetting(WebHostDefaults.ApplicationKey, typeof(ABPGroupWebHostModule).Assembly.FullName);
     }
 
     #region Get response

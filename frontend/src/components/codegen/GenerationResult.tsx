@@ -36,6 +36,13 @@ export function GenerationResult({
   const failures = status.validationResults.filter(
     (v) => v.status === "failed"
   );
+  const totalValidations = status.validationResults.length;
+  const passedValidations = status.validationResults.filter((v) => v.status === "passed").length;
+  const successSubtitle = totalValidations === 0
+    ? "Generation completed. Validation results were not reported by the backend."
+    : passedValidations === totalValidations
+      ? `All ${totalValidations} validations passed. Your app is ready to deploy.`
+      : `${passedValidations} of ${totalValidations} validations passed. Your app is ready to deploy.`;
   const isSuccess = !status.error && failures.length === 0;
   const canRepair = failures.length > 0 && failures.length <= 3 && (session?.repairAttempts ?? 0) < 2;
 
@@ -64,7 +71,7 @@ export function GenerationResult({
             </div>
             <h2 className={styles.successTitle}>Application Generated Successfully!</h2>
             <p className={styles.successSubtitle}>
-              All {status.validationResults.length} validations passed. Your app is ready to deploy.
+              {successSubtitle}
             </p>
             <div className={styles.successActions}>
               <button

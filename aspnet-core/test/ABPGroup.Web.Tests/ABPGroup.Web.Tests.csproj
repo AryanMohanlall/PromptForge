@@ -11,7 +11,7 @@
     <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\ABPGroup.Web.Mvc\ABPGroup.Web.Mvc.csproj" />
+    <ProjectReference Include="..\..\src\ABPGroup.Web.Host\ABPGroup.Web.Host.csproj" />
     <ProjectReference Include="..\ABPGroup.Tests\ABPGroup.Tests.csproj" />
   </ItemGroup>
   <ItemGroup>
