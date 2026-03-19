@@ -9,6 +9,7 @@ using ABPGroup.Authorization.Users;
 using ABPGroup.Editions;
 using ABPGroup.MultiTenancy;
 using Abp.UI;
+using ABPGroup.Persons;
 using Microsoft.AspNetCore.Http;
 using System;
 using System.Data.Common;
@@ -98,17 +99,36 @@ public class AccountAppService : ABPGroupAppServiceBase, IAccountAppService
             true // Assumed email address is always confirmed. Change this if you want to implement email confirmation.
         );
 
-        user.Role = input.Role; // defaults to Admin if not provided
-        await _userManager.UpdateAsync(user);
-
+        // Map PersonRole to ABP Role Name
+        string roleName;
         if (createdNewTenant)
         {
-            using (CurrentUnitOfWork.SetTenantId(tenantId))
+            roleName = StaticRoleNames.Tenants.Admin;
+            user.Role = PersonRole.Admin;
+        }
+        else if (input.InvitedRole.HasValue)
+        {
+            user.Role = input.InvitedRole.Value;
+            roleName = input.InvitedRole.Value switch
             {
-                var adminRole = _roleManager.Roles.Single(r => r.Name == StaticRoleNames.Tenants.Admin);
-                CheckErrors(await _userManager.AddToRoleAsync(user, adminRole.Name));
-                await CurrentUnitOfWork.SaveChangesAsync();
-            }
+                PersonRole.Admin => StaticRoleNames.Tenants.Admin,
+                PersonRole.ProductBuilder => StaticRoleNames.Tenants.ProductBuilder,
+                // Default to ProductBuilder for any other invited roles for now
+                _ => StaticRoleNames.Tenants.ProductBuilder
+            };
+        }
+        else
+        {
+            roleName = StaticRoleNames.Tenants.ProductBuilder;
+            user.Role = PersonRole.ProductBuilder;
+        }
+
+        await _userManager.UpdateAsync(user);
+
+        using (CurrentUnitOfWork.SetTenantId(tenantId))
+        {
+            CheckErrors(await _userManager.AddToRoleAsync(user, roleName));
+            await CurrentUnitOfWork.SaveChangesAsync();
         }
 
         var isEmailConfirmationRequiredForLogin = await SettingManager.GetSettingValueAsync<bool>(AbpZeroSettingNames.UserManagement.IsEmailConfirmationRequiredForLogin);

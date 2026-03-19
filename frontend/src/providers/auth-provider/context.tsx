@@ -35,6 +35,7 @@ export interface IRegisterInput {
   emailAddress: string;
   password: string;
   tenantId?: number;
+  invitedRole?: number;
 }
 
 export const INITIAL_STATE: IAuthStateContext = {

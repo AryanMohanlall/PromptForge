@@ -38,6 +38,8 @@ public class RegisterInput : IValidatableObject
 
     public PersonRole Role { get; set; } = PersonRole.Admin;
 
+    public PersonRole? InvitedRole { get; set; }
+
     public int? TenantId { get; set; }
 
     public bool CreateTenant { get; set; }

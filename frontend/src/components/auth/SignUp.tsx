@@ -46,20 +46,23 @@ interface SocialButtonProps {
   readonly onClick?: () => void;
 }
 
-const decodeTenantId = (value: string | null) => {
-  if (!value) return undefined;
+const decodeInvitationToken = (token: string | null) => {
+  if (!token) return { tenantId: undefined, invitedRole: undefined };
   try {
-    const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+    const normalized = token.replace(/-/g, "+").replace(/_/g, "/");
     const padding = normalized.length % 4;
     const decoded = atob(
       padding
         ? normalized.padEnd(normalized.length + (4 - padding), "=")
         : normalized,
     );
-    const tenantId = Number.parseInt(decoded, 10);
-    return Number.isNaN(tenantId) ? undefined : tenantId;
+    const parsed = JSON.parse(decoded);
+    return {
+      tenantId: typeof parsed.tenantId === "number" ? parsed.tenantId : undefined,
+      invitedRole: typeof parsed.role === "number" ? parsed.role : undefined,
+    };
   } catch {
-    return undefined;
+    return { tenantId: undefined, invitedRole: undefined };
   }
 };
 
@@ -191,7 +194,7 @@ function SignUpPage() {
   const [attempted, setAttempted] = useState(false);
   const [validationError, setValidationError] = useState("");
   const searchParams = useSearchParams();
-  const tenantId = decodeTenantId(searchParams.get("tenant"));
+  const { tenantId, invitedRole } = decodeInvitationToken(searchParams.get("token"));
   const { register } = useAuthAction();
   const { isPending, isError } = useAuthState();
   const { styles } = useAuthStyles();
@@ -219,6 +222,7 @@ function SignUpPage() {
       emailAddress: email,
       password,
       ...(tenantId !== undefined ? { tenantId } : {}),
+      ...(invitedRole !== undefined ? { invitedRole } : {}),
     });
   };
 

@@ -83,7 +83,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await instance.post(
         "/api/services/app/Account/Register",
         rest,
-        tenantId === undefined
+        tenantId === undefined || tenantId === 0
           ? undefined
           : {
               headers: {
