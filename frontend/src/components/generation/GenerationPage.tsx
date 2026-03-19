@@ -10,11 +10,12 @@ import {
   ExternalLinkIcon,
   GithubIcon,
   RefreshCwIcon,
-  ChevronRightIcon,
-  FolderIcon,
-  FileIcon,
-  LayersIcon,
-  GitBranchIcon,
+  SearchIcon,
+  FolderPlusIcon,
+  MonitorIcon,
+  ServerIcon,
+  DatabaseIcon,
+  LoaderIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AxiosError } from "axios";
@@ -34,6 +35,36 @@ type StepStatus = "completed" | "active" | "pending";
 
 type StatusBadgeState = "Generating" | "Generated" | "Deploying" | "Live";
 
+// ─── Fixed 5-step pipeline definition ────────────────────────────────────────
+
+interface PipelinePhase {
+  id: number;
+  name: string;
+  description: string;
+  icon: React.ElementType;
+}
+
+const PIPELINE_PHASES: PipelinePhase[] = [
+  { id: 1, name: "Requirements Analysis", description: "AI analyzes your prompt and extracts features", icon: SearchIcon },
+  { id: 2, name: "Scaffolding",           description: "Setting up project structure from your template", icon: FolderPlusIcon },
+  { id: 3, name: "Frontend",              description: "Building UI pages and components",              icon: MonitorIcon },
+  { id: 4, name: "Backend",               description: "Generating API routes and services",            icon: ServerIcon },
+  { id: 5, name: "Database",              description: "Creating schemas, models, and migrations",      icon: DatabaseIcon },
+];
+
+const TOTAL_PHASES = PIPELINE_PHASES.length;
+
+// ─── Parse [N/5] prefix from statusMessage ───────────────────────────────────
+
+function parsePhase(msg: string | null | undefined): { phase: number; detail: string } | null {
+  if (!msg) return null;
+  const match = msg.match(/^\[(\d+)\/\d+\]\s*(.*)/);
+  if (!match) return null;
+  return { phase: parseInt(match[1], 10), detail: match[2] };
+}
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
 const StatusBadge = ({ status }: { status: StatusBadgeState }) => {
   const { styles, cx } = useStyles();
   const statusClassMap: Record<StatusBadgeState, string> = {
@@ -45,35 +76,58 @@ const StatusBadge = ({ status }: { status: StatusBadgeState }) => {
 
   return (
     <span className={cx(styles.statusBadge, statusClassMap[status])}>
+      {status === "Generating" && (
+        <motion.span
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          style={{ display: "inline-flex", marginRight: 6 }}
+        >
+          <LoaderIcon style={{ width: 12, height: 12 }} />
+        </motion.span>
+      )}
       {status}
     </span>
   );
 };
 
 interface PipelineStepProps {
-  name: string;
+  phase: PipelinePhase;
   status: StepStatus;
-  duration?: string;
+  detail?: string;
   isLast?: boolean;
 }
 
-const PipelineStep = ({ name, status, duration, isLast }: PipelineStepProps) => {
+const PipelineStep = ({ phase, status, detail, isLast }: PipelineStepProps) => {
   const { styles, cx } = useStyles();
   const isCompleted = status === "completed";
   const isActive = status === "active";
+  const Icon = phase.icon;
 
   return (
     <div className={styles.stepRow}>
       <div className={styles.stepRail}>
-        <div
+        <motion.div
           className={cx(
             styles.stepDot,
             isCompleted && styles.stepDotCompleted,
             isActive && styles.stepDotActive
           )}
+          animate={isActive ? { scale: [1, 1.12, 1] } : {}}
+          transition={isActive ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : {}}
         >
-          {isCompleted && <CheckIcon className={styles.stepCheck} />}
-        </div>
+          {isCompleted ? (
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 400, damping: 15 }}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <CheckIcon className={styles.stepCheck} />
+            </motion.div>
+          ) : (
+            <Icon className={styles.stepIcon} />
+          )}
+        </motion.div>
         {!isLast && (
           <div
             className={cx(
@@ -84,12 +138,43 @@ const PipelineStep = ({ name, status, duration, isLast }: PipelineStepProps) => 
         )}
       </div>
       <div className={styles.stepContent}>
-        <span className={styles.stepTitle}>{name}</span>
-        {duration && <span className={styles.stepDuration}>{duration}</span>}
+        <div className={styles.stepTitleRow}>
+          <span className={cx(
+            styles.stepTitle,
+            isActive && styles.stepTitleActive,
+            status === "pending" && styles.stepTitlePending
+          )}>
+            {phase.name}
+          </span>
+          {isActive && (
+            <motion.span
+              className={styles.stepActiveBadge}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+            >
+              In progress
+            </motion.span>
+          )}
+        </div>
+        <span className={styles.stepDescription}>{phase.description}</span>
+        <AnimatePresence>
+          {isActive && detail && (
+            <motion.span
+              className={styles.stepDetail}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+            >
+              {detail}
+            </motion.span>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
 };
+
+// ─── Main page ───────────────────────────────────────────────────────────────
 
 export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const { styles, cx } = useStyles();
@@ -98,7 +183,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const { selected: project } = useProjectState();
   const { fetchById } = useProjectAction();
 
-  // Resolve project ID from state, URL param, or sessionStorage (set by CreateProjectPage)
+  // Resolve project ID from state, URL param, or sessionStorage
   const [projectId, setProjectId] = useState<number | null>(null);
   useEffect(() => {
     if (projectId) return;
@@ -125,9 +210,10 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const [githubRepoUrl, setGithubRepoUrl] = useState<string | null>(null);
   const [githubRepoFullName, setGithubRepoFullName] = useState<string | null>(null);
 
-  // Track generation steps dynamically from real backend status messages
+  // Track the latest phase detail from statusMessage
+  const [phaseDetails, setPhaseDetails] = useState<Record<number, string>>({});
+  const [currentPhase, setCurrentPhase] = useState(0);
   const [completedMessages, setCompletedMessages] = useState<string[]>([]);
-  const [activeMessage, setActiveMessage] = useState<string | null>(null);
 
   const deploymentSteps = useMemo(
     () => [
@@ -165,45 +251,59 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
     project?.status === ProjectStatus.RepositoryPushInProgress ||
     project?.status === ProjectStatus.Deployed;
 
-  // Build dynamic step list from real backend statusMessage updates
+  // Parse [N/7] prefix from statusMessage to drive pipeline steps
   useEffect(() => {
     if (!project?.statusMessage) return;
     const msg = project.statusMessage.replace(/\.{2,}$/, "").trim();
     if (!msg) return;
 
-    setActiveMessage((prev) => {
-      // If we got a new message, push the old one to completed
-      if (prev && prev !== msg) {
-        setCompletedMessages((list) =>
-          list.includes(prev) ? list : [...list, prev]
-        );
-      }
-      return msg;
+    const parsed = parsePhase(msg);
+    if (parsed) {
+      setCurrentPhase(parsed.phase);
+      setPhaseDetails((prev) => ({
+        ...prev,
+        [parsed.phase]: parsed.detail,
+      }));
+    }
+
+    // Also track raw messages for the log
+    setCompletedMessages((prev) => {
+      if (prev.includes(msg)) return prev;
+      return [...prev, msg];
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.statusMessage]);
 
-  // When codegen finishes, move active message to completed
+  // When codegen finishes, mark all phases done
   useEffect(() => {
-    if (isCodeGenDone && activeMessage) {
-      setCompletedMessages((list) =>
-        list.includes(activeMessage) ? list : [...list, activeMessage]
-      );
-      setActiveMessage(null);
+    if (isCodeGenDone) {
+      setCurrentPhase(TOTAL_PHASES + 1);
     }
-  }, [isCodeGenDone, activeMessage]);
+  }, [isCodeGenDone]);
 
-  // Build the visual step list: completed steps + active step
-  const generationSteps = useMemo(() => {
-    const steps = completedMessages.map((name) => ({ name, status: "completed" as StepStatus }));
-    if (activeMessage) {
-      steps.push({ name: activeMessage, status: "active" as StepStatus });
-    }
-    if (isCodeGenDone && steps.length === 0) {
-      steps.push({ name: "Code generation completed", status: "completed" as StepStatus });
-    }
-    return steps;
-  }, [completedMessages, activeMessage, isCodeGenDone]);
+  // Build step statuses
+  const pipelineSteps = useMemo(() => {
+    return PIPELINE_PHASES.map((phase) => {
+      let status: StepStatus;
+      if (isCodeGenDone || phase.id < currentPhase) {
+        status = "completed";
+      } else if (phase.id === currentPhase) {
+        status = "active";
+      } else {
+        status = "pending";
+      }
+      return {
+        ...phase,
+        status,
+        detail: phaseDetails[phase.id],
+      };
+    });
+  }, [currentPhase, phaseDetails, isCodeGenDone]);
+
+  const progressPercentage = isCodeGenDone
+    ? 100
+    : currentPhase > 0
+      ? Math.min(Math.round(((currentPhase - 1) / TOTAL_PHASES) * 100 + (1 / TOTAL_PHASES) * 50), 95)
+      : 0;
 
   // Update default repo name once project loads
   useEffect(() => {
@@ -225,12 +325,6 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       : isGenerated
         ? "Generated"
         : "Generating";
-
-  const progressPercentage = isGenerated
-    ? 100
-    : generationSteps.length > 0 && activeMessage
-      ? Math.round((completedMessages.length / (completedMessages.length + 1)) * 100)
-      : 0;
 
   const getStepStatus = (index: number, currentStep: number): StepStatus => {
     if (index < currentStep) return "completed";
@@ -257,7 +351,6 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
     try {
       const instance = getAxiosInstance();
 
-      // Step 0: Creating GitHub repository
       const response = await instance.post<{
         repository?: {
           name?: string;
@@ -277,7 +370,6 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       const ownerFromFullName = fullName.includes("/") ? fullName.split("/")[0] : configuredOwner || undefined;
       const repoFromFullName = fullName.includes("/") ? fullName.split("/")[1] : repository?.name ?? sanitizedRepoName;
 
-      // Step 1: Committing generated code
       setDeploymentStep(1);
 
       await instance.post("/api/github-app/commit-generated", {
@@ -289,7 +381,6 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
         commitMessage: `feat: initial generated project commit (${projectTitle})`,
       });
 
-      // Step 2–4: Mark remaining steps as complete (no real build/deploy pipeline yet)
       setDeploymentStep(2);
       setDeploymentStep(deploymentSteps.length);
 
@@ -299,11 +390,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       setIsDeploying(false);
       setDeploymentStep(-1);
       const axiosError = error as AxiosError<{
-        result?: {
-          message?: string;
-          details?: string;
-          error?: string;
-        };
+        result?: { message?: string; details?: string; error?: string };
         message?: string;
         details?: string;
         error?: string;
@@ -329,12 +416,15 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
   return (
     <div className={styles.page}>
+      {/* ── Header with progress ───────────────────────────────────────── */}
       <div className={styles.header}>
         <div className={styles.titleRow}>
           <div>
             <p className={styles.eyebrow}>Generation workspace</p>
             <h1 className={styles.title}>{projectTitle}</h1>
-            <p className={styles.subtitle}>Tracking your AppRequest through PromptSession, GeneratedProject, BuildJob, and Deployment.</p>
+            <p className={styles.subtitle}>
+              Building your app step by step — sit back while we handle the heavy lifting.
+            </p>
           </div>
           <StatusBadge status={generationStatus} />
         </div>
@@ -345,17 +435,24 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
               className={styles.progressFill}
               initial={{ width: 0 }}
               animate={{ width: `${progressPercentage}%` }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
             />
-            <div className={styles.progressShimmer} />
+            {isCodeGenInProgress && <div className={styles.progressShimmer} />}
           </div>
           <div className={styles.progressMeta}>
-            <span>Overall progress</span>
+            <span>
+              {isCodeGenDone
+                ? "All steps completed"
+                : currentPhase > 0
+                  ? `Step ${Math.min(currentPhase, TOTAL_PHASES)} of ${TOTAL_PHASES}`
+                  : "Preparing..."}
+            </span>
             <span>{progressPercentage}%</span>
           </div>
         </div>
       </div>
 
+      {/* ── Error state ────────────────────────────────────────────────── */}
       {isCodeGenFailed && (
         <div className={styles.card} style={{ borderColor: "var(--ant-color-error)", marginBottom: 16 }}>
           <p style={{ color: "var(--ant-color-error)", margin: 0, fontWeight: 600 }}>
@@ -364,244 +461,144 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
         </div>
       )}
 
+      {/* ── Main grid: Pipeline + right panel ──────────────────────────── */}
       <div className={styles.grid}>
+        {/* Left: Fixed 7-step pipeline */}
         <div className={styles.card}>
           <div className={styles.cardHeader}>
             <div>
-              <h3 className={styles.cardTitle}>Generation pipeline</h3>
-              <p className={styles.cardSubtitle}>From AppRequest to GeneratedProject</p>
+              <h3 className={styles.cardTitle}>Build pipeline</h3>
+              <p className={styles.cardSubtitle}>
+                Your app is being built in {TOTAL_PHASES} steps
+              </p>
             </div>
-            <div className={styles.cardBadge}>PromptSession</div>
+            <div className={styles.cardBadge}>
+              {isCodeGenDone
+                ? "Complete"
+                : currentPhase > 0
+                  ? `Phase ${currentPhase}`
+                  : "Starting"}
+            </div>
           </div>
 
           <div className={styles.stepStack}>
-            {generationSteps.length > 0 ? (
-              generationSteps.map((step, index) => (
-                <PipelineStep
-                  key={step.name}
-                  name={step.name}
-                  status={step.status}
-                  isLast={index === generationSteps.length - 1}
-                />
-              ))
-            ) : isCodeGenInProgress ? (
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "10px 16px",
-                background: "var(--ant-color-fill-quaternary)",
-                borderRadius: 8,
-                fontSize: 13,
-                color: "var(--ant-color-text-secondary)",
-              }}>
-                <motion.span
-                  animate={{ opacity: [1, 0.3, 1] }}
-                  transition={{ duration: 1.2, repeat: Infinity }}
-                  style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--ant-color-primary)", display: "inline-block", flexShrink: 0 }}
-                />
-                Waiting for generation to start...
-              </div>
-            ) : null}
+            {pipelineSteps.map((step, index) => (
+              <PipelineStep
+                key={step.id}
+                phase={step}
+                status={step.status}
+                detail={step.detail}
+                isLast={index === pipelineSteps.length - 1}
+              />
+            ))}
           </div>
         </div>
 
+        {/* Right: Live activity + output review */}
         <div className={styles.panelStack}>
-          <div className={styles.codePanel}>
-            <div className={styles.codeHeader}>
-              <div className={styles.windowDots}>
-                <span className={styles.dot} />
-                <span className={styles.dot} />
-                <span className={styles.dot} />
-              </div>
-              <span className={styles.codeTitle}>GeneratedProject.tsx</span>
-              <div className={styles.codeActions}>
-                <button className={cx(styles.iconButton, styles.focusRing)} title="Copy path">
-                  <CopyIcon className={styles.iconSmall} />
-                </button>
-              </div>
-            </div>
-
-            <div className={styles.codeBody}>
-              <div className={styles.fileTree}>
-                <div className={styles.treeItem}>
-                  <ChevronRightIcon className={styles.treeChevron} />
-                  <FolderIcon className={styles.treeFolder} />
-                  src
-                </div>
-                <div className={styles.treeItemIndented}>
-                  <ChevronRightIcon className={styles.treeChevron} />
-                  <FolderIcon className={styles.treeFolder} />
-                  generation
-                </div>
-                <div className={styles.treeItemIndented}>
-                  <ChevronRightIcon className={styles.treeChevron} />
-                  <FolderIcon className={styles.treeFolder} />
-                  deployment
-                </div>
-                <div className={cx(styles.treeItemIndented, styles.treeItemActive)}>
-                  <FileIcon className={styles.treeFile} />
-                  GeneratedProject.tsx
-                </div>
-                <div className={styles.treeItemIndented}>
-                  <FileIcon className={styles.treeFile} />
-                  BuildJob.ts
-                </div>
-                <div className={styles.treeItemIndented}>
-                  <FileIcon className={styles.treeFile} />
-                  LiveUrl.ts
-                </div>
-              </div>
-
-              <div className={styles.codeContent}>
-                <pre className={styles.codeBlock}>
-                  <code>
-                    <span className={styles.codeKeyword}>import</span> React, {" "}
-                    {"{"} useState {"}"} {" "}
-                    <span className={styles.codeKeyword}>from</span>{" "}
-                    <span className={styles.codeString}>&quot;react&quot;</span>;
-                    {"\n"}
-                    <span className={styles.codeKeyword}>import</span> {"{"} BuildJob {"}"} {" "}
-                    <span className={styles.codeKeyword}>from</span>{" "}
-                    <span className={styles.codeString}>&quot;@/generation&quot;</span>;
-                    {"\n\n"}
-                    <span className={styles.codeKeyword}>export</span> <span className={styles.codeKeyword}>function</span>{" "}
-                    <span className={styles.codeFunction}>GeneratedProject</span>() {"{"}
-                    {"\n"}
-                    {"  "}<span className={styles.codeKeyword}>const</span> [status] = <span className={styles.codeFunction}>useState</span>(
-                    <span className={styles.codeString}>&quot;InProgress&quot;</span>);
-                    {"\n\n"}
-                    {"  "}<span className={styles.codeKeyword}>return</span> (
-                    {"\n    "}&lt;<span className={styles.codeTag}>section</span>{" "}
-                    <span className={styles.codeAttr}>aria-label</span>=
-                    <span className={styles.codeString}>&quot;Generated project&quot;</span>
-                    &gt;
-                    {"\n      "}&lt;<span className={styles.codeTag}>h2</span>&gt;PromptSession summary&lt;/{" "}
-                    <span className={styles.codeTag}>h2</span>&gt;
-                    {"\n      "}&lt;<span className={styles.codeTag}>BuildJob</span>{" "}
-                    <span className={styles.codeAttr}>status</span>=
-                    <span className={styles.codeString}>&quot;{"{status}"}&quot;</span>
-                    /&gt;
-                    {"\n    "}&lt;/{" "}
-                    <span className={styles.codeTag}>section</span>&gt;
-                    {"\n  "});
-                    {"\n"}
-                    {"}"}
-                  </code>
-                </pre>
-              </div>
-            </div>
-          </div>
-
-          <details className={styles.logDetails}>
-            <summary className={cx(styles.logSummary, styles.focusRing)}>
-              Generation log
-            </summary>
-            <div className={styles.logBody}>
-              {completedMessages.map((msg) => (
-                <span key={msg}>
-                  ✓ {msg}
-                  <br />
-                </span>
-              ))}
-              {activeMessage && (
-                <span style={{ color: "var(--ant-color-primary)" }}>
-                  ▸ {activeMessage}
-                  <br />
-                </span>
-              )}
-              {generationSteps.length === 0 && isCodeGenInProgress && (
-                <span style={{ color: "var(--ant-color-text-tertiary)" }}>
-                  Waiting for generation to start...
-                </span>
-              )}
-            </div>
-          </details>
-
+          {/* Live activity card */}
           <div className={styles.card}>
             <div className={styles.cardHeader}>
               <div>
-                <h3 className={styles.cardTitle}>Output review</h3>
-                <p className={styles.cardSubtitle}>Architecture snapshot + Generated modules</p>
-              </div>
-              <div className={styles.cardBadge}>GeneratedProject</div>
-            </div>
-
-            <div className={styles.reviewGrid}>
-              <div>
-                <div className={styles.reviewLabel}>Architecture snapshot</div>
-                <ul className={styles.reviewList}>
-                  <li className={styles.reviewItem}>
-                    <LayersIcon className={styles.reviewIcon} />
-                    <div>
-                      <span className={styles.reviewTitle}>Frontend</span>
-                      <span className={styles.reviewText}>Next.js + Ant Design + antd-style</span>
-                    </div>
-                  </li>
-                  <li className={styles.reviewItem}>
-                    <LayersIcon className={styles.reviewIcon} />
-                    <div>
-                      <span className={styles.reviewTitle}>Backend</span>
-                      <span className={styles.reviewText}>ABP Framework services + DTO layer</span>
-                    </div>
-                  </li>
-                  <li className={styles.reviewItem}>
-                    <LayersIcon className={styles.reviewIcon} />
-                    <div>
-                      <span className={styles.reviewTitle}>Data</span>
-                      <span className={styles.reviewText}>Postgres + migrations scaffold</span>
-                    </div>
-                  </li>
-                </ul>
-              </div>
-
-              <div>
-                <div className={styles.reviewLabel}>Generated modules</div>
-                <ul className={styles.reviewList}>
-                  <li className={styles.reviewItem}>
-                    <GitBranchIcon className={styles.reviewIcon} />
-                    <div>
-                      <span className={styles.reviewTitle}>AppRequest</span>
-                      <span className={styles.reviewText}>Submission + validation</span>
-                    </div>
-                  </li>
-                  <li className={styles.reviewItem}>
-                    <GitBranchIcon className={styles.reviewIcon} />
-                    <div>
-                      <span className={styles.reviewTitle}>BuildJob</span>
-                      <span className={styles.reviewText}>Queued build pipeline</span>
-                    </div>
-                  </li>
-                  <li className={styles.reviewItem}>
-                    <GitBranchIcon className={styles.reviewIcon} />
-                    <div>
-                      <span className={styles.reviewTitle}>Deployment</span>
-                      <span className={styles.reviewText}>LiveUrl publishing</span>
-                    </div>
-                  </li>
-                </ul>
+                <h3 className={styles.cardTitle}>Live activity</h3>
+                <p className={styles.cardSubtitle}>Real-time updates from the build</p>
               </div>
             </div>
 
-            <div className={styles.reviewFooter}>
-              <div>
-                <div className={styles.reviewLabel}>LiveUrl</div>
-                <p className={styles.liveUrlMuted}>
-                  LiveUrl is published after Deployment succeeds.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigate("dashboard")}
-                className={cx(styles.secondaryButton, styles.focusRing)}
-              >
-                View history
-              </button>
+            <div className={styles.activityFeed}>
+              <AnimatePresence>
+                {completedMessages.length === 0 && isCodeGenInProgress && (
+                  <motion.div
+                    className={styles.activityItem}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  >
+                    <motion.span
+                      className={styles.activityDot}
+                      animate={{ opacity: [1, 0.3, 1] }}
+                      transition={{ duration: 1.2, repeat: Infinity }}
+                    />
+                    <span className={styles.activityText}>
+                      Initializing generation pipeline...
+                    </span>
+                  </motion.div>
+                )}
+                {completedMessages.map((msg, i) => {
+                  const parsed = parsePhase(msg);
+                  const isLatest = i === completedMessages.length - 1 && isCodeGenInProgress;
+                  return (
+                    <motion.div
+                      key={msg}
+                      className={styles.activityItem}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.05 }}
+                    >
+                      {isLatest ? (
+                        <motion.span
+                          className={styles.activityDotActive}
+                          animate={{ scale: [1, 1.3, 1] }}
+                          transition={{ duration: 1, repeat: Infinity }}
+                        />
+                      ) : (
+                        <span className={styles.activityDotDone} />
+                      )}
+                      <span className={isLatest ? styles.activityTextActive : styles.activityText}>
+                        {parsed ? parsed.detail : msg}
+                      </span>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
             </div>
           </div>
+
+          {/* Output review */}
+          <AnimatePresence>
+            {isCodeGenDone && (
+              <motion.div
+                className={styles.card}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <div className={styles.cardHeader}>
+                  <div>
+                    <h3 className={styles.cardTitle}>Build summary</h3>
+                    <p className={styles.cardSubtitle}>What was generated for your app</p>
+                  </div>
+                  <div className={styles.cardBadge}>Complete</div>
+                </div>
+
+                <div className={styles.summaryGrid}>
+                  <div className={styles.summaryItem}>
+                    <MonitorIcon className={styles.summaryIcon} />
+                    <div>
+                      <span className={styles.summaryLabel}>Frontend</span>
+                      <span className={styles.summaryValue}>Pages, components & routing</span>
+                    </div>
+                  </div>
+                  <div className={styles.summaryItem}>
+                    <ServerIcon className={styles.summaryIcon} />
+                    <div>
+                      <span className={styles.summaryLabel}>Backend</span>
+                      <span className={styles.summaryValue}>API routes & services</span>
+                    </div>
+                  </div>
+                  <div className={styles.summaryItem}>
+                    <DatabaseIcon className={styles.summaryIcon} />
+                    <div>
+                      <span className={styles.summaryLabel}>Database</span>
+                      <span className={styles.summaryValue}>Schema & migrations</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
+      {/* ── Deploy CTA ─────────────────────────────────────────────────── */}
       <AnimatePresence>
         {isGenerated && !isDeploying && !isDeployed && (
           <motion.div
@@ -614,8 +611,10 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 <CheckIcon className={styles.iconMedium} />
               </div>
               <div>
-                <h2 className={styles.ctaTitle}>GeneratedProject ready</h2>
-                <p className={styles.ctaSubtitle}>52 files produced in 38 seconds</p>
+                <h2 className={styles.ctaTitle}>Your app is ready</h2>
+                <p className={styles.ctaSubtitle}>
+                  All steps completed successfully. Deploy to GitHub to go live.
+                </p>
               </div>
             </div>
 
@@ -687,6 +686,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
         )}
       </AnimatePresence>
 
+      {/* ── Deployment pipeline ────────────────────────────────────────── */}
       <AnimatePresence>
         {(isDeploying || isDeployed) && (
           <motion.div
@@ -702,7 +702,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
               <div className={styles.cardHeader}>
                 <div>
                   <h3 className={styles.cardTitle}>Deployment pipeline</h3>
-                  <p className={styles.cardSubtitle}>RepositoryContext + DeploymentContext</p>
+                  <p className={styles.cardSubtitle}>Pushing to GitHub and deploying</p>
                 </div>
                 <div className={styles.cardBadge}>BuildJob</div>
               </div>
@@ -711,7 +711,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 {deploymentSteps.map((step, index) => (
                   <PipelineStep
                     key={step.name}
-                    name={step.name}
+                    phase={{ id: index, name: step.name, description: "", icon: RocketIcon }}
                     status={getStepStatus(index, deploymentStep)}
                     isLast={index === deploymentSteps.length - 1}
                   />
@@ -722,6 +722,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
         )}
       </AnimatePresence>
 
+      {/* ── Success state ──────────────────────────────────────────────── */}
       <AnimatePresence>
         {isDeployed && (
           <motion.div
@@ -736,7 +737,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 <CheckIcon className={styles.iconLarge} />
               </div>
 
-              <h2 className={styles.successTitle}>LiveUrl is ready</h2>
+              <h2 className={styles.successTitle}>Your app is live</h2>
 
               <div className={styles.successUrl}>
                 <span className={styles.successUrlText}>

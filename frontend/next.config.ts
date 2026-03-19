@@ -5,8 +5,10 @@ import { loadEnvConfig } from "@next/env";
 loadEnvConfig(path.resolve(__dirname, ".."));
 
 const nextConfig: NextConfig = {
-  /* config options here */
   reactCompiler: true,
+  turbopack: {
+    root: path.resolve(__dirname),
+  },
 };
 
 export default nextConfig;

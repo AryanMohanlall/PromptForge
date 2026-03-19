@@ -84,14 +84,17 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
         input.Status = entity.Status;
         input.PromptVersion = prompt.Version;
 
-        // Signal that generation is starting, then fire-and-forget codegen
-        entity.Status = ProjectStatus.CodeGenerationInProgress;
-        entity.UpdatedAt = DateTime.UtcNow;
-        await Repository.UpdateAsync(entity);
-        await CurrentUnitOfWork.SaveChangesAsync();
+        // Only start codegen when the prompt was actually submitted
+        if (entity.Status == ProjectStatus.PromptSubmitted)
+        {
+            entity.Status = ProjectStatus.CodeGenerationInProgress;
+            entity.UpdatedAt = DateTime.UtcNow;
+            await Repository.UpdateAsync(entity);
+            await CurrentUnitOfWork.SaveChangesAsync();
 
-        Logger.Info($"Queuing background code generation for project: {input.Name} ({entity.Id}).");
-        StartCodeGenInBackground(entity.Id, input);
+            Logger.Info($"Queuing background code generation for project: {input.Name} ({entity.Id}).");
+            StartCodeGenInBackground(entity.Id, input);
+        }
 
         return MapToEntityDto(entity);
     }
@@ -107,6 +110,7 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
         {
             _ = System.Threading.Tasks.Task.Run(async () =>
             {
+                Console.WriteLine($"[CodeGen] Background task started for project {projectId}");
                 using var uow = unitOfWorkManager.Begin();
                 try
                 {
@@ -114,21 +118,28 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
                     {
                         try
                         {
+                            Console.WriteLine($"[CodeGen] Progress ({projectId}): {message}");
                             using var progressUow = unitOfWorkManager.Begin(
                                 new Abp.Domain.Uow.UnitOfWorkOptions
                                 {
                                     Scope = System.Transactions.TransactionScopeOption.RequiresNew
                                 });
                             var p = await repository.GetAsync(projectId);
-                            p.StatusMessage = message;
+                            p.StatusMessage = message?.Length > 195 ? message.Substring(0, 192) + "..." : message;
                             p.UpdatedAt = DateTime.UtcNow;
                             await repository.UpdateAsync(p);
                             await progressUow.CompleteAsync();
                         }
-                        catch { /* best-effort */ }
+                        catch (Exception progressEx)
+                        {
+                            Console.WriteLine($"[CodeGen] Progress update failed ({projectId}): {progressEx.Message}");
+                        }
                     }
 
+                    Console.WriteLine($"[CodeGen] Starting GenerateProjectAsync for project {projectId}");
                     var codeGenResult = await codeGenAppService.GenerateProjectAsync(input, OnProgress);
+                    Console.WriteLine($"[CodeGen] GenerateProjectAsync completed for project {projectId}. Files: {codeGenResult?.Files?.Count ?? 0}");
+
                     var project = await repository.GetAsync(projectId);
                     if (codeGenResult != null)
                     {
@@ -144,20 +155,26 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
                     project.UpdatedAt = DateTime.UtcNow;
                     await repository.UpdateAsync(project);
                     await uow.CompleteAsync();
+                    Console.WriteLine($"[CodeGen] Project {projectId} marked as completed.");
                 }
                 catch (Exception ex)
                 {
+                    Console.WriteLine($"[CodeGen] FAILED for project {projectId}: {ex}");
                     Logger.Error("Background code generation failed for project " + projectId, ex);
                     try
                     {
                         using var errUow = unitOfWorkManager.Begin();
                         var project = await repository.GetAsync(projectId);
                         project.Status = ProjectStatus.Failed;
+                        project.StatusMessage = $"Failed: {(ex.Message.Length > 180 ? ex.Message.Substring(0, 177) + "..." : ex.Message)}";
                         project.UpdatedAt = DateTime.UtcNow;
                         await repository.UpdateAsync(project);
                         await errUow.CompleteAsync();
                     }
-                    catch { /* best-effort status update */ }
+                    catch (Exception errEx)
+                    {
+                        Console.WriteLine($"[CodeGen] Could not update failure status for project {projectId}: {errEx.Message}");
+                    }
                 }
             });
         }

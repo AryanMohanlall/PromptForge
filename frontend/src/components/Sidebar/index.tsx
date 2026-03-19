@@ -13,6 +13,7 @@ import {
   ServerIcon,
   ActivityIcon,
   LogOutIcon,
+  SparklesIcon,
 } from "lucide-react";
 import { useStyles } from "./styles";
 import { useAuthAction, useAuthState } from "@/providers/auth-provider";
@@ -39,6 +40,11 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       id: "projects",
       label: "My Projects",
       icon: FolderIcon,
+    },
+    {
+      id: "generate",
+      label: "Generate",
+      icon: SparklesIcon,
     },
     {
       id: "templates",

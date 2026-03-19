@@ -1,0 +1,154 @@
+"use client";
+
+import { Spin } from "antd";
+import {
+  CheckCircle2Icon,
+  XCircleIcon,
+  RocketIcon,
+  GitBranchIcon,
+  RefreshCwIcon,
+  ArrowLeftIcon,
+} from "lucide-react";
+import { motion } from "framer-motion";
+import { useCodeGenAction, useCodeGenState } from "@/providers/codegen-provider";
+import type { IGenerationStatus, IValidationResult } from "@/providers/codegen-provider";
+import { useStyles } from "./GenerationResult.styles";
+
+interface GenerationResultProps {
+  sessionId: string;
+  status: IGenerationStatus;
+  onDeploy: () => void;
+  onRetry: () => void;
+  onBack: () => void;
+}
+
+export function GenerationResult({
+  sessionId,
+  status,
+  onDeploy,
+  onRetry,
+  onBack,
+}: GenerationResultProps) {
+  const { styles, cx } = useStyles();
+  const { isPending, session } = useCodeGenState();
+  const { triggerRepair } = useCodeGenAction();
+
+  const failures = status.validationResults.filter(
+    (v) => v.status === "failed"
+  );
+  const isSuccess = !status.error && failures.length === 0;
+  const canRepair = failures.length > 0 && failures.length <= 3 && (session?.repairAttempts ?? 0) < 2;
+
+  const handleRepair = async () => {
+    try {
+      await triggerRepair(sessionId, failures);
+      onRetry();
+    } catch {
+      // error handled by provider
+    }
+  };
+
+  if (isSuccess) {
+    return (
+      <div className={styles.container}>
+        <motion.div
+          className={styles.successCard}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4 }}
+        >
+          <div className={styles.successOverlay} />
+          <div className={styles.successContent}>
+            <div className={styles.successIcon}>
+              <CheckCircle2Icon className={styles.iconLarge} />
+            </div>
+            <h2 className={styles.successTitle}>Application Generated Successfully!</h2>
+            <p className={styles.successSubtitle}>
+              All {status.validationResults.length} validations passed. Your app is ready to deploy.
+            </p>
+            <div className={styles.successActions}>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={onDeploy}
+              >
+                <RocketIcon size={16} />
+                Commit &amp; Deploy
+              </button>
+              <button
+                type="button"
+                className={styles.ghostButton}
+                onClick={onBack}
+              >
+                <ArrowLeftIcon size={16} />
+                Back to Spec
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.container}>
+      <motion.div
+        className={styles.failedCard}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <div className={styles.failedHeader}>
+          <div className={styles.failedIcon}>
+            <XCircleIcon className={styles.iconLarge} />
+          </div>
+          <div>
+            <h3 className={styles.failedTitle}>
+              {status.error ? "Generation Failed" : "Validation Failures"}
+            </h3>
+            <p className={styles.failedSubtitle}>
+              {status.error
+                ? status.error
+                : `${failures.length} validation(s) failed. ${canRepair ? "Auto-repair is available." : "Manual fixes required."}`}
+            </p>
+          </div>
+        </div>
+
+        {failures.length > 0 && (
+          <div className={styles.failureList}>
+            {failures.map((f) => (
+              <div key={f.id} className={styles.failureItem}>
+                <XCircleIcon size={14} />
+                <span>
+                  <strong>{f.id}</strong>: {f.message ?? "Validation failed"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className={styles.failedActions}>
+          {canRepair && (
+            <button
+              type="button"
+              className={styles.repairButton}
+              onClick={handleRepair}
+              disabled={isPending}
+            >
+              {isPending ? <Spin size="small" /> : <RefreshCwIcon size={16} />}
+              Auto-Repair ({2 - (session?.repairAttempts ?? 0)} attempts left)
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            onClick={onBack}
+          >
+            <ArrowLeftIcon size={16} />
+            Back to Spec
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}

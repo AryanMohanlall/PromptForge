@@ -443,6 +443,64 @@ export const useStyles = createStyles(({ token, css }) => ({
     width: ${token.fontSizeLG}px;
     height: ${token.fontSizeLG}px;
   `,
+  templateSection: css`
+    margin-bottom: ${token.marginLG}px;
+  `,
+  templateHint: css`
+    font-size: ${token.fontSizeSM}px;
+    color: ${token.colorTextSecondary};
+    margin: 0 0 ${token.marginSM}px;
+  `,
+  templateGrid: css`
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: ${token.marginSM}px;
+  `,
+  templateCard: css`
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: ${token.marginSM}px;
+    padding: ${token.paddingLG}px ${token.paddingSM}px;
+    border-radius: ${token.borderRadiusLG * 1.5}px;
+    border: 1px solid ${token.colorBorder};
+    background: ${token.colorBgContainer};
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+    text-align: center;
+    min-height: ${token.paddingXL * 4}px;
+  `,
+  templateCardSelected: css`
+    border-color: ${token.colorPrimary};
+    background: ${token.colorPrimaryBg};
+  `,
+  templateCardDefault: css`
+    &:hover {
+      border-color: ${token.colorBorderSecondary};
+    }
+  `,
+  templateCardIcon: css`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: ${token.borderRadiusLG}px;
+    background: ${token.colorBgLayout};
+    color: ${token.colorPrimary};
+  `,
+  templateCardName: css`
+    font-size: ${token.fontSizeSM}px;
+    font-weight: ${token.fontWeightStrong};
+    color: ${token.colorText};
+  `,
+  templateCardDesc: css`
+    font-size: ${token.fontSizeSM * 0.9}px;
+    color: ${token.colorTextSecondary};
+    line-height: 1.4;
+  `,
   focusRing: css`
     &:focus-visible {
       outline: 2px solid ${token.colorPrimary};

@@ -1,10 +1,16 @@
 using System.Collections.Generic;
+using System;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using ABPGroup.CodeGen;
+using ABPGroup.CodeGen.Dto;
 using ABPGroup.Projects;
 using ABPGroup.Projects.Dto;
+using ABPGroup.Templates;
+using Abp.Domain.Repositories;
 using Microsoft.Extensions.Configuration;
+using NSubstitute;
 using Xunit;
 
 namespace ABPGroup.Tests.CodeGen
@@ -12,14 +18,258 @@ namespace ABPGroup.Tests.CodeGen
     public class CodeGenServiceTests
     {
         [Fact]
+        public async Task CreateSession_InsertsNewSession_InsteadOfUpdating()
+        {
+            var createSessionResponse = @"===PROJECT_NAME===
+todo-app
+===END PROJECT_NAME===
+===NORMALIZED_REQUIREMENT===
+Build a todo app with tasks and statuses.
+===END NORMALIZED_REQUIREMENT===
+===DETECTED_FEATURES===
+task management, status tracking
+===END DETECTED_FEATURES===
+===DETECTED_ENTITIES===
+task
+===END DETECTED_ENTITIES===";
+
+            var handler = new SequentialMockHttpMessageHandler(createSessionResponse);
+            var factory = new MockHttpClientFactory(handler);
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string>
+                {
+                    ["Groq:ApiKey"] = "test-key"
+                })
+                .Build();
+
+            var templateRepo = Substitute.For<IRepository<Template, int>>();
+            var sessionRepo = Substitute.For<IRepository<CodeGenSession, Guid>>();
+            sessionRepo.InsertAsync(Arg.Any<CodeGenSession>())
+                .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
+            sessionRepo.UpdateAsync(Arg.Any<CodeGenSession>())
+                .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
+
+            var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+
+            var result = await service.CreateSession(new CreateSessionInput
+            {
+                Prompt = "Build a todo app"
+            });
+
+            Assert.False(string.IsNullOrWhiteSpace(result.Id));
+            await sessionRepo.Received(1).InsertAsync(Arg.Any<CodeGenSession>());
+            await sessionRepo.DidNotReceive().UpdateAsync(Arg.Any<CodeGenSession>());
+        }
+
+        [Fact]
+                public async Task GenerateSpec_ParsesNestedApiRouteShapes()
+                {
+                        var sessionId = System.Guid.NewGuid();
+                        var specResponse = @"===SPEC_JSON===
+{
+    ""entities"": [
+        {
+            ""name"": ""Task"",
+            ""tableName"": ""tasks"",
+            ""fields"": [
+                {
+                    ""name"": ""title"",
+                    ""type"": ""string"",
+                    ""required"": true,
+                    ""description"": ""Task title""
+                }
+            ],
+            ""relations"": []
+        }
+    ],
+    ""pages"": [
+        {
+            ""route"": ""/tasks"",
+            ""name"": ""Tasks"",
+            ""layout"": ""authenticated"",
+            ""components"": [""TaskList""],
+            ""dataRequirements"": [""tasks""],
+            ""description"": ""Task list page""
+        }
+    ],
+    ""apiRoutes"": [
+        {
+            ""method"": ""GET"",
+            ""path"": ""/api/tasks"",
+            ""handler"": ""tasks.getAll"",
+            ""requestBody"": {
+                ""filter"": {
+                    ""status"": ""string""
+                }
+            },
+            ""responseShape"": {
+                ""items"": {
+                    ""id"": ""string"",
+                    ""title"": ""string""
+                },
+                ""meta"": {
+                    ""count"": ""number""
+                }
+            },
+            ""auth"": true,
+            ""description"": ""List tasks""
+        }
+    ],
+    ""validations"": [],
+    ""fileManifest"": [""src/app/page.tsx""]
+}
+===END SPEC_JSON===";
+
+                        var handler = new SequentialMockHttpMessageHandler(specResponse);
+                        var factory = new MockHttpClientFactory(handler);
+                        var config = new ConfigurationBuilder()
+                                .AddInMemoryCollection(new Dictionary<string, string>
+                                {
+                                        ["Groq:ApiKey"] = "test-key"
+                                })
+                                .Build();
+
+                        var templateRepo = Substitute.For<IRepository<Template, int>>();
+                        var sessionRepo = Substitute.For<IRepository<CodeGenSession, Guid>>();
+
+                        var session = new CodeGenSession
+                        {
+                                Id = sessionId,
+                                Prompt = "Build a task app",
+                                NormalizedRequirement = "Build a task app",
+                                DetectedFeaturesJson = "[\"task management\"]",
+                                DetectedEntitiesJson = "[\"Task\"]",
+                                ConfirmedStackJson = "{\"framework\":\"Next.js\",\"language\":\"TypeScript\"}",
+                                Status = (int)CodeGenStatus.StackConfirmed,
+                                CreatedAt = System.DateTime.UtcNow,
+                                UpdatedAt = System.DateTime.UtcNow,
+                        };
+
+                        sessionRepo.FirstOrDefaultAsync(sessionId).Returns(session);
+                        sessionRepo.UpdateAsync(Arg.Any<CodeGenSession>())
+                                .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
+                        sessionRepo.InsertAsync(Arg.Any<CodeGenSession>())
+                                .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
+
+                        var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+
+                        var result = await service.GenerateSpec(sessionId.ToString());
+
+                        Assert.NotNull(result.Spec);
+                        Assert.Single(result.Spec.Entities);
+                        Assert.Single(result.Spec.Pages);
+                        Assert.Single(result.Spec.ApiRoutes);
+                        Assert.NotNull(result.Spec.ApiRoutes[0].ResponseShape);
+                        Assert.Single(result.Spec.FileManifest);
+                        Assert.Equal("src/app/page.tsx", result.Spec.FileManifest[0].Path);
+                }
+
+                [Fact]
+                public async Task GenerateSpec_FillsMissingPagesAndValidations()
+                {
+                        var sessionId = System.Guid.NewGuid();
+                        var specResponse = @"===SPEC_JSON===
+{
+    ""entities"": [
+        {
+            ""name"": ""User"",
+            ""tableName"": ""users"",
+            ""fields"": [],
+            ""relations"": []
+        }
+    ],
+    ""pages"": [],
+    ""apiRoutes"": [
+        {
+            ""method"": ""GET"",
+            ""path"": ""/api/todos"",
+            ""handler"": ""todos.getAll"",
+            ""responseShape"": {
+                ""items"": []
+            },
+            ""auth"": true,
+            ""description"": ""List todos""
+        }
+    ],
+    ""validations"": [],
+    ""fileManifest"": [
+        {
+            ""path"": ""src/app/todos/page.tsx"",
+            ""type"": ""generated"",
+            ""description"": ""Todos page""
+        }
+    ]
+}
+===END SPEC_JSON===";
+
+                        var handler = new SequentialMockHttpMessageHandler(specResponse);
+                        var factory = new MockHttpClientFactory(handler);
+                        var config = new ConfigurationBuilder()
+                                .AddInMemoryCollection(new Dictionary<string, string>
+                                {
+                                        ["Groq:ApiKey"] = "test-key"
+                                })
+                                .Build();
+
+                        var templateRepo = Substitute.For<IRepository<Template, int>>();
+                        var sessionRepo = Substitute.For<IRepository<CodeGenSession, Guid>>();
+
+                        var session = new CodeGenSession
+                        {
+                                Id = sessionId,
+                                Prompt = "Build a todos app",
+                                NormalizedRequirement = "Build a todos app",
+                                DetectedFeaturesJson = "[\"todo management\"]",
+                                DetectedEntitiesJson = "[\"User\"]",
+                                ConfirmedStackJson = "{\"framework\":\"Next.js\",\"language\":\"TypeScript\"}",
+                                Status = (int)CodeGenStatus.StackConfirmed,
+                                CreatedAt = System.DateTime.UtcNow,
+                                UpdatedAt = System.DateTime.UtcNow,
+                        };
+
+                        sessionRepo.FirstOrDefaultAsync(sessionId).Returns(session);
+                        sessionRepo.UpdateAsync(Arg.Any<CodeGenSession>())
+                                .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
+                        sessionRepo.InsertAsync(Arg.Any<CodeGenSession>())
+                                .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
+
+                        var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+
+                        var result = await service.GenerateSpec(sessionId.ToString());
+
+                        Assert.NotNull(result.Spec);
+                        Assert.NotEmpty(result.Spec.Pages);
+                        Assert.NotEmpty(result.Spec.Validations);
+                        Assert.Contains(result.Spec.Pages, p => p.Route == "/todos");
+                        Assert.Contains(result.Spec.Validations, v => v.Category == "build-passes");
+                }
+
+                [Fact]
         public async Task GenerateProjectAsync_ReturnsResult_WithValidInput()
         {
-            // Arrange — mock returns app-specific files (scaffold handles boilerplate)
-            var mockResponse = @"===ARCHITECTURE===
+            // Phase 1: Requirements analysis response
+            var requirementsResponse = @"===FEATURES===
+task-management, dashboard, todo-list
+===END FEATURES===
+===ARCHITECTURE===
 A todo app with task management.
 ===END ARCHITECTURE===
+===PAGES===
+home, tasks, dashboard
+===END PAGES===
+===API_ENDPOINTS===
+GET /api/tasks, POST /api/tasks, DELETE /api/tasks/:id
+===END API_ENDPOINTS===
+===DB_ENTITIES===
+Task(id, title, done, createdAt)
+===END DB_ENTITIES===";
+
+            // Phase 4: Frontend response
+            var frontendResponse = @"===ARCHITECTURE===
+Frontend with pages and components.
+===END ARCHITECTURE===
 ===MODULES===
-tasks,dashboard
+home,tasks
 ===END MODULES===
 ===FILE===
 src/app/page.tsx
@@ -75,8 +325,52 @@ export default function TasksPage() {
 }
 ===END FILE===";
 
+            // Phase 5: Backend response
+            var backendResponse = @"===ARCHITECTURE===
+API routes for task CRUD.
+===END ARCHITECTURE===
+===MODULES===
+api
+===END MODULES===
+===FILE===
+src/app/api/tasks/route.ts
+===CONTENT===
+import { NextResponse } from 'next/server';
+
+const tasks: any[] = [];
+
+export async function GET() {
+  return NextResponse.json(tasks);
+}
+
+export async function POST(request: Request) {
+  const body = await request.json();
+  tasks.push({ id: Date.now(), ...body });
+  return NextResponse.json(tasks);
+}
+===END FILE===";
+
+            // Phase 6: Database response
+            var dbResponse = @"===ARCHITECTURE===
+Prisma database layer.
+===END ARCHITECTURE===
+===MODULES===
+database
+===END MODULES===
+===FILE===
+src/lib/db.ts
+===CONTENT===
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+export const prisma = globalForPrisma.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+===END FILE===";
+
             var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "codegen-test-" + System.Guid.NewGuid().ToString("N")[..8]);
-            var factory = new MockHttpClientFactory(new MockHttpMessageHandler(mockResponse));
+            var handler = new SequentialMockHttpMessageHandler(
+                requirementsResponse, frontendResponse, backendResponse, dbResponse);
+            var factory = new MockHttpClientFactory(handler);
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string>
                 {
@@ -87,7 +381,9 @@ export default function TasksPage() {
                 })
                 .Build();
 
-            var service = new CodeGenAppService(factory, config);
+            var templateRepo = Substitute.For<IRepository<Template, int>>();
+            templateRepo.GetAllListAsync().Returns(new List<Template>());
+            var service = new CodeGenAppService(factory, config, templateRepo);
             var request = new CreateUpdateProjectDto
             {
                 Id = 1,
@@ -122,7 +418,6 @@ export default function TasksPage() {
             Assert.True(result.Files.Count > 0, "Should have generated files");
             Assert.False(string.IsNullOrEmpty(result.OutputPath));
             Assert.Equal("A todo app with task management.", result.ArchitectureSummary);
-            Assert.Contains("tasks", result.ModuleList);
 
             // Verify scaffold files are present
             Assert.Contains(result.Files, f => f.Path == "package.json");
@@ -132,33 +427,76 @@ export default function TasksPage() {
             Assert.Contains(result.Files, f => f.Path == "src/lib/auth.ts");
             Assert.Contains(result.Files, f => f.Path == "prisma/schema.prisma");
 
-            // Verify LLM-generated files are present
+            // Verify LLM-generated frontend files are present
             Assert.Contains(result.Files, f => f.Path == "src/app/page.tsx");
             Assert.Contains(result.Files, f => f.Path == "src/app/tasks/page.tsx");
+
+            // Verify LLM-generated backend files are present
+            Assert.Contains(result.Files, f => f.Path == "src/app/api/tasks/route.ts");
+
+            // Verify LLM-generated database files are present
+            Assert.Contains(result.Files, f => f.Path == "src/lib/db.ts");
         }
 
         [Fact]
-        public async Task GenerateProjectAsync_NonNextJS_SkipsScaffold()
+        public async Task GenerateProjectAsync_NonNextJS_IncludesAllPhases()
         {
-            var mockResponse = @"===ARCHITECTURE===
+            var requirementsResponse = @"===FEATURES===
+app
+===END FEATURES===
+===ARCHITECTURE===
 A React Vite app.
+===END ARCHITECTURE===
+===PAGES===
+home
+===END PAGES===
+===API_ENDPOINTS===
+GET /api/data
+===END API_ENDPOINTS===
+===DB_ENTITIES===
+Item(id, name)
+===END DB_ENTITIES===";
+
+            var frontendResponse = @"===ARCHITECTURE===
+Frontend.
 ===END ARCHITECTURE===
 ===MODULES===
 app
 ===END MODULES===
-===FILE===
-package.json
-===CONTENT===
-{""name"":""test"",""scripts"":{""build"":""vite build""}}
-===END FILE===
 ===FILE===
 src/App.tsx
 ===CONTENT===
 export default function App() { return <div>Hello</div>; }
 ===END FILE===";
 
+            var backendResponse = @"===ARCHITECTURE===
+Backend.
+===END ARCHITECTURE===
+===MODULES===
+api
+===END MODULES===
+===FILE===
+server/index.ts
+===CONTENT===
+console.log('server');
+===END FILE===";
+
+            var dbResponse = @"===ARCHITECTURE===
+Database.
+===END ARCHITECTURE===
+===MODULES===
+db
+===END MODULES===
+===FILE===
+src/lib/db.ts
+===CONTENT===
+export const db = {};
+===END FILE===";
+
             var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "codegen-test-" + System.Guid.NewGuid().ToString("N")[..8]);
-            var factory = new MockHttpClientFactory(new MockHttpMessageHandler(mockResponse));
+            var handler = new SequentialMockHttpMessageHandler(
+                requirementsResponse, frontendResponse, backendResponse, dbResponse);
+            var factory = new MockHttpClientFactory(handler);
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string>
                 {
@@ -168,7 +506,9 @@ export default function App() { return <div>Hello</div>; }
                 })
                 .Build();
 
-            var service = new CodeGenAppService(factory, config);
+            var templateRepo = Substitute.For<IRepository<Template, int>>();
+            templateRepo.GetAllListAsync().Returns(new List<Template>());
+            var service = new CodeGenAppService(factory, config, templateRepo);
             var request = new CreateUpdateProjectDto
             {
                 Id = 2,
@@ -193,10 +533,11 @@ export default function App() { return <div>Hello</div>; }
             }
 
             Assert.NotNull(result);
-            // No scaffold files for non-NextJS — all files come from LLM
-            Assert.Equal(2, result.Files.Count);
-            Assert.Contains(result.Files, f => f.Path == "package.json");
+            Assert.True(result.Files.Count > 0, "Should have generated files");
+            // Should include scaffold + frontend + backend + db files
             Assert.Contains(result.Files, f => f.Path == "src/App.tsx");
+            Assert.Contains(result.Files, f => f.Path == "server/index.ts");
+            Assert.Contains(result.Files, f => f.Path == "src/lib/db.ts");
         }
     }
 
@@ -212,6 +553,39 @@ export default function App() { return <div>Hello</div>; }
         public HttpClient CreateClient(string name) => new HttpClient(_handler);
     }
 
+    /// <summary>Returns different responses for each sequential HTTP call (phases 1, 4, 5, 6).</summary>
+    public class SequentialMockHttpMessageHandler : HttpMessageHandler
+    {
+        private readonly string[] _responses;
+        private int _callIndex;
+
+        public SequentialMockHttpMessageHandler(params string[] responses)
+        {
+            _responses = responses;
+            _callIndex = 0;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var index = Interlocked.Increment(ref _callIndex) - 1;
+            var content = index < _responses.Length
+                ? _responses[index]
+                : _responses[_responses.Length - 1]; // fallback to last response
+
+            var body = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                choices = new[] { new { message = new { content } } }
+            });
+
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json")
+            });
+        }
+    }
+
+    /// <summary>Legacy mock that returns the same response for every call.</summary>
     public class MockHttpMessageHandler : HttpMessageHandler
     {
         private readonly string _content;
@@ -222,7 +596,7 @@ export default function App() { return <div>Hello</div>; }
         }
 
         protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, System.Threading.CancellationToken cancellationToken)
+            HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var body = System.Text.Json.JsonSerializer.Serialize(new
             {

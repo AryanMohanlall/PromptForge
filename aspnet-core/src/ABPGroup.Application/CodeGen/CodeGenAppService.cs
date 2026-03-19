@@ -1,1247 +1,1459 @@
 using System;
-using System.Diagnostics;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+using Abp.Domain.Repositories;
+using Abp.UI;
+using ABPGroup.CodeGen.Dto;
 using ABPGroup.Projects;
 using ABPGroup.Projects.Dto;
 using ABPGroup.Templates;
-using Abp.Application.Services;
-using Abp.Domain.Repositories;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 
-namespace ABPGroup.CodeGen
+namespace ABPGroup.CodeGen;
+
+public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
 {
-    public class CodeGenAppService : ApplicationService, ICodeGenAppService
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IConfiguration _configuration;
+    private readonly IRepository<Template, int> _templateRepository;
+    private readonly IRepository<CodeGenSession, Guid> _sessionRepository;
+
+    private static readonly ConcurrentDictionary<string, CodeGenSession> InMemorySessions = new();
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IConfiguration _configuration;
-        private readonly IRepository<Template, int> _templateRepository;
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
+    };
 
-        private const string GroqEndpoint  = "https://api.groq.com/openai/v1/chat/completions";
-        private const string DefaultOutput = "/app/GeneratedApps";
-        private const int    MaxFixRetries = 3;
+    // 3-param constructor for backward compat with tests
+    public CodeGenAppService(
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
+        IRepository<Template, int> templateRepository)
+        : this(httpClientFactory, configuration, templateRepository, null)
+    {
+    }
 
-        private readonly string _outputBase;
-        private readonly string _localCopyPath;
-        private readonly bool   _skipBuild;
+    public CodeGenAppService(
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
+        IRepository<Template, int> templateRepository,
+        IRepository<CodeGenSession, Guid> sessionRepository)
+    {
+        _httpClientFactory = httpClientFactory;
+        _configuration = configuration;
+        _templateRepository = templateRepository;
+        _sessionRepository = sessionRepository;
+    }
 
-        public CodeGenAppService(
-            IHttpClientFactory httpClientFactory,
-            IConfiguration configuration,
-            IRepository<Template, int> templateRepository)
+    // ──────────────────────────────────────────────────────────────────────────
+    // Legacy single-shot generation
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public Task<CodeGenResult> GenerateProjectAsync(CreateUpdateProjectDto input)
+        => GenerateProjectAsync(input, null);
+
+    public async Task<CodeGenResult> GenerateProjectAsync(
+        CreateUpdateProjectDto input,
+        Func<string, Task> onProgress)
+    {
+        var result = new CodeGenResult
         {
-            _httpClientFactory  = httpClientFactory;
-            _configuration      = configuration;
-            _templateRepository = templateRepository;
-            _outputBase         = _configuration["CodeGen:OutputPath"] ?? DefaultOutput;
-            _localCopyPath      = _configuration["CodeGen:LocalCopyPath"];
-            _skipBuild          = string.Equals(_configuration["CodeGen:SkipBuild"], "true", StringComparison.OrdinalIgnoreCase);
-        }
+            GeneratedProjectId = input.Id,
+            Files = new List<GeneratedFile>(),
+            ModuleList = new List<string>()
+        };
 
-        // ══════════════════════════════════════════════════════════════════════
-        //  MAIN ENTRY POINT
-        // ══════════════════════════════════════════════════════════════════════
+        var projectName = input.Name ?? $"project-{input.Id}";
+        var outputBase = _configuration["CodeGen:OutputPath"]
+            ?? Path.Combine(Path.GetTempPath(), "GeneratedApps");
+        var outputPath = Path.Combine(outputBase, projectName);
 
-        public async Task<CodeGenResult> GenerateProjectAsync(CreateUpdateProjectDto request, Func<string, Task> onProgress = null)
+        // Phase 1: Requirements analysis
+        await ReportProgress(onProgress, "[1/5] Analyzing requirements...");
+        var requirementsPrompt = BuildRequirementsPrompt(input);
+        var requirementsResponse = await CallGroqAsync(
+            "You are an expert software architect. Analyze the user's requirements and return a structured breakdown.",
+            requirementsPrompt);
+
+        result.ArchitectureSummary = ParseDelimitedSection(requirementsResponse, "ARCHITECTURE");
+        var features = ParseDelimitedSection(requirementsResponse, "FEATURES");
+        var pages = ParseDelimitedSection(requirementsResponse, "PAGES");
+        var apiEndpoints = ParseDelimitedSection(requirementsResponse, "API_ENDPOINTS");
+        var dbEntities = ParseDelimitedSection(requirementsResponse, "DB_ENTITIES");
+
+        // Phase 2: Scaffold from template
+        await ReportProgress(onProgress, "[2/5] Setting up project scaffold...");
+        if (input.Framework == Framework.NextJS)
         {
-            if (request == null)
-                throw new ArgumentNullException(nameof(request));
-
-            var projectName = SanitizeDirName(request.Name);
-            var projectDir  = Path.Combine(_outputBase, projectName);
-
-            // 1. Scaffold boilerplate (zero LLM tokens)
-            await Emit(onProgress, "Setting up project structure");
-            var scaffold = ScaffoldBoilerplate(request);
-            if (scaffold.Count > 0)
-                WriteFiles(projectDir, scaffold);
-            await Emit(onProgress, $"Created {scaffold.Count} starter files");
-
-            // 2. Generate app-specific code via LLM
-            await Emit(onProgress, "Generating application code with AI");
-            var result = await GenerateWithRetryAsync(request, scaffold, onProgress);
-            await Emit(onProgress, $"Generated {result.Files?.Count ?? 0} files from your prompt");
-
-            // 3. Merge scaffold + LLM files, write to disk
-            await Emit(onProgress, "Assembling final project");
-            result.Files = MergeFiles(scaffold, result.Files);
-            WriteFiles(projectDir, result.Files);
-            await Emit(onProgress, $"Project assembled — {result.Files.Count} files total");
-
-            // 4. Validate build & auto-fix
-            if (!_skipBuild)
-                await BuildAndFixAsync(projectDir, result, request.Framework, onProgress);
-
-            // 5. Copy to local output path when running locally (online: pushed to GitHub after generation)
-            if (!string.IsNullOrWhiteSpace(_localCopyPath))
+            var templateDir = FindTemplateDirectory("next-ts-antd-prisma");
+            if (templateDir != null)
             {
-                var localDir = Path.Combine(_localCopyPath, projectName);
-                CopyDirectory(projectDir, localDir);
-                Logger.Info($"Copied project to local path: {localDir}");
-            }
-
-            await Emit(onProgress, "Ready to deploy");
-            result.OutputPath         = projectDir;
-            result.GeneratedProjectId = request.Id;
-            Logger.Info($"Generation complete. {result.Files.Count} files in {projectDir}");
-            return result;
-        }
-
-        private static Task Emit(Func<string, Task> onProgress, string message)
-            => onProgress != null ? onProgress(message) : Task.CompletedTask;
-
-        private async Task<CodeGenResult> GenerateWithRetryAsync(
-            CreateUpdateProjectDto request, List<GeneratedFile> scaffold, Func<string, Task> onProgress = null)
-        {
-            var template = request.TemplateId.HasValue
-                ? await _templateRepository.FirstOrDefaultAsync(request.TemplateId.Value)
-                : null;
-
-            var scaffoldedPaths = scaffold.Select(f => f.Path).ToHashSet();
-            var systemPrompt    = BuildSystemPrompt(request, scaffoldedPaths, template);
-            var userPrompt      = BuildUserPrompt(request);
-
-            var result = await CallGroqAsync(systemPrompt, userPrompt);
-            if (result?.Files != null && result.Files.Count > 0)
-                return result;
-
-            Logger.Warn("First LLM call returned no files — retrying.");
-            await Emit(onProgress, "Retrying code generation");
-            result = await CallGroqAsync(systemPrompt, userPrompt);
-            if (result?.Files == null || result.Files.Count == 0)
-                throw new InvalidOperationException("LLM returned no files after retry.");
-
-            return result;
-        }
-
-        private static List<GeneratedFile> MergeFiles(List<GeneratedFile> baseFiles, List<GeneratedFile> overrides)
-        {
-            var merged = new List<GeneratedFile>(baseFiles);
-            foreach (var f in overrides)
-            {
-                var idx = merged.FindIndex(x =>
-                    string.Equals(x.Path, f.Path, StringComparison.OrdinalIgnoreCase));
-                if (idx >= 0) merged[idx] = f;
-                else merged.Add(f);
-            }
-            return merged;
-        }
-
-        private async Task BuildAndFixAsync(string projectDir, CodeGenResult result, Framework framework, Func<string, Task> onProgress = null)
-        {
-            for (var attempt = 1; attempt <= MaxFixRetries; attempt++)
-            {
-                var message = attempt == 1
-                    ? "Installing dependencies and verifying build"
-                    : $"Resolving build issues — attempt {attempt} of {MaxFixRetries}";
-                await Emit(onProgress, message);
-
-                var (success, output) = await RunBuildAsync(projectDir, framework);
-                if (success)
-                {
-                    Logger.Info($"Build passed on attempt {attempt}.");
-                    return;
-                }
-
-                Logger.Warn($"Build failed (attempt {attempt}/{MaxFixRetries}).");
-                if (attempt == MaxFixRetries)
-                {
-                    Logger.Error("Max fix retries reached. Returning last generated files.");
-                    return;
-                }
-
-                var fixResult = await CallGroqAsync(
-                    BuildFixSystemPrompt(),
-                    BuildFixUserPrompt(result.Files, output));
-
-                if (fixResult?.Files == null || fixResult.Files.Count == 0)
-                    continue;
-
-                WriteFiles(projectDir, fixResult.Files);
-                result.Files = MergeFiles(result.Files, fixResult.Files);
+                var scaffoldFiles = ReadScaffoldFiles(templateDir);
+                result.Files.AddRange(scaffoldFiles);
             }
         }
 
-        // ══════════════════════════════════════════════════════════════════════
-        //  BOILERPLATE SCAFFOLDING — saves ~3k tokens per generation
-        // ══════════════════════════════════════════════════════════════════════
+        // Build shared context for generation phases
+        var context = new StringBuilder();
+        context.AppendLine($"Project: {projectName}");
+        context.AppendLine($"Framework: {input.Framework}");
+        context.AppendLine($"Language: {input.Language}");
+        context.AppendLine($"Database: {input.DatabaseOption}");
+        context.AppendLine($"Auth: {(input.IncludeAuth ? "Yes" : "No")}");
+        context.AppendLine($"Features: {features}");
+        context.AppendLine($"Pages: {pages}");
+        context.AppendLine($"API Endpoints: {apiEndpoints}");
+        context.AppendLine($"DB Entities: {dbEntities}");
+        context.AppendLine($"Architecture: {result.ArchitectureSummary}");
 
-        private static List<GeneratedFile> ScaffoldBoilerplate(CreateUpdateProjectDto input) =>
-            input.Framework switch
-            {
-                Framework.NextJS    => ScaffoldNextJs(input),
-                Framework.ReactVite => ScaffoldReactVite(input),
-                Framework.Vue       => ScaffoldVue(input),
-                Framework.Angular   => ScaffoldAngular(input),
-                _                   => new List<GeneratedFile>()
-            };
+        // Phase 3: Frontend generation
+        await ReportProgress(onProgress, "[3/5] Generating frontend...");
+        var frontendResponse = await CallGroqAsync(
+            BuildCodeGenSystemPrompt("frontend pages and components", input.Framework.ToString()),
+            $"Generate the frontend code for:\n{context}\n\nRequirements: {input.Prompt}");
+        var frontendFiles = ParseFiles(frontendResponse);
+        result.Files.AddRange(frontendFiles);
+        result.ModuleList.AddRange(ParseModules(frontendResponse));
 
-        private static List<GeneratedFile> ScaffoldNextJs(CreateUpdateProjectDto input)
+        var frontendArch = ParseDelimitedSection(frontendResponse, "ARCHITECTURE");
+        if (!string.IsNullOrEmpty(frontendArch) && string.IsNullOrEmpty(result.ArchitectureSummary))
+            result.ArchitectureSummary = frontendArch;
+
+        // Phase 4: Backend generation
+        await ReportProgress(onProgress, "[4/5] Generating backend...");
+        var backendResponse = await CallGroqAsync(
+            BuildCodeGenSystemPrompt("backend API routes and server logic", input.Framework.ToString()),
+            $"Generate the backend code for:\n{context}\n\nRequirements: {input.Prompt}");
+        var backendFiles = ParseFiles(backendResponse);
+        result.Files.AddRange(backendFiles);
+        result.ModuleList.AddRange(ParseModules(backendResponse));
+
+        // Phase 5: Database generation
+        await ReportProgress(onProgress, "[5/5] Generating database layer...");
+        var dbResponse = await CallGroqAsync(
+            BuildCodeGenSystemPrompt("database schema and data access layer", input.Framework.ToString()),
+            $"Generate the database layer for:\n{context}\n\nRequirements: {input.Prompt}");
+        var dbFiles = ParseFiles(dbResponse);
+        result.Files.AddRange(dbFiles);
+        result.ModuleList.AddRange(ParseModules(dbResponse));
+
+        // Write files to disk
+        result.OutputPath = outputPath;
+        var skipBuild = string.Equals(_configuration["CodeGen:SkipBuild"], "true", StringComparison.OrdinalIgnoreCase);
+        WriteFilesToDisk(result.Files, outputPath);
+
+        return result;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Multi-step workflow
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public async Task<CodeGenSessionDto> CreateSession(CreateSessionInput input)
+    {
+        var session = new CodeGenSession
         {
-            var name      = input.Name ?? "my-app";
-            var usePrisma = input.DatabaseOption != DatabaseOption.MongoCloud;
-            var auth      = input.IncludeAuth;
+            Id = Guid.NewGuid(),
+            Prompt = input.Prompt,
+            Status = (int)CodeGenStatus.Captured,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
 
-            var files = new List<GeneratedFile>
-            {
-                MakePackageJson(name, auth, usePrisma, input.DatabaseOption == DatabaseOption.MongoCloud),
-                MakeTsConfig(),
-                MakeNextConfig(),
-                MakePostCssConfig(),
-                MakeRootLayout(name),
-                MakeGlobalsCss(),
-                MakeEnvExample(input.DatabaseOption),
-            };
-
-            if (usePrisma)
-                files.Add(MakePrismaSchema(input.DatabaseOption, auth));
-
-            if (auth)
-                files.Add(MakeAuthConfig());
-
-            return files;
+        // Call LLM to analyze requirements
+        string response;
+        try
+        {
+            response = await CallGroqAsync(
+                "You are an expert software architect. Analyze the user's application idea and extract structured information. "
+                + "Return your analysis in the following delimited format:\n"
+                + "===PROJECT_NAME===\n<suggested project name>\n===END PROJECT_NAME===\n"
+                + "===NORMALIZED_REQUIREMENT===\n<clear, detailed restatement of the requirement>\n===END NORMALIZED_REQUIREMENT===\n"
+                + "===DETECTED_FEATURES===\n<comma-separated list of features>\n===END DETECTED_FEATURES===\n"
+                + "===DETECTED_ENTITIES===\n<comma-separated list of data entities>\n===END DETECTED_ENTITIES===\n",
+                input.Prompt);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("CreateSession: Groq API call failed", ex);
+            throw new UserFriendlyException($"AI service call failed: {ex.Message}");
         }
 
-        private static List<GeneratedFile> ScaffoldReactVite(CreateUpdateProjectDto input)
+        session.ProjectName = ParseDelimitedSection(response, "PROJECT_NAME")?.Trim() ?? "untitled-app";
+        session.NormalizedRequirement = ParseDelimitedSection(response, "NORMALIZED_REQUIREMENT")?.Trim() ?? input.Prompt;
+        session.DetectedFeaturesJson = JsonSerializer.Serialize(
+            ParseCsvList(ParseDelimitedSection(response, "DETECTED_FEATURES")), JsonOptions);
+        session.DetectedEntitiesJson = JsonSerializer.Serialize(
+            ParseCsvList(ParseDelimitedSection(response, "DETECTED_ENTITIES")), JsonOptions);
+
+        try
         {
-            var name      = input.Name ?? "my-app";
-            var isTs      = input.Language != ProgrammingLanguage.JavaScript;
-            var usePrisma = input.DatabaseOption != DatabaseOption.MongoCloud;
-            var auth      = input.IncludeAuth;
+            if (AbpSession?.UserId != null)
+                session.UserId = AbpSession.UserId;
+        }
+        catch { /* AbpSession may not be available in non-authenticated context */ }
 
-            var ext = isTs ? "tsx" : "jsx";
-
-            var files = new List<GeneratedFile>
-            {
-                MakeReactVitePackageJson(name, auth, usePrisma, input.DatabaseOption == DatabaseOption.MongoCloud, isTs),
-                MakeReactViteConfig(isTs),
-                isTs ? MakeReactViteTsConfig() : MakeJsConfig(),
-                MakeReactViteIndexHtml(name, ext),
-                MakeReactViteMainEntry(ext),
-                MakeReactViteApp(ext),
-                MakeViteIndexCss(),
-                MakeEnvExample(input.DatabaseOption),
-            };
-
-            if (usePrisma)
-                files.Add(MakePrismaSchema(input.DatabaseOption, auth));
-
-            return files;
+        try
+        {
+            await SaveSession(session, isNew: true);
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("CreateSession: Failed to save session", ex);
+            throw new UserFriendlyException($"Failed to save session: {ex.Message}");
         }
 
-        private static List<GeneratedFile> ScaffoldVue(CreateUpdateProjectDto input)
+        return MapSessionToDto(session);
+    }
+
+    public async Task<StackRecommendationDto> RecommendStack(string sessionId)
+    {
+        var session = await LoadSession(sessionId);
+
+        var response = await CallGroqAsync(
+            "You are an expert software architect. Based on the application requirements, recommend the best technology stack. "
+            + "Return your recommendation in the following delimited format:\n"
+            + "===FRAMEWORK===\n<framework name, e.g. Next.js, React + Vite, Angular, Vue, .NET Blazor>\n===END FRAMEWORK===\n"
+            + "===LANGUAGE===\n<language, e.g. TypeScript, JavaScript, C#>\n===END LANGUAGE===\n"
+            + "===STYLING===\n<styling approach, e.g. Tailwind CSS, Ant Design, Material UI, CSS Modules>\n===END STYLING===\n"
+            + "===DATABASE===\n<database, e.g. PostgreSQL, MongoDB, SQLite>\n===END DATABASE===\n"
+            + "===ORM===\n<ORM, e.g. Prisma, Drizzle, TypeORM, Entity Framework>\n===END ORM===\n"
+            + "===AUTH===\n<auth approach, e.g. NextAuth.js, JWT, OAuth2, None>\n===END AUTH===\n"
+            + "===REASONING===\n<JSON object with keys matching each choice above, values explaining why>\n===END REASONING===\n",
+            $"Application: {session.NormalizedRequirement}\n"
+            + $"Features: {session.DetectedFeaturesJson}\n"
+            + $"Entities: {session.DetectedEntitiesJson}");
+
+        var reasoning = new Dictionary<string, string>();
+        var reasoningStr = ParseDelimitedSection(response, "REASONING")?.Trim();
+        if (!string.IsNullOrEmpty(reasoningStr))
         {
-            var name      = input.Name ?? "my-app";
-            var isTs      = input.Language != ProgrammingLanguage.JavaScript;
-            var usePrisma = input.DatabaseOption != DatabaseOption.MongoCloud;
-
-            var files = new List<GeneratedFile>
-            {
-                MakeVuePackageJson(name, usePrisma, input.DatabaseOption == DatabaseOption.MongoCloud, isTs),
-                MakeVueViteConfig(isTs),
-                isTs ? MakeVueTsConfig() : MakeJsConfig(),
-                MakeVueIndexHtml(name),
-                MakeVueMainEntry(isTs),
-                MakeVueApp(),
-                MakeViteIndexCss(),
-                MakeEnvExample(input.DatabaseOption),
-            };
-
-            if (usePrisma)
-                files.Add(MakePrismaSchema(input.DatabaseOption, input.IncludeAuth));
-
-            return files;
+            try { reasoning = JsonSerializer.Deserialize<Dictionary<string, string>>(reasoningStr, JsonOptions); }
+            catch { /* fallback to empty reasoning */ }
         }
 
-        private static List<GeneratedFile> ScaffoldAngular(CreateUpdateProjectDto input)
+        return new StackRecommendationDto
         {
-            var name = input.Name ?? "my-app";
+            Framework = ParseDelimitedSection(response, "FRAMEWORK")?.Trim() ?? "Next.js",
+            Language = ParseDelimitedSection(response, "LANGUAGE")?.Trim() ?? "TypeScript",
+            Styling = ParseDelimitedSection(response, "STYLING")?.Trim() ?? "Tailwind CSS",
+            Database = ParseDelimitedSection(response, "DATABASE")?.Trim() ?? "PostgreSQL",
+            Orm = ParseDelimitedSection(response, "ORM")?.Trim() ?? "Prisma",
+            Auth = ParseDelimitedSection(response, "AUTH")?.Trim() ?? "NextAuth.js",
+            Reasoning = reasoning ?? new Dictionary<string, string>()
+        };
+    }
 
-            return new List<GeneratedFile>
-            {
-                MakeAngularPackageJson(name),
-                MakeAngularJson(name),
-                MakeAngularTsConfig(),
-                MakeAngularMainTs(),
-                MakeAngularAppComponent(),
-                MakeAngularAppConfig(),
-                MakeAngularStyles(),
-                MakeEnvExample(input.DatabaseOption),
-            };
+    [HttpPut]
+    public async Task<CodeGenSessionDto> SaveStack(SaveStackInput input)
+    {
+        var session = await LoadSession(input.SessionId);
+        session.ConfirmedStackJson = JsonSerializer.Serialize(input.Stack, JsonOptions);
+        session.Status = (int)CodeGenStatus.StackConfirmed;
+        session.UpdatedAt = DateTime.UtcNow;
+
+        // Determine scaffold template based on framework
+        var fw = input.Stack.Framework?.ToLowerInvariant() ?? "";
+        if (fw.Contains("next"))
+            session.ScaffoldTemplate = "next-ts-antd-prisma";
+
+        await SaveSession(session);
+        return MapSessionToDto(session);
+    }
+
+    public async Task<CodeGenSessionDto> GenerateSpec(string sessionId)
+    {
+        var session = await LoadSession(sessionId);
+        if (session.Status < (int)CodeGenStatus.StackConfirmed)
+            throw new UserFriendlyException("Stack must be confirmed before generating spec.");
+
+        var stack = DeserializeOrDefault<StackConfigDto>(session.ConfirmedStackJson);
+        var features = DeserializeOrDefault<List<string>>(session.DetectedFeaturesJson) ?? new List<string>();
+        var entities = DeserializeOrDefault<List<string>>(session.DetectedEntitiesJson) ?? new List<string>();
+
+        string response;
+        try
+        {
+            response = await CallGroqAsync(
+                "You are an expert software architect. Generate a comprehensive application specification as a JSON object. "
+                + "The spec must include: entities (with fields, types, relations), pages (with routes, components, data requirements), "
+                + "apiRoutes (with method, path, handler, requestBody, responseShape, auth), "
+                + "validations (rules the generated code must satisfy, e.g. file-exists, build-passes, auth-guard), "
+                + "and fileManifest (all files that will be generated). "
+                + "Return ONLY valid JSON wrapped in delimiters:\n"
+                + "===SPEC_JSON===\n{...}\n===END SPEC_JSON===",
+                $"Application: {session.NormalizedRequirement}\n"
+                + $"Features: {string.Join(", ", features)}\n"
+                + $"Entities: {string.Join(", ", entities)}\n"
+                + $"Stack: Framework={stack?.Framework}, Language={stack?.Language}, "
+                + $"Styling={stack?.Styling}, Database={stack?.Database}, ORM={stack?.Orm}, Auth={stack?.Auth}");
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("GenerateSpec: Groq API call failed", ex);
+            throw new UserFriendlyException($"AI service call failed: {ex.Message}");
         }
 
-        private static GeneratedFile MakePackageJson(string name, bool auth, bool prisma, bool mongo)
+        var specJson = ParseDelimitedSection(response, "SPEC_JSON")?.Trim();
+        var spec = ParseSpecOrDefault(specJson, out var parseWarning);
+        if (!string.IsNullOrEmpty(parseWarning))
         {
-            var deps = new Dictionary<string, string>
+            Logger.Warn(parseWarning);
+        }
+
+        session.SpecJson = JsonSerializer.Serialize(spec, JsonOptions);
+        session.Status = (int)CodeGenStatus.SpecGenerated;
+        session.UpdatedAt = DateTime.UtcNow;
+        await SaveSession(session);
+        return MapSessionToDto(session);
+    }
+
+    [HttpPut]
+    public async Task<CodeGenSessionDto> SaveSpec(SaveSpecInput input)
+    {
+        var session = await LoadSession(input.SessionId);
+        session.SpecJson = JsonSerializer.Serialize(input.Spec, JsonOptions);
+        session.UpdatedAt = DateTime.UtcNow;
+        await SaveSession(session);
+        return MapSessionToDto(session);
+    }
+
+    public async Task<CodeGenSessionDto> ConfirmSpec(string sessionId)
+    {
+        var session = await LoadSession(sessionId);
+        session.SpecConfirmedAt = DateTime.UtcNow;
+        session.Status = (int)CodeGenStatus.SpecConfirmed;
+        session.UpdatedAt = DateTime.UtcNow;
+        await SaveSession(session);
+        return MapSessionToDto(session);
+    }
+
+    public async Task<CodeGenSessionDto> Generate(string sessionId)
+    {
+        var session = await LoadSession(sessionId);
+        if (session.Status < (int)CodeGenStatus.SpecConfirmed)
+            throw new UserFriendlyException("Spec must be confirmed before generating.");
+
+        session.Status = (int)CodeGenStatus.Generating;
+        session.GenerationStartedAt = DateTime.UtcNow;
+        session.CurrentPhase = "scaffold";
+        session.CompletedStepsJson = JsonSerializer.Serialize(new List<string>(), JsonOptions);
+        session.UpdatedAt = DateTime.UtcNow;
+        await SaveSession(session);
+
+        var spec = DeserializeOrDefault<AppSpecDto>(session.SpecJson) ?? new AppSpecDto();
+        var stack = DeserializeOrDefault<StackConfigDto>(session.ConfirmedStackJson);
+
+        // Build a CreateUpdateProjectDto to leverage the legacy flow
+        var projectInput = new CreateUpdateProjectDto
+        {
+            Id = session.ProjectId ?? 0,
+            Name = session.ProjectName ?? "generated-app",
+            Prompt = session.NormalizedRequirement ?? session.Prompt,
+            Framework = MapFrameworkString(stack?.Framework),
+            Language = MapLanguageString(stack?.Language),
+            DatabaseOption = MapDatabaseString(stack?.Database),
+            IncludeAuth = !string.IsNullOrEmpty(stack?.Auth) && !stack.Auth.Equals("None", StringComparison.OrdinalIgnoreCase)
+        };
+
+        // Build validation constraints to inject into generation prompts
+        var validationConstraints = BuildValidationConstraints(spec.Validations);
+
+        async Task OnProgress(string message)
+        {
+            session.CurrentPhase = message;
+            var steps = DeserializeOrDefault<List<string>>(session.CompletedStepsJson) ?? new List<string>();
+            steps.Add(message);
+            session.CompletedStepsJson = JsonSerializer.Serialize(steps, JsonOptions);
+            session.UpdatedAt = DateTime.UtcNow;
+            await SaveSession(session);
+        }
+
+        try
+        {
+            var result = await GenerateProjectAsync(projectInput, OnProgress);
+
+            session.GeneratedFilesJson = JsonSerializer.Serialize(
+                result.Files.Select(f => new GeneratedFileDto { Path = f.Path, Content = f.Content }).ToList(),
+                JsonOptions);
+            session.Status = (int)CodeGenStatus.Generated;
+            session.GenerationCompletedAt = DateTime.UtcNow;
+            session.CurrentPhase = "completed";
+        }
+        catch (Exception ex)
+        {
+            session.Status = (int)CodeGenStatus.ValidationFailed;
+            session.ErrorMessage = ex.Message.Length > 995 ? ex.Message[..992] + "..." : ex.Message;
+        }
+
+        session.UpdatedAt = DateTime.UtcNow;
+        await SaveSession(session);
+        return MapSessionToDto(session);
+    }
+
+    public async Task<GenerationStatusDto> GetStatus(string sessionId)
+    {
+        var session = await LoadSession(sessionId);
+        var completedSteps = DeserializeOrDefault<List<string>>(session.CompletedStepsJson) ?? new List<string>();
+        var validationResults = DeserializeOrDefault<List<ValidationResultDto>>(session.ValidationResultsJson) ?? new List<ValidationResultDto>();
+
+        return new GenerationStatusDto
+        {
+            CurrentPhase = session.CurrentPhase,
+            CompletedSteps = completedSteps,
+            ValidationResults = validationResults,
+            IsComplete = session.Status >= (int)CodeGenStatus.Generated,
+            Error = session.ErrorMessage
+        };
+    }
+
+    public async Task<CodeGenSessionDto> Repair(TriggerRepairInput input)
+    {
+        var session = await LoadSession(input.SessionId);
+        session.RepairAttempts++;
+
+        var currentFiles = DeserializeOrDefault<List<GeneratedFileDto>>(session.GeneratedFilesJson) ?? new List<GeneratedFileDto>();
+        var failureDescriptions = string.Join("\n", input.Failures.Select(f => $"- [{f.Id}] {f.Message}"));
+
+        var fileManifest = string.Join("\n", currentFiles.Select(f => f.Path));
+
+        var response = await CallGroqAsync(
+            "You are an expert code repair agent. The generated code has validation failures. "
+            + "Fix the issues and return corrected files in delimited format:\n"
+            + "===FILE===\n<file path>\n===CONTENT===\n<corrected content>\n===END FILE===\n"
+            + "Only return files that need changes.",
+            $"Validation failures:\n{failureDescriptions}\n\n"
+            + $"Current files:\n{fileManifest}\n\n"
+            + $"File contents:\n{string.Join("\n---\n", currentFiles.Select(f => $"### {f.Path}\n{f.Content}"))}");
+
+        var repairedFiles = ParseFiles(response);
+        foreach (var repaired in repairedFiles)
+        {
+            var existing = currentFiles.FirstOrDefault(f => f.Path == repaired.Path);
+            if (existing != null)
+                existing.Content = repaired.Content;
+            else
+                currentFiles.Add(new GeneratedFileDto { Path = repaired.Path, Content = repaired.Content });
+        }
+
+        session.GeneratedFilesJson = JsonSerializer.Serialize(currentFiles, JsonOptions);
+        session.UpdatedAt = DateTime.UtcNow;
+        await SaveSession(session);
+        return MapSessionToDto(session);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Groq API
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private async Task<string> CallGroqAsync(string systemPrompt, string userPrompt)
+    {
+        var apiKey = _configuration["Groq:ApiKey"];
+        var model = _configuration["Groq:Model"] ?? "llama-3.3-70b-versatile";
+
+        var client = _httpClientFactory.CreateClient();
+        var requestBody = new
+        {
+            model,
+            messages = new[]
             {
-                ["next"]      = "^15.1.0",
-                ["react"]     = "^19.0.0",
-                ["react-dom"] = "^19.0.0"
-            };
-            if (prisma) deps["@prisma/client"] = "^6.0.0";
-            if (mongo)  deps["mongoose"]       = "^8.0.0";
-            if (auth)
+                new { role = "system", content = systemPrompt },
+                new { role = "user", content = userPrompt }
+            },
+            temperature = 0.7,
+            max_tokens = 8192
+        };
+
+        var json = JsonSerializer.Serialize(requestBody);
+        var request = new HttpRequestMessage(HttpMethod.Post, "https://api.groq.com/openai/v1/chat/completions")
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
+        request.Headers.Add("Authorization", $"Bearer {apiKey}");
+
+        var response = await client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+
+        var responseJson = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(responseJson);
+        return doc.RootElement
+            .GetProperty("choices")[0]
+            .GetProperty("message")
+            .GetProperty("content")
+            .GetString() ?? string.Empty;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Parsing helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private static string ParseDelimitedSection(string content, string sectionName)
+    {
+        if (string.IsNullOrEmpty(content)) return null;
+
+        var startTag = $"==={sectionName}===";
+        var endTag = $"===END {sectionName}===";
+
+        var startIdx = content.IndexOf(startTag, StringComparison.OrdinalIgnoreCase);
+        if (startIdx < 0) return null;
+
+        startIdx += startTag.Length;
+        var endIdx = content.IndexOf(endTag, startIdx, StringComparison.OrdinalIgnoreCase);
+        if (endIdx < 0) return content[startIdx..].Trim();
+
+        return content[startIdx..endIdx].Trim();
+    }
+
+    private static List<GeneratedFile> ParseFiles(string content)
+    {
+        var files = new List<GeneratedFile>();
+        if (string.IsNullOrEmpty(content)) return files;
+
+        var remaining = content;
+        while (true)
+        {
+            var fileStart = remaining.IndexOf("===FILE===", StringComparison.OrdinalIgnoreCase);
+            if (fileStart < 0) break;
+
+            var pathStart = fileStart + "===FILE===".Length;
+            var contentTag = remaining.IndexOf("===CONTENT===", pathStart, StringComparison.OrdinalIgnoreCase);
+            if (contentTag < 0) break;
+
+            var path = remaining[pathStart..contentTag].Trim();
+            var contentStart = contentTag + "===CONTENT===".Length;
+            var fileEnd = remaining.IndexOf("===END FILE===", contentStart, StringComparison.OrdinalIgnoreCase);
+
+            string fileContent;
+            if (fileEnd >= 0)
             {
-                deps["next-auth"] = "^5.0.0-beta.25";
-                deps["bcryptjs"]  = "^2.4.3";
+                fileContent = remaining[contentStart..fileEnd].Trim();
+                remaining = remaining[(fileEnd + "===END FILE===".Length)..];
+            }
+            else
+            {
+                fileContent = remaining[contentStart..].Trim();
+                break;
             }
 
-            var pkg = new Dictionary<string, object>
+            if (!string.IsNullOrEmpty(path))
             {
-                ["name"]    = Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9-]", "-"),
-                ["version"] = "0.1.0",
-                ["private"] = true,
-                ["scripts"] = new Dictionary<string, string>
-                {
-                    ["dev"]   = "next dev --turbopack",
-                    ["build"] = "next build",
-                    ["start"] = "next start",
-                    ["lint"]  = "next lint"
-                },
-                ["dependencies"] = deps,
-                ["devDependencies"] = new Dictionary<string, string>
-                {
-                    ["typescript"]          = "^5.7.0",
-                    ["@types/node"]         = "^22.0.0",
-                    ["@types/react"]        = "^19.0.0",
-                    ["@types/react-dom"]    = "^19.0.0",
-                    ["@tailwindcss/postcss"] = "^4.0.0",
-                    ["tailwindcss"]         = "^4.0.0",
-                    ["eslint"]              = "^9.0.0",
-                    ["eslint-config-next"]  = "^15.0.0"
-                }
-            };
-
-            return new GeneratedFile
-            {
-                Path    = "package.json",
-                Content = JsonSerializer.Serialize(pkg, new JsonSerializerOptions { WriteIndented = true })
-            };
-        }
-
-        private static GeneratedFile MakeTsConfig() => new GeneratedFile
-        {
-            Path = "tsconfig.json",
-            Content = @"{
-  ""compilerOptions"": {
-    ""target"": ""ES2017"",
-    ""lib"": [""dom"", ""dom.iterable"", ""esnext""],
-    ""allowJs"": true,
-    ""skipLibCheck"": true,
-    ""strict"": true,
-    ""noEmit"": true,
-    ""esModuleInterop"": true,
-    ""module"": ""esnext"",
-    ""moduleResolution"": ""bundler"",
-    ""resolveJsonModule"": true,
-    ""isolatedModules"": true,
-    ""jsx"": ""preserve"",
-    ""incremental"": true,
-    ""plugins"": [{ ""name"": ""next"" }],
-    ""paths"": { ""@/*"": [""./src/*""] }
-  },
-  ""include"": [""next-env.d.ts"", ""**/*.ts"", ""**/*.tsx"", "".next/types/**/*.ts""],
-  ""exclude"": [""node_modules""]
-}"
-        };
-
-        private static GeneratedFile MakeNextConfig() => new GeneratedFile
-        {
-            Path    = "next.config.ts",
-            Content = "import type { NextConfig } from 'next';\n\nconst nextConfig: NextConfig = {};\n\nexport default nextConfig;\n"
-        };
-
-        private static GeneratedFile MakePostCssConfig() => new GeneratedFile
-        {
-            Path    = "postcss.config.mjs",
-            Content = "const config = {\n  plugins: {\n    '@tailwindcss/postcss': {},\n  },\n};\n\nexport default config;\n"
-        };
-
-        private static GeneratedFile MakeRootLayout(string appName) => new GeneratedFile
-        {
-            Path = "src/app/layout.tsx",
-            Content = $@"import type {{ Metadata }} from 'next';
-import './globals.css';
-
-export const metadata: Metadata = {{
-  title: '{appName.Replace("'", "\\'")}',
-  description: 'Generated by PromptForge',
-}};
-
-export default function RootLayout({{ children }}: {{ children: React.ReactNode }}) {{
-  return (
-    <html lang=""en"">
-      <body>{{children}}</body>
-    </html>
-  );
-}}
-"
-        };
-
-        private static GeneratedFile MakeGlobalsCss() => new GeneratedFile
-        {
-            Path    = "src/app/globals.css",
-            Content = "@import 'tailwindcss';\n"
-        };
-
-        private static GeneratedFile MakeEnvExample(DatabaseOption db) => new GeneratedFile
-        {
-            Path = ".env.example",
-            Content = db == DatabaseOption.MongoCloud
-                ? "MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/mydb\nNEXTAUTH_SECRET=change-me\nNEXTAUTH_URL=http://localhost:3000\n"
-                : "DATABASE_URL=postgresql://user:pass@localhost:5432/mydb\nNEXTAUTH_SECRET=change-me\nNEXTAUTH_URL=http://localhost:3000\n"
-        };
-
-        private static GeneratedFile MakePrismaSchema(DatabaseOption db, bool auth) => new GeneratedFile
-        {
-            Path = "prisma/schema.prisma",
-            Content = $@"generator client {{
-  provider = ""prisma-client-js""
-}}
-
-datasource db {{
-  provider = ""postgresql""
-  url      = env(""DATABASE_URL"")
-}}{(auth ? @"
-
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}" : "")}
-"
-        };
-
-        private static GeneratedFile MakeAuthConfig() => new GeneratedFile
-        {
-            Path = "src/lib/auth.ts",
-            Content = @"import NextAuth from 'next-auth';
-import Credentials from 'next-auth/providers/credentials';
-
-export const { handlers, signIn, signOut, auth } = NextAuth({
-  providers: [
-    Credentials({
-      credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' },
-      },
-      async authorize(credentials) {
-        if (credentials?.email && credentials?.password) {
-          return { id: '1', email: credentials.email as string, name: 'User' };
-        }
-        return null;
-      },
-    }),
-  ],
-  session: { strategy: 'jwt' },
-  pages: { signIn: '/login' },
-});
-"
-        };
-
-        // ── React + Vite helpers ──────────────────────────────────────────────
-
-        private static GeneratedFile MakeReactVitePackageJson(string name, bool auth, bool prisma, bool mongo, bool isTs)
-        {
-            var deps = new Dictionary<string, string>
-            {
-                ["react"]            = "^19.0.0",
-                ["react-dom"]        = "^19.0.0",
-                ["react-router-dom"] = "^7.0.0"
-            };
-            if (prisma) deps["@prisma/client"] = "^6.0.0";
-            if (mongo)  deps["mongoose"]       = "^8.0.0";
-
-            var devDeps = new Dictionary<string, string>
-            {
-                ["vite"]                  = "^6.0.0",
-                ["@vitejs/plugin-react"]  = "^4.0.0",
-                ["tailwindcss"]           = "^4.0.0",
-                ["@tailwindcss/vite"]     = "^4.0.0"
-            };
-            if (isTs)
-            {
-                devDeps["typescript"]       = "^5.7.0";
-                devDeps["@types/react"]     = "^19.0.0";
-                devDeps["@types/react-dom"] = "^19.0.0";
-            }
-
-            var pkg = new Dictionary<string, object>
-            {
-                ["name"]    = Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9-]", "-"),
-                ["version"] = "0.1.0",
-                ["private"] = true,
-                ["type"]    = "module",
-                ["scripts"] = new Dictionary<string, string>
-                {
-                    ["dev"]     = "vite",
-                    ["build"]   = isTs ? "tsc -b && vite build" : "vite build",
-                    ["preview"] = "vite preview"
-                },
-                ["dependencies"]    = deps,
-                ["devDependencies"] = devDeps
-            };
-
-            return new GeneratedFile
-            {
-                Path    = "package.json",
-                Content = JsonSerializer.Serialize(pkg, new JsonSerializerOptions { WriteIndented = true })
-            };
-        }
-
-        private static GeneratedFile MakeReactViteConfig(bool isTs) => new GeneratedFile
-        {
-            Path = isTs ? "vite.config.ts" : "vite.config.js",
-            Content = $@"import {{ defineConfig }} from 'vite';
-import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
-
-export default defineConfig({{
-  plugins: [react(), tailwindcss()],
-  resolve: {{ alias: {{ '@': '/src' }} }},
-}});
-"
-        };
-
-        private static GeneratedFile MakeReactViteTsConfig() => new GeneratedFile
-        {
-            Path = "tsconfig.json",
-            Content = @"{
-  ""compilerOptions"": {
-    ""target"": ""ES2020"",
-    ""lib"": [""ES2020"", ""DOM"", ""DOM.Iterable""],
-    ""module"": ""ESNext"",
-    ""moduleResolution"": ""bundler"",
-    ""jsx"": ""react-jsx"",
-    ""strict"": true,
-    ""noEmit"": true,
-    ""skipLibCheck"": true,
-    ""resolveJsonModule"": true,
-    ""isolatedModules"": true,
-    ""paths"": { ""@/*"": [""./src/*""] }
-  },
-  ""include"": [""src""],
-  ""exclude"": [""node_modules""]
-}"
-        };
-
-        private static GeneratedFile MakeJsConfig() => new GeneratedFile
-        {
-            Path    = "jsconfig.json",
-            Content = "{\n  \"compilerOptions\": {\n    \"paths\": { \"@/*\": [\"./src/*\"] }\n  },\n  \"include\": [\"src\"]\n}\n"
-        };
-
-        private static GeneratedFile MakeReactViteIndexHtml(string name, string ext) => new GeneratedFile
-        {
-            Path = "index.html",
-            Content = $@"<!DOCTYPE html>
-<html lang=""en"">
-  <head>
-    <meta charset=""UTF-8"" />
-    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"" />
-    <title>{System.Security.SecurityElement.Escape(name)}</title>
-  </head>
-  <body>
-    <div id=""root""></div>
-    <script type=""module"" src=""/src/main.{ext}""></script>
-  </body>
-</html>
-"
-        };
-
-        private static GeneratedFile MakeReactViteMainEntry(string ext) => new GeneratedFile
-        {
-            Path = $"src/main.{ext}",
-            Content = @"import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
-import App from './App';
-import './index.css';
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </React.StrictMode>
-);
-"
-        };
-
-        private static GeneratedFile MakeReactViteApp(string ext) => new GeneratedFile
-        {
-            Path = $"src/App.{ext}",
-            Content = @"import { Routes, Route } from 'react-router-dom';
-
-export default function App() {
-  return (
-    <Routes>
-      <Route path=""/"" element={<div className=""p-8""><h1 className=""text-2xl font-bold"">Welcome</h1></div>} />
-    </Routes>
-  );
-}
-"
-        };
-
-        private static GeneratedFile MakeViteIndexCss() => new GeneratedFile
-        {
-            Path    = "src/index.css",
-            Content = "@import 'tailwindcss';\n"
-        };
-
-        // ── Vue helpers ───────────────────────────────────────────────────────
-
-        private static GeneratedFile MakeVuePackageJson(string name, bool prisma, bool mongo, bool isTs)
-        {
-            var deps = new Dictionary<string, string>
-            {
-                ["vue"]        = "^3.0.0",
-                ["vue-router"] = "^4.0.0",
-                ["pinia"]      = "^2.0.0"
-            };
-            if (prisma) deps["@prisma/client"] = "^6.0.0";
-            if (mongo)  deps["mongoose"]       = "^8.0.0";
-
-            var devDeps = new Dictionary<string, string>
-            {
-                ["vite"]                 = "^6.0.0",
-                ["@vitejs/plugin-vue"]   = "^5.0.0",
-                ["tailwindcss"]          = "^4.0.0",
-                ["@tailwindcss/vite"]    = "^4.0.0"
-            };
-            if (isTs)
-            {
-                devDeps["typescript"] = "^5.7.0";
-                devDeps["vue-tsc"]    = "^2.0.0";
-            }
-
-            var pkg = new Dictionary<string, object>
-            {
-                ["name"]    = Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9-]", "-"),
-                ["version"] = "0.1.0",
-                ["private"] = true,
-                ["type"]    = "module",
-                ["scripts"] = new Dictionary<string, string>
-                {
-                    ["dev"]     = "vite",
-                    ["build"]   = isTs ? "vue-tsc -b && vite build" : "vite build",
-                    ["preview"] = "vite preview"
-                },
-                ["dependencies"]    = deps,
-                ["devDependencies"] = devDeps
-            };
-
-            return new GeneratedFile
-            {
-                Path    = "package.json",
-                Content = JsonSerializer.Serialize(pkg, new JsonSerializerOptions { WriteIndented = true })
-            };
-        }
-
-        private static GeneratedFile MakeVueViteConfig(bool isTs) => new GeneratedFile
-        {
-            Path = isTs ? "vite.config.ts" : "vite.config.js",
-            Content = @"import { defineConfig } from 'vite';
-import vue from '@vitejs/plugin-vue';
-import tailwindcss from '@tailwindcss/vite';
-
-export default defineConfig({
-  plugins: [vue(), tailwindcss()],
-  resolve: { alias: { '@': '/src' } },
-});
-"
-        };
-
-        private static GeneratedFile MakeVueTsConfig() => new GeneratedFile
-        {
-            Path = "tsconfig.json",
-            Content = @"{
-  ""compilerOptions"": {
-    ""target"": ""ES2020"",
-    ""lib"": [""ES2020"", ""DOM"", ""DOM.Iterable""],
-    ""module"": ""ESNext"",
-    ""moduleResolution"": ""bundler"",
-    ""strict"": true,
-    ""noEmit"": true,
-    ""skipLibCheck"": true,
-    ""resolveJsonModule"": true,
-    ""paths"": { ""@/*"": [""./src/*""] }
-  },
-  ""include"": [""src/**/*.ts"", ""src/**/*.d.ts"", ""src/**/*.vue""],
-  ""exclude"": [""node_modules""]
-}"
-        };
-
-        private static GeneratedFile MakeVueIndexHtml(string name) => new GeneratedFile
-        {
-            Path = "index.html",
-            Content = $@"<!DOCTYPE html>
-<html lang=""en"">
-  <head>
-    <meta charset=""UTF-8"" />
-    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"" />
-    <title>{System.Security.SecurityElement.Escape(name)}</title>
-  </head>
-  <body>
-    <div id=""app""></div>
-    <script type=""module"" src=""/src/main.ts""></script>
-  </body>
-</html>
-"
-        };
-
-        private static GeneratedFile MakeVueMainEntry(bool isTs) => new GeneratedFile
-        {
-            Path = isTs ? "src/main.ts" : "src/main.js",
-            Content = @"import { createApp } from 'vue';
-import { createPinia } from 'pinia';
-import router from './router';
-import App from './App.vue';
-import './index.css';
-
-createApp(App).use(createPinia()).use(router).mount('#app');
-"
-        };
-
-        private static GeneratedFile MakeVueApp() => new GeneratedFile
-        {
-            Path = "src/App.vue",
-            Content = @"<template>
-  <RouterView />
-</template>
-
-<script setup lang=""ts"">
-</script>
-"
-        };
-
-        // ── Angular helpers ───────────────────────────────────────────────────
-
-        private static GeneratedFile MakeAngularPackageJson(string name)
-        {
-            var pkg = new Dictionary<string, object>
-            {
-                ["name"]    = Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9-]", "-"),
-                ["version"] = "0.1.0",
-                ["private"] = true,
-                ["scripts"] = new Dictionary<string, string>
-                {
-                    ["dev"]   = "ng serve",
-                    ["build"] = "ng build",
-                    ["test"]  = "ng test"
-                },
-                ["dependencies"] = new Dictionary<string, string>
-                {
-                    ["@angular/common"]          = "^19.0.0",
-                    ["@angular/compiler"]         = "^19.0.0",
-                    ["@angular/core"]             = "^19.0.0",
-                    ["@angular/forms"]            = "^19.0.0",
-                    ["@angular/platform-browser"] = "^19.0.0",
-                    ["@angular/router"]           = "^19.0.0",
-                    ["rxjs"]                      = "^7.8.0",
-                    ["zone.js"]                   = "^0.15.0",
-                    ["tailwindcss"]               = "^4.0.0"
-                },
-                ["devDependencies"] = new Dictionary<string, string>
-                {
-                    ["@angular/cli"]          = "^19.0.0",
-                    ["@angular/compiler-cli"] = "^19.0.0",
-                    ["typescript"]            = "^5.7.0"
-                }
-            };
-
-            return new GeneratedFile
-            {
-                Path    = "package.json",
-                Content = JsonSerializer.Serialize(pkg, new JsonSerializerOptions { WriteIndented = true })
-            };
-        }
-
-        private static GeneratedFile MakeAngularJson(string name)
-        {
-            var safeName = Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9-]", "-");
-            var content = $@"{{
-  ""$schema"": ""./node_modules/@angular/cli/lib/config/schema.json"",
-  ""version"": 1,
-  ""newProjectRoot"": ""projects"",
-  ""projects"": {{
-    ""{safeName}"": {{
-      ""projectType"": ""application"",
-      ""root"": """",
-      ""sourceRoot"": ""src"",
-      ""architect"": {{
-        ""build"": {{
-          ""builder"": ""@angular-devkit/build-angular:application"",
-          ""options"": {{
-            ""outputPath"": ""dist/{safeName}"",
-            ""index"": ""src/index.html"",
-            ""browser"": ""src/main.ts"",
-            ""tsConfig"": ""tsconfig.json"",
-            ""styles"": [""src/styles.css""],
-            ""scripts"": []
-          }},
-          ""configurations"": {{
-            ""production"": {{ ""optimization"": true }},
-            ""development"": {{ ""optimization"": false }}
-          }},
-          ""defaultConfiguration"": ""production""
-        }},
-        ""serve"": {{
-          ""builder"": ""@angular-devkit/build-angular:dev-server"",
-          ""configurations"": {{
-            ""development"": {{ ""buildTarget"": ""{safeName}:build:development"" }}
-          }},
-          ""defaultConfiguration"": ""development""
-        }}
-      }}
-    }}
-  }}
-}}";
-            return new GeneratedFile { Path = "angular.json", Content = content };
-        }
-
-        private static GeneratedFile MakeAngularTsConfig() => new GeneratedFile
-        {
-            Path = "tsconfig.json",
-            Content = @"{
-  ""compilerOptions"": {
-    ""target"": ""ES2022"",
-    ""lib"": [""ES2022"", ""dom""],
-    ""module"": ""ES2022"",
-    ""moduleResolution"": ""bundler"",
-    ""experimentalDecorators"": true,
-    ""useDefineForClassFields"": false,
-    ""strict"": true,
-    ""skipLibCheck"": true,
-    ""paths"": { ""@/*"": [""./src/*""] }
-  },
-  ""angularCompilerOptions"": {
-    ""strictInjectionParameters"": true,
-    ""strictInputAccessModifiers"": true,
-    ""strictTemplates"": true
-  },
-  ""include"": [""src""],
-  ""exclude"": [""node_modules""]
-}"
-        };
-
-        private static GeneratedFile MakeAngularMainTs() => new GeneratedFile
-        {
-            Path = "src/main.ts",
-            Content = @"import { bootstrapApplication } from '@angular/platform-browser';
-import { appConfig } from './app/app.config';
-import { AppComponent } from './app/app.component';
-
-bootstrapApplication(AppComponent, appConfig)
-  .catch(err => console.error(err));
-"
-        };
-
-        private static GeneratedFile MakeAngularAppComponent() => new GeneratedFile
-        {
-            Path = "src/app/app.component.ts",
-            Content = @"import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
-
-@Component({
-  selector: 'app-root',
-  standalone: true,
-  imports: [RouterOutlet],
-  template: `<router-outlet />`,
-})
-export class AppComponent {}
-"
-        };
-
-        private static GeneratedFile MakeAngularAppConfig() => new GeneratedFile
-        {
-            Path = "src/app/app.config.ts",
-            Content = @"import { ApplicationConfig } from '@angular/core';
-import { provideRouter } from '@angular/router';
-
-export const appConfig: ApplicationConfig = {
-  providers: [provideRouter([])],
-};
-"
-        };
-
-        private static GeneratedFile MakeAngularStyles() => new GeneratedFile
-        {
-            Path    = "src/styles.css",
-            Content = "@import 'tailwindcss';\n"
-        };
-
-        // ══════════════════════════════════════════════════════════════════════
-        //  PROMPT BUILDERS — lean and targeted
-        // ══════════════════════════════════════════════════════════════════════
-
-        private string BuildSystemPrompt(CreateUpdateProjectDto input, HashSet<string> scaffolded, Template template = null)
-        {
-            var framework = FormatFramework(input.Framework);
-            var db        = FormatDatabase(input.DatabaseOption);
-
-            var langLabel = input.Language switch
-            {
-                ProgrammingLanguage.JavaScript => "JavaScript",
-                ProgrammingLanguage.CSharp     => "C#",
-                _                              => "TypeScript strict"
-            };
-
-            var auth = input.IncludeAuth
-                ? input.Framework switch
-                {
-                    Framework.NextJS    => "next-auth v5 (pre-configured in src/lib/auth.ts)",
-                    Framework.Angular   => "Angular Guards + JWT interceptor",
-                    Framework.Vue       => "Pinia auth store + route guards",
-                    Framework.ReactVite => "React Context auth + protected routes",
-                    _                   => "authentication"
-                }
-                : "none";
-
-            var scaffoldNote = scaffolded.Count > 0
-                ? $"\nThese files are ALREADY generated — do NOT output them:\n{string.Join(", ", scaffolded)}"
-                : "";
-
-            var templateContext = template != null
-                ? $"\n===APPLICATION CONTEXT===\n" +
-                  $"Template: {template.Name}\n" +
-                  $"Category: {template.Category}\n" +
-                  $"Description: {template.Description}\n" +
-                  (template.Tags != null ? $"Tags: {template.Tags}\n" : "") +
-                  "Use this as domain guidance. Generate complete code — do NOT import or reference the template itself.\n" +
-                  "===END APPLICATION CONTEXT==="
-                : "";
-
-            var stackRules = input.Framework switch
-            {
-                Framework.NextJS     => "- Next.js 15 App Router, React 19, Tailwind CSS v4\n- Imports use @/ alias (mapped to ./src/*)\n- 'use client' only on components with hooks/events/browser APIs",
-                Framework.ReactVite  => "- React 19 + Vite 6, react-router-dom v7, Tailwind CSS v4 via @tailwindcss/vite\n- Imports use @/ alias (mapped to ./src/*)\n- Client-side SPA only — no SSR",
-                Framework.Angular    => "- Angular 19 standalone components, Angular Router, Tailwind CSS v4\n- Use @tailwindcss/vite or postcss for Tailwind integration\n- Signals preferred over observables for local state",
-                Framework.Vue        => "- Vue 3 Composition API, Vite 6, vue-router v4, Pinia, Tailwind CSS v4 via @tailwindcss/vite\n- Imports use @/ alias (mapped to ./src/*)\n- Use <script setup> syntax in all SFC files",
-                _                    => "- Follow framework best practices"
-            };
-
-            return $@"You are a code generator. Output ONLY files. No markdown, no explanations, no commentary.
-{scaffoldNote}{templateContext}
-
-Stack: {framework} | {langLabel} | {db} | Auth: {auth}
-{stackRules}
-- ALWAYS generate README.md with: project overview, tech stack, getting started steps, env var descriptions, folder structure
-- Every file COMPLETE — no TODOs, no placeholders, no ""..."", no truncation
-- Must compile: npm install && npm run build
-
-Format:
-===ARCHITECTURE===
-One sentence
-===END ARCHITECTURE===
-===MODULES===
-comma,separated,names
-===END MODULES===
-===FILE===
-path/to/file.tsx
-===CONTENT===
-<complete file content>
-===END FILE===";
-        }
-
-        private static string BuildUserPrompt(CreateUpdateProjectDto input) =>
-            $"Build: {input.Prompt ?? "a starter app"}\nProject: {input.Name ?? "my-app"}";
-
-        private static string BuildFixSystemPrompt() =>
-            "You fix build errors. Return ONLY changed files. Complete file contents, not diffs. No explanations.\n===FILE===\npath\n===CONTENT===\n<fixed file>\n===END FILE===";
-
-        private static string BuildFixUserPrompt(List<GeneratedFile> files, string buildOutput)
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine("BUILD ERRORS:");
-            sb.AppendLine(buildOutput.Length > 4000 ? buildOutput.Substring(0, 4000) : buildOutput);
-
-            // Identify files referenced in error output
-            var errorFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var line in buildOutput.Split('\n'))
-            {
-                var match = Regex.Match(line, @"(?:\.\/)?([a-zA-Z0-9_\-\/\.]+\.(?:tsx?|jsx?|mjs|css))");
-                if (match.Success) errorFiles.Add(match.Groups[1].Value);
-            }
-
-            sb.AppendLine("\nFILES:");
-            foreach (var f in files)
-            {
-                sb.AppendLine($"\n--- {f.Path} ---");
-                // Full content for error-referenced files; brief preview for others
-                var isReferenced = errorFiles.Any(e =>
-                    f.Path.EndsWith(e, StringComparison.OrdinalIgnoreCase) ||
-                    f.Path.Contains(e, StringComparison.OrdinalIgnoreCase));
-
-                if (isReferenced)
-                    sb.AppendLine(f.Content);
-                else if (f.Content.Length > 200)
-                    sb.AppendLine(f.Content.Substring(0, 200)).AppendLine("...(truncated)");
-                else
-                    sb.AppendLine(f.Content);
-            }
-            return sb.ToString();
-        }
-
-        // ══════════════════════════════════════════════════════════════════════
-        //  FILE I/O
-        // ══════════════════════════════════════════════════════════════════════
-
-        private void WriteFiles(string projectDir, List<GeneratedFile> files)
-        {
-            foreach (var file in files)
-            {
-                var normalized = file.Path
-                    .Replace("/",  Path.DirectorySeparatorChar.ToString())
-                    .Replace("\\", Path.DirectorySeparatorChar.ToString());
-                var fullPath = Path.Combine(projectDir, normalized);
-                var dir = Path.GetDirectoryName(fullPath);
-
-                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                    Directory.CreateDirectory(dir);
-
-                File.WriteAllText(fullPath, file.Content, Encoding.UTF8);
+                files.Add(new GeneratedFile { Path = path, Content = fileContent });
             }
         }
 
-        private static void CopyDirectory(string sourceDir, string destDir)
+        return files;
+    }
+
+    private static List<string> ParseModules(string content)
+    {
+        var modulesStr = ParseDelimitedSection(content, "MODULES");
+        return ParseCsvList(modulesStr);
+    }
+
+    private static List<string> ParseCsvList(string csv)
+    {
+        if (string.IsNullOrWhiteSpace(csv)) return new List<string>();
+        return csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .ToList();
+    }
+
+    private static AppSpecDto ParseSpecOrDefault(string specJson, out string warning)
+    {
+        warning = null;
+        if (string.IsNullOrWhiteSpace(specJson))
+            return NormalizeSpec(new AppSpecDto());
+
+        try
         {
-            Directory.CreateDirectory(destDir);
-
-            foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
-            {
-                var relativePath = Path.GetRelativePath(sourceDir, file);
-                var destFile     = Path.Combine(destDir, relativePath);
-                var destFileDir  = Path.GetDirectoryName(destFile);
-
-                if (!string.IsNullOrEmpty(destFileDir) && !Directory.Exists(destFileDir))
-                    Directory.CreateDirectory(destFileDir);
-
-                File.Copy(file, destFile, overwrite: true);
-            }
+            var strict = JsonSerializer.Deserialize<AppSpecDto>(specJson, JsonOptions) ?? new AppSpecDto();
+            return NormalizeSpec(strict);
         }
-
-        // ══════════════════════════════════════════════════════════════════════
-        //  NPM BUILD
-        // ══════════════════════════════════════════════════════════════════════
-
-        private async Task<(bool success, string output)> RunBuildAsync(string projectDir, Framework framework)
-        {
-            if (!Directory.Exists(projectDir))
-                return (false, $"Directory missing: {projectDir}");
-
-            var sb = new StringBuilder();
-
-            var (installCode, installOut) = await RunProcessAsync("npm", "install --prefer-offline", projectDir, 180);
-            sb.AppendLine("=== npm install ===").AppendLine(installOut);
-            if (installCode != 0) return (false, sb.ToString());
-
-            // Angular CLI may not be in PATH — use npx to run the locally installed binary
-            var (buildCmd, buildArgs) = framework == Framework.Angular
-                ? ("npx", "ng build")
-                : ("npm", "run build");
-            var buildTimeout = framework == Framework.Angular ? 300 : 180;
-
-            var (buildCode, buildOut) = await RunProcessAsync(buildCmd, buildArgs, projectDir, buildTimeout);
-            sb.AppendLine($"=== {buildCmd} {buildArgs} ===").AppendLine(buildOut);
-
-            return (buildCode == 0, sb.ToString());
-        }
-
-        private static async Task<(int exitCode, string output)> RunProcessAsync(
-            string command, string args, string workingDir, int timeoutSeconds = 120)
-        {
-            var psi = new ProcessStartInfo(command, args)
-            {
-                WorkingDirectory       = workingDir,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-                UseShellExecute        = false,
-                CreateNoWindow         = true
-            };
-
-            using var process = new Process { StartInfo = psi };
-            var output = new StringBuilder();
-
-            process.OutputDataReceived += (_, e) => { if (e.Data != null) output.AppendLine(e.Data); };
-            process.ErrorDataReceived  += (_, e) => { if (e.Data != null) output.AppendLine(e.Data); };
-
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-
-            var finished = await Task.Run(() => process.WaitForExit(timeoutSeconds * 1000));
-            if (!finished)
-            {
-                process.Kill(entireProcessTree: true);
-                return (-1, $"Timed out after {timeoutSeconds}s.\n{output}");
-            }
-
-            return (process.ExitCode, output.ToString());
-        }
-
-        // ══════════════════════════════════════════════════════════════════════
-        //  GROQ API — 32k tokens, low temperature
-        // ══════════════════════════════════════════════════════════════════════
-
-        private async Task<CodeGenResult> CallGroqAsync(string systemMessage, string userMessage)
-        {
-            var apiKey = _configuration["Groq:ApiKey"];
-            var model  = _configuration["Groq:Model"] ?? "llama-3.3-70b-versatile";
-
-            if (string.IsNullOrWhiteSpace(apiKey))
-                throw new Exception("Groq:ApiKey is not configured.");
-
-            var payload = new
-            {
-                model,
-                messages = new[]
-                {
-                    new { role = "system", content = systemMessage },
-                    new { role = "user",   content = userMessage   }
-                },
-                max_tokens  = 32768,
-                temperature = 0.1
-            };
-
-            var httpClient = _httpClientFactory.CreateClient();
-            httpClient.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", apiKey);
-            httpClient.Timeout = TimeSpan.FromMinutes(5);
-
-            var response = await httpClient.PostAsync(GroqEndpoint,
-                new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"));
-            var body = await response.Content.ReadAsStringAsync();
-
-            Logger.Debug($"Groq [{(int)response.StatusCode}]: {body.Substring(0, Math.Min(300, body.Length))}");
-
-            if (!response.IsSuccessStatusCode)
-            {
-                Logger.Error($"Groq API error {(int)response.StatusCode}: {body}");
-                return null;
-            }
-
-            return ParseGroqResponse(body);
-        }
-
-        // ══════════════════════════════════════════════════════════════════════
-        //  RESPONSE PARSING
-        // ══════════════════════════════════════════════════════════════════════
-
-        private CodeGenResult ParseGroqResponse(string json)
+        catch (Exception strictEx)
         {
             try
             {
-                using var doc = JsonDocument.Parse(json);
-                var text = doc.RootElement
-                    .GetProperty("choices")[0]
-                    .GetProperty("message")
-                    .GetProperty("content")
-                    .GetString();
+                using var doc = JsonDocument.Parse(specJson);
+                var fallback = BuildSpecFromJson(doc.RootElement);
+                warning = $"GenerateSpec: Strict parse failed ({strictEx.Message}). Tolerant parser was used.";
+                return NormalizeSpec(fallback);
+            }
+            catch (Exception fallbackEx)
+            {
+                warning = $"GenerateSpec: Failed to parse spec JSON: {fallbackEx.Message}. Raw: {specJson[..Math.Min(specJson.Length, 200)]}";
+                return NormalizeSpec(new AppSpecDto());
+            }
+        }
+    }
 
-                if (string.IsNullOrWhiteSpace(text))
+    private static AppSpecDto BuildSpecFromJson(JsonElement root)
+    {
+        return new AppSpecDto
+        {
+            Entities = ParseEntities(GetPropertyCaseInsensitive(root, "entities")),
+            Pages = ParsePages(GetPropertyCaseInsensitive(root, "pages")),
+            ApiRoutes = ParseApiRoutes(GetPropertyCaseInsensitive(root, "apiRoutes")),
+            Validations = ParseValidations(GetPropertyCaseInsensitive(root, "validations")),
+            FileManifest = ParseFileManifest(GetPropertyCaseInsensitive(root, "fileManifest"))
+        };
+    }
+
+    private static List<EntitySpecDto> ParseEntities(JsonElement section)
+    {
+        var items = new List<EntitySpecDto>();
+        foreach (var element in EnumerateSection(section))
+        {
+            if (TryDeserialize(element, out EntitySpecDto entity))
+            {
+                entity.Fields ??= new List<FieldSpecDto>();
+                entity.Relations ??= new List<RelationSpecDto>();
+                if (string.IsNullOrWhiteSpace(entity.TableName) && !string.IsNullOrWhiteSpace(entity.Name))
+                    entity.TableName = entity.Name.ToLowerInvariant();
+                items.Add(entity);
+                continue;
+            }
+
+            if (element.ValueKind == JsonValueKind.String)
+            {
+                var name = element.GetString();
+                if (!string.IsNullOrWhiteSpace(name))
                 {
-                    Logger.Error("Groq returned empty content.");
-                    return null;
+                    items.Add(new EntitySpecDto
+                    {
+                        Name = name,
+                        TableName = name.ToLowerInvariant(),
+                        Fields = new List<FieldSpecDto>(),
+                        Relations = new List<RelationSpecDto>()
+                    });
                 }
-
-                Logger.Info($"LLM response: {text.Length} chars");
-                return ParseDelimitedResponse(text);
-            }
-            catch (Exception ex)
-            {
-                Logger.Error($"Parse error: {ex.Message}");
-                return null;
             }
         }
 
-        private CodeGenResult ParseDelimitedResponse(string text)
+        return items;
+    }
+
+    private static List<PageSpecDto> ParsePages(JsonElement section)
+    {
+        var items = new List<PageSpecDto>();
+        foreach (var element in EnumerateSection(section))
         {
-            var result = new CodeGenResult
+            if (TryDeserialize(element, out PageSpecDto page))
             {
-                Files      = new List<GeneratedFile>(),
-                ModuleList = new List<string>()
-            };
+                page.Components ??= new List<string>();
+                page.DataRequirements ??= new List<string>();
+                items.Add(page);
+                continue;
+            }
 
-            var archStart = text.IndexOf("===ARCHITECTURE===", StringComparison.Ordinal);
-            var archEnd   = text.IndexOf("===END ARCHITECTURE===", StringComparison.Ordinal);
-            if (archStart >= 0 && archEnd > archStart)
-                result.ArchitectureSummary = text.Substring(archStart + 18, archEnd - archStart - 18).Trim();
-
-            var modStart = text.IndexOf("===MODULES===", StringComparison.Ordinal);
-            var modEnd   = text.IndexOf("===END MODULES===", StringComparison.Ordinal);
-            if (modStart >= 0 && modEnd > modStart)
-                result.ModuleList = text.Substring(modStart + 13, modEnd - modStart - 13)
-                    .Trim().Split(',').Select(m => m.Trim()).Where(m => m.Length > 0).ToList();
-
-            var pos = 0;
-            while (true)
+            if (element.ValueKind == JsonValueKind.String)
             {
-                var fileStart = text.IndexOf("===FILE===", pos, StringComparison.Ordinal);
-                if (fileStart < 0) break;
+                var route = element.GetString();
+                if (!string.IsNullOrWhiteSpace(route))
+                {
+                    items.Add(new PageSpecDto
+                    {
+                        Route = route,
+                        Name = route.Trim('/'),
+                        Layout = "authenticated",
+                        Components = new List<string>(),
+                        DataRequirements = new List<string>(),
+                        Description = string.Empty
+                    });
+                }
+            }
 
-                var contentMarker = text.IndexOf("===CONTENT===", fileStart, StringComparison.Ordinal);
-                if (contentMarker < 0) break;
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                var route = GetStringProperty(element, "route")
+                    ?? GetStringProperty(element, "path")
+                    ?? GetStringProperty(element, "url");
 
-                var fileEnd = text.IndexOf("===END FILE===", contentMarker, StringComparison.Ordinal);
-                var path    = text.Substring(fileStart + 10, contentMarker - fileStart - 10).Trim();
-                var content = fileEnd >= 0
-                    ? text.Substring(contentMarker + 13, fileEnd - contentMarker - 13).Trim()
-                    : text.Substring(contentMarker + 13).Trim();
+                if (!string.IsNullOrWhiteSpace(route))
+                {
+                    var components = ParseStringList(GetPropertyCaseInsensitive(element, "components"));
+                    var dataRequirements = ParseStringList(GetPropertyCaseInsensitive(element, "dataRequirements"));
+                    var layout = (GetStringProperty(element, "layout") ?? "authenticated").ToLowerInvariant();
+                    if (layout is not ("authenticated" or "public" or "admin"))
+                        layout = "authenticated";
 
+                    items.Add(new PageSpecDto
+                    {
+                        Route = NormalizePageRoute(route),
+                        Name = GetStringProperty(element, "name") ?? BuildPageNameFromRoute(route),
+                        Layout = layout,
+                        Components = components,
+                        DataRequirements = dataRequirements,
+                        Description = GetStringProperty(element, "description") ?? string.Empty
+                    });
+                }
+            }
+        }
+
+        return items;
+    }
+
+    private static List<ApiRouteSpecDto> ParseApiRoutes(JsonElement section)
+    {
+        var items = new List<ApiRouteSpecDto>();
+        foreach (var element in EnumerateSection(section))
+        {
+            if (TryDeserialize(element, out ApiRouteSpecDto route))
+            {
+                route.ResponseShape ??= new { };
+                items.Add(route);
+                continue;
+            }
+
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                var method = GetStringProperty(element, "method") ?? "GET";
+                var path = GetStringProperty(element, "path") ?? string.Empty;
+                var handler = GetStringProperty(element, "handler") ?? string.Empty;
+                var description = GetStringProperty(element, "description") ?? string.Empty;
+
+                items.Add(new ApiRouteSpecDto
+                {
+                    Method = method,
+                    Path = path,
+                    Handler = handler,
+                    RequestBody = ToLooseObject(GetPropertyCaseInsensitive(element, "requestBody")),
+                    ResponseShape = ToLooseObject(GetPropertyCaseInsensitive(element, "responseShape")) ?? new { },
+                    Auth = GetBoolProperty(element, "auth"),
+                    Description = description
+                });
+            }
+        }
+
+        return items;
+    }
+
+    private static List<ValidationRuleDto> ParseValidations(JsonElement section)
+    {
+        var items = new List<ValidationRuleDto>();
+        foreach (var element in EnumerateSection(section))
+        {
+            if (TryDeserialize(element, out ValidationRuleDto validation))
+            {
+                items.Add(validation);
+                continue;
+            }
+
+            if (element.ValueKind == JsonValueKind.String)
+            {
+                var description = element.GetString();
+                if (!string.IsNullOrWhiteSpace(description))
+                {
+                    var id = Slugify(description);
+                    items.Add(new ValidationRuleDto
+                    {
+                        Id = string.IsNullOrWhiteSpace(id) ? Guid.NewGuid().ToString("N")[..8] : id,
+                        Category = "build-passes",
+                        Description = description,
+                        Target = "project",
+                        Assertion = description,
+                        Automatable = false
+                    });
+                }
+                continue;
+            }
+
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                var description = GetStringProperty(element, "description")
+                    ?? GetStringProperty(element, "assertion")
+                    ?? GetStringProperty(element, "name")
+                    ?? "Validation rule";
+
+                var category = (GetStringProperty(element, "category") ?? "build-passes").ToLowerInvariant();
+                var id = GetStringProperty(element, "id") ?? Slugify(description);
+                items.Add(new ValidationRuleDto
+                {
+                    Id = string.IsNullOrWhiteSpace(id) ? Guid.NewGuid().ToString("N")[..8] : id,
+                    Category = category,
+                    Description = description,
+                    Target = GetStringProperty(element, "target") ?? "project",
+                    Assertion = GetStringProperty(element, "assertion") ?? description,
+                    Automatable = GetBoolProperty(element, "automatable"),
+                    Script = GetStringProperty(element, "script")
+                });
+            }
+        }
+
+        return items;
+    }
+
+    private static List<FileEntryDto> ParseFileManifest(JsonElement section)
+    {
+        var items = new List<FileEntryDto>();
+        foreach (var element in EnumerateSection(section))
+        {
+            if (TryDeserialize(element, out FileEntryDto file))
+            {
+                items.Add(file);
+                continue;
+            }
+
+            if (element.ValueKind == JsonValueKind.String)
+            {
+                var path = element.GetString();
                 if (!string.IsNullOrWhiteSpace(path))
-                    result.Files.Add(new GeneratedFile { Path = path, Content = content });
-
-                pos = fileEnd >= 0 ? fileEnd + 14 : text.Length;
+                {
+                    items.Add(new FileEntryDto
+                    {
+                        Path = path,
+                        Type = "generated",
+                        Description = string.Empty
+                    });
+                }
             }
-
-            Logger.Info($"Parsed {result.Files.Count} files.");
-            return result.Files.Count > 0 ? result : null;
         }
 
-        // ══════════════════════════════════════════════════════════════════════
-        //  FORMATTERS
-        // ══════════════════════════════════════════════════════════════════════
+        return items;
+    }
 
-        private static string SanitizeDirName(string name)
+    private static IEnumerable<JsonElement> EnumerateSection(JsonElement section)
+    {
+        if (section.ValueKind == JsonValueKind.Array)
+            return section.EnumerateArray();
+
+        if (section.ValueKind is JsonValueKind.Object or JsonValueKind.String)
+            return new[] { section };
+
+        return Enumerable.Empty<JsonElement>();
+    }
+
+    private static bool TryDeserialize<T>(JsonElement element, out T result) where T : class
+    {
+        try
         {
-            if (string.IsNullOrWhiteSpace(name))
-                return "unnamed-project";
+            result = JsonSerializer.Deserialize<T>(element.GetRawText(), JsonOptions);
+            return result != null;
+        }
+        catch
+        {
+            result = null;
+            return false;
+        }
+    }
 
-            // Replace spaces with hyphens, strip invalid path chars, collapse multiple hyphens
-            var safe = Regex.Replace(name.Trim(), @"[^\w\-.]", "-");
-            safe = Regex.Replace(safe, @"-{2,}", "-").Trim('-');
+    private static JsonElement GetPropertyCaseInsensitive(JsonElement element, string propertyName)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+            return default;
 
-            // Cap length to avoid filesystem path limits
-            if (safe.Length > 80)
-                safe = safe.Substring(0, 80).TrimEnd('-');
-
-            return string.IsNullOrWhiteSpace(safe) ? "unnamed-project" : safe.ToLowerInvariant();
+        foreach (var property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+                return property.Value;
         }
 
-        private static string FormatFramework(Framework fw) => fw switch
+        return default;
+    }
+
+    private static string GetStringProperty(JsonElement element, string propertyName)
+    {
+        var prop = GetPropertyCaseInsensitive(element, propertyName);
+        if (prop.ValueKind == JsonValueKind.String)
+            return prop.GetString();
+
+        if (prop.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
+            return prop.GetRawText();
+
+        return null;
+    }
+
+    private static bool GetBoolProperty(JsonElement element, string propertyName)
+    {
+        var prop = GetPropertyCaseInsensitive(element, propertyName);
+        return prop.ValueKind == JsonValueKind.True ||
+               (prop.ValueKind == JsonValueKind.String && bool.TryParse(prop.GetString(), out var parsed) && parsed);
+    }
+
+    private static object ToLooseObject(JsonElement element)
+    {
+        if (element.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+            return null;
+
+        if (element.ValueKind == JsonValueKind.String)
+            return element.GetString();
+
+        if (element.ValueKind == JsonValueKind.Number)
         {
-            Framework.ReactVite    => "React (Vite)",
-            Framework.Angular      => "Angular",
-            Framework.Vue          => "Vue",
-            Framework.DotNetBlazor => ".NET Blazor",
-            _                      => "Next.js 15 (App Router)"
+            if (element.TryGetInt64(out var asInt)) return asInt;
+            if (element.TryGetDouble(out var asDouble)) return asDouble;
+        }
+
+        if (element.ValueKind == JsonValueKind.True || element.ValueKind == JsonValueKind.False)
+            return element.GetBoolean();
+
+        try
+        {
+            return JsonSerializer.Deserialize<object>(element.GetRawText(), JsonOptions);
+        }
+        catch
+        {
+            return element.GetRawText();
+        }
+    }
+
+    private static AppSpecDto NormalizeSpec(AppSpecDto spec)
+    {
+        spec ??= new AppSpecDto();
+
+        spec.Entities ??= new List<EntitySpecDto>();
+        spec.Pages ??= new List<PageSpecDto>();
+        spec.ApiRoutes ??= new List<ApiRouteSpecDto>();
+        spec.Validations ??= new List<ValidationRuleDto>();
+        spec.FileManifest ??= new List<FileEntryDto>();
+
+        spec.Entities = spec.Entities
+            .Where(e => e != null)
+            .Select(e =>
+            {
+                e.Fields ??= new List<FieldSpecDto>();
+                e.Relations ??= new List<RelationSpecDto>();
+                if (string.IsNullOrWhiteSpace(e.TableName) && !string.IsNullOrWhiteSpace(e.Name))
+                    e.TableName = e.Name.ToLowerInvariant();
+                return e;
+            })
+            .Where(e => !string.IsNullOrWhiteSpace(e.Name))
+            .GroupBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+
+        spec.ApiRoutes = spec.ApiRoutes
+            .Where(r => r != null)
+            .Select(r =>
+            {
+                r.Method = string.IsNullOrWhiteSpace(r.Method) ? "GET" : r.Method.ToUpperInvariant();
+                r.Path = NormalizeApiPath(r.Path);
+                r.ResponseShape ??= new { };
+                r.Description ??= string.Empty;
+                return r;
+            })
+            .Where(r => !string.IsNullOrWhiteSpace(r.Path))
+            .GroupBy(r => $"{r.Method}:{r.Path}", StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+
+        spec.FileManifest = spec.FileManifest
+            .Where(f => f != null && !string.IsNullOrWhiteSpace(f.Path))
+            .GroupBy(f => f.Path, StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var first = g.First();
+                first.Type ??= "generated";
+                first.Description ??= string.Empty;
+                return first;
+            })
+            .ToList();
+
+        spec.Pages = spec.Pages
+            .Where(p => p != null)
+            .Select(p =>
+            {
+                p.Route = NormalizePageRoute(p.Route);
+                p.Name = string.IsNullOrWhiteSpace(p.Name) ? BuildPageNameFromRoute(p.Route) : p.Name;
+                p.Layout = NormalizeLayout(p.Layout);
+                p.Components ??= new List<string>();
+                p.DataRequirements ??= new List<string>();
+                p.Description ??= string.Empty;
+                return p;
+            })
+            .Where(p => !string.IsNullOrWhiteSpace(p.Route))
+            .GroupBy(p => p.Route, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+
+        if (spec.Pages.Count == 0)
+            spec.Pages = BuildFallbackPages(spec.ApiRoutes, spec.FileManifest);
+
+        spec.Validations = spec.Validations
+            .Where(v => v != null)
+            .Select(v =>
+            {
+                v.Id = string.IsNullOrWhiteSpace(v.Id) ? Guid.NewGuid().ToString("N")[..8] : v.Id;
+                v.Category = NormalizeValidationCategory(v.Category);
+                v.Description ??= "Validation rule";
+                v.Target ??= "project";
+                v.Assertion ??= v.Description;
+                return v;
+            })
+            .GroupBy(v => v.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+
+        if (spec.Validations.Count == 0)
+            spec.Validations = BuildFallbackValidations(spec);
+
+        return spec;
+    }
+
+    private static List<PageSpecDto> BuildFallbackPages(List<ApiRouteSpecDto> apiRoutes, List<FileEntryDto> fileManifest)
+    {
+        var routes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var apiRoute in apiRoutes ?? new List<ApiRouteSpecDto>())
+        {
+            var pageRoute = ApiPathToPageRoute(apiRoute.Path);
+            if (!string.IsNullOrWhiteSpace(pageRoute))
+                routes.Add(pageRoute);
+        }
+
+        foreach (var file in fileManifest ?? new List<FileEntryDto>())
+        {
+            var fromFile = FilePathToPageRoute(file.Path);
+            if (!string.IsNullOrWhiteSpace(fromFile))
+                routes.Add(fromFile);
+        }
+
+        if (routes.Count == 0)
+            routes.Add("/");
+
+        return routes
+            .OrderBy(r => r, StringComparer.OrdinalIgnoreCase)
+            .Select(route => new PageSpecDto
+            {
+                Route = route,
+                Name = BuildPageNameFromRoute(route),
+                Layout = route.StartsWith("/auth", StringComparison.OrdinalIgnoreCase)
+                    || route.StartsWith("/login", StringComparison.OrdinalIgnoreCase)
+                    || route.StartsWith("/register", StringComparison.OrdinalIgnoreCase)
+                    ? "public"
+                    : "authenticated",
+                Components = new List<string>(),
+                DataRequirements = new List<string>(),
+                Description = "Generated fallback page from available routes/files."
+            })
+            .ToList();
+    }
+
+    private static List<ValidationRuleDto> BuildFallbackValidations(AppSpecDto spec)
+    {
+        var rules = new List<ValidationRuleDto>
+        {
+            new()
+            {
+                Id = "build-passes",
+                Category = "build-passes",
+                Description = "Project should build successfully.",
+                Target = "project",
+                Assertion = "Build command exits with status code 0.",
+                Automatable = true,
+                Script = "npm run build"
+            }
         };
 
-        private static string FormatDatabase(DatabaseOption opt) => opt switch
+        if (spec.Entities.Any())
         {
-            DatabaseOption.MongoCloud => "MongoDB via Mongoose",
-            _                        => "PostgreSQL via Prisma"
+            rules.Add(new ValidationRuleDto
+            {
+                Id = "entity-schema",
+                Category = "entity-schema",
+                Description = "Entity definitions should include required identifiers and key fields.",
+                Target = "entities",
+                Assertion = "Each entity has a stable identifier field and valid field types.",
+                Automatable = true
+            });
+        }
+
+        if (spec.ApiRoutes.Any())
+        {
+            rules.Add(new ValidationRuleDto
+            {
+                Id = "route-exists",
+                Category = "route-exists",
+                Description = "Declared API routes should be implemented.",
+                Target = "apiRoutes",
+                Assertion = "Every route in spec resolves to a handler implementation.",
+                Automatable = true
+            });
+        }
+
+        if (spec.ApiRoutes.Any(r => r.Auth))
+        {
+            rules.Add(new ValidationRuleDto
+            {
+                Id = "auth-guard",
+                Category = "auth-guard",
+                Description = "Protected API routes should enforce authentication.",
+                Target = "apiRoutes",
+                Assertion = "Routes marked with auth=true require authentication middleware.",
+                Automatable = true
+            });
+        }
+
+        return rules;
+    }
+
+    private static string NormalizePageRoute(string route)
+    {
+        if (string.IsNullOrWhiteSpace(route))
+            return string.Empty;
+
+        var normalized = route.Trim();
+        if (!normalized.StartsWith('/'))
+            normalized = "/" + normalized;
+
+        normalized = normalized.Replace("//", "/");
+        return normalized.Length > 1 ? normalized.TrimEnd('/') : normalized;
+    }
+
+    private static string NormalizeApiPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return string.Empty;
+
+        var normalized = path.Trim();
+        if (!normalized.StartsWith('/'))
+            normalized = "/" + normalized;
+
+        normalized = normalized.Replace("//", "/");
+        return normalized;
+    }
+
+    private static string ApiPathToPageRoute(string apiPath)
+    {
+        if (string.IsNullOrWhiteSpace(apiPath))
+            return null;
+
+        var normalized = NormalizeApiPath(apiPath);
+        if (!normalized.StartsWith("/api", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var pageRoute = normalized[4..];
+        if (string.IsNullOrWhiteSpace(pageRoute))
+            return "/";
+
+        pageRoute = Regex.Replace(pageRoute, @":([A-Za-z0-9_]+)", "[$1]");
+        pageRoute = Regex.Replace(pageRoute, @"\{([A-Za-z0-9_]+)\}", "[$1]");
+        return NormalizePageRoute(pageRoute);
+    }
+
+    private static string FilePathToPageRoute(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
+        var normalized = path.Replace('\\', '/');
+        if (Regex.IsMatch(normalized, @"(^|/)app/page\.[^/]+$", RegexOptions.IgnoreCase))
+            return "/";
+
+        var match = Regex.Match(normalized, @"(^|/)app/(?<route>.+)/page\.[^/]+$", RegexOptions.IgnoreCase);
+        if (!match.Success)
+            return null;
+
+        return NormalizePageRoute(match.Groups["route"].Value);
+    }
+
+    private static string BuildPageNameFromRoute(string route)
+    {
+        if (string.IsNullOrWhiteSpace(route) || route == "/")
+            return "Home";
+
+        var parts = route
+            .Trim('/')
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim('[', ']'))
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(ToPascalCase)
+            .ToList();
+
+        return parts.Count == 0 ? "Page" : string.Join(string.Empty, parts);
+    }
+
+    private static string ToPascalCase(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var tokens = Regex.Split(value, "[^A-Za-z0-9]+")
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => char.ToUpperInvariant(t[0]) + t[1..].ToLowerInvariant());
+
+        return string.Join(string.Empty, tokens);
+    }
+
+    private static string NormalizeLayout(string layout)
+    {
+        var normalized = (layout ?? "authenticated").ToLowerInvariant();
+        return normalized is "authenticated" or "public" or "admin" ? normalized : "authenticated";
+    }
+
+    private static string NormalizeValidationCategory(string category)
+    {
+        var normalized = (category ?? "build-passes").ToLowerInvariant();
+        return normalized switch
+        {
+            "file-exists" or "entity-schema" or "route-exists" or "build-passes" or "lint-passes" or
+            "env-vars" or "test-passes" or "auth-guard" or "type-check" or "api-returns" => normalized,
+            _ => "build-passes"
         };
+    }
+
+    private static List<string> ParseStringList(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Array)
+        {
+            return element.EnumerateArray()
+                .Where(v => v.ValueKind == JsonValueKind.String)
+                .Select(v => v.GetString())
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .ToList();
+        }
+
+        if (element.ValueKind == JsonValueKind.String)
+        {
+            var value = element.GetString();
+            return string.IsNullOrWhiteSpace(value)
+                ? new List<string>()
+                : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        }
+
+        return new List<string>();
+    }
+
+    private static string Slugify(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var slug = Regex.Replace(value.ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
+        return slug.Length > 64 ? slug[..64] : slug;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Scaffold & file helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private string FindTemplateDirectory(string templateSlug)
+    {
+        // Walk up from the current directory and base directory to find the frontend/templates folder
+        var roots = new[] { Directory.GetCurrentDirectory(), AppDomain.CurrentDomain.BaseDirectory };
+        foreach (var root in roots)
+        {
+            var dir = root;
+            for (var i = 0; i < 8; i++)
+            {
+                var candidate = Path.GetFullPath(Path.Combine(dir, "frontend", "templates", templateSlug));
+                if (Directory.Exists(candidate)) return candidate;
+                var parent = Directory.GetParent(dir)?.FullName;
+                if (parent == null || parent == dir) break;
+                dir = parent;
+            }
+        }
+
+        return null;
+    }
+
+    private static List<GeneratedFile> ReadScaffoldFiles(string templateDir)
+    {
+        var files = new List<GeneratedFile>();
+        var allFiles = Directory.GetFiles(templateDir, "*", SearchOption.AllDirectories);
+
+        foreach (var filePath in allFiles)
+        {
+            var relativePath = Path.GetRelativePath(templateDir, filePath).Replace('\\', '/');
+            // Skip hidden directories and node_modules
+            if (relativePath.StartsWith(".git/") || relativePath.Contains("node_modules/"))
+                continue;
+
+            try
+            {
+                var content = File.ReadAllText(filePath);
+                files.Add(new GeneratedFile { Path = relativePath, Content = content });
+            }
+            catch
+            {
+                // Skip binary/unreadable files
+            }
+        }
+
+        return files;
+    }
+
+    private static void WriteFilesToDisk(List<GeneratedFile> files, string outputPath)
+    {
+        foreach (var file in files)
+        {
+            var fullPath = Path.Combine(outputPath, file.Path.Replace('/', Path.DirectorySeparatorChar));
+            var dir = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+
+            File.WriteAllText(fullPath, file.Content);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Prompt builders
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private static string BuildRequirementsPrompt(CreateUpdateProjectDto input)
+    {
+        return $"Analyze the following application idea and provide a structured breakdown.\n\n"
+            + $"Application idea: {input.Prompt}\n"
+            + $"Framework: {input.Framework}\n"
+            + $"Language: {input.Language}\n"
+            + $"Database: {input.DatabaseOption}\n"
+            + $"Include Auth: {input.IncludeAuth}\n\n"
+            + "Return your analysis in the following format:\n"
+            + "===FEATURES===\n<comma-separated list of features>\n===END FEATURES===\n"
+            + "===ARCHITECTURE===\n<brief architecture description>\n===END ARCHITECTURE===\n"
+            + "===PAGES===\n<comma-separated list of page names>\n===END PAGES===\n"
+            + "===API_ENDPOINTS===\n<list of API endpoints, one per line>\n===END API_ENDPOINTS===\n"
+            + "===DB_ENTITIES===\n<list of database entities with fields>\n===END DB_ENTITIES===\n";
+    }
+
+    private static string BuildCodeGenSystemPrompt(string layerDescription, string framework)
+    {
+        return $"You are an expert full-stack developer. Generate production-ready {layerDescription} code for a {framework} application.\n\n"
+            + "Return your response in this exact format:\n"
+            + "===ARCHITECTURE===\n<brief description of this layer>\n===END ARCHITECTURE===\n"
+            + "===MODULES===\n<comma-separated module names>\n===END MODULES===\n"
+            + "Then for each file:\n"
+            + "===FILE===\n<file path relative to project root>\n===CONTENT===\n<file content>\n===END FILE===\n"
+            + "\nGenerate complete, working code. Do not use placeholders or TODOs.";
+    }
+
+    private static string BuildValidationConstraints(List<ValidationRuleDto> validations)
+    {
+        if (validations == null || validations.Count == 0) return string.Empty;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("\n\nIMPORTANT CONSTRAINTS - The generated code MUST satisfy these validations:");
+        foreach (var v in validations)
+        {
+            sb.AppendLine($"- [{v.Category}] {v.Description}: {v.Assertion}");
+        }
+        return sb.ToString();
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Session persistence
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private async Task SaveSession(CodeGenSession session, bool isNew = false)
+    {
+        if (_sessionRepository != null)
+        {
+            if (isNew)
+            {
+                await _sessionRepository.InsertAsync(session);
+            }
+            else
+            {
+                await _sessionRepository.UpdateAsync(session);
+            }
+        }
+        else
+        {
+            InMemorySessions[session.Id.ToString()] = session;
+        }
+    }
+
+    private async Task<CodeGenSession> LoadSession(string sessionId)
+    {
+        if (!Guid.TryParse(sessionId, out var guid))
+            throw new UserFriendlyException("Invalid session ID.");
+
+        CodeGenSession session = null;
+
+        if (_sessionRepository != null)
+        {
+            session = await _sessionRepository.FirstOrDefaultAsync(guid);
+        }
+        else
+        {
+            InMemorySessions.TryGetValue(sessionId, out session);
+        }
+
+        if (session == null)
+            throw new UserFriendlyException($"Session '{sessionId}' not found.");
+
+        return session;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Mapping helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    private CodeGenSessionDto MapSessionToDto(CodeGenSession session)
+    {
+        return new CodeGenSessionDto
+        {
+            Id = session.Id.ToString(),
+            UserId = session.UserId ?? 0,
+            ProjectId = session.ProjectId,
+            ProjectName = session.ProjectName,
+            Prompt = session.Prompt,
+            NormalizedRequirement = session.NormalizedRequirement,
+            DetectedFeatures = DeserializeOrDefault<List<string>>(session.DetectedFeaturesJson) ?? new List<string>(),
+            DetectedEntities = DeserializeOrDefault<List<string>>(session.DetectedEntitiesJson) ?? new List<string>(),
+            ConfirmedStack = DeserializeOrDefault<StackConfigDto>(session.ConfirmedStackJson),
+            Spec = DeserializeOrDefault<AppSpecDto>(session.SpecJson),
+            SpecConfirmedAt = session.SpecConfirmedAt,
+            GenerationStartedAt = session.GenerationStartedAt,
+            GenerationCompletedAt = session.GenerationCompletedAt,
+            Status = session.Status,
+            ValidationResults = DeserializeOrDefault<List<ValidationResultDto>>(session.ValidationResultsJson) ?? new List<ValidationResultDto>(),
+            ScaffoldTemplate = session.ScaffoldTemplate,
+            GeneratedFiles = DeserializeOrDefault<List<GeneratedFileDto>>(session.GeneratedFilesJson) ?? new List<GeneratedFileDto>(),
+            RepairAttempts = session.RepairAttempts,
+            CreatedAt = session.CreatedAt,
+            UpdatedAt = session.UpdatedAt
+        };
+    }
+
+    private static T DeserializeOrDefault<T>(string json) where T : class
+    {
+        if (string.IsNullOrEmpty(json)) return null;
+        try { return JsonSerializer.Deserialize<T>(json, JsonOptions); }
+        catch { return null; }
+    }
+
+    private static Framework MapFrameworkString(string framework)
+    {
+        if (string.IsNullOrEmpty(framework)) return Framework.NextJS;
+        var lower = framework.ToLowerInvariant();
+        if (lower.Contains("next")) return Framework.NextJS;
+        if (lower.Contains("react") || lower.Contains("vite")) return Framework.ReactVite;
+        if (lower.Contains("angular")) return Framework.Angular;
+        if (lower.Contains("vue")) return Framework.Vue;
+        if (lower.Contains("blazor") || lower.Contains(".net")) return Framework.DotNetBlazor;
+        return Framework.NextJS;
+    }
+
+    private static ProgrammingLanguage MapLanguageString(string language)
+    {
+        if (string.IsNullOrEmpty(language)) return ProgrammingLanguage.TypeScript;
+        var lower = language.ToLowerInvariant();
+        if (lower.Contains("javascript") && !lower.Contains("type")) return ProgrammingLanguage.JavaScript;
+        if (lower.Contains("c#") || lower.Contains("csharp")) return ProgrammingLanguage.CSharp;
+        return ProgrammingLanguage.TypeScript;
+    }
+
+    private static DatabaseOption MapDatabaseString(string database)
+    {
+        if (string.IsNullOrEmpty(database)) return DatabaseOption.RenderPostgres;
+        var lower = database.ToLowerInvariant();
+        if (lower.Contains("neon")) return DatabaseOption.NeonPostgres;
+        if (lower.Contains("mongo")) return DatabaseOption.MongoCloud;
+        return DatabaseOption.RenderPostgres;
+    }
+
+    private static async Task ReportProgress(Func<string, Task> onProgress, string message)
+    {
+        if (onProgress != null) await onProgress(message);
     }
 }

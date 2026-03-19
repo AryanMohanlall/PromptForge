@@ -13,14 +13,7 @@ import {
   ProjectStatus,
   useProjectAction,
 } from "@/providers/projects-provider";
-import { getAxiosInstance } from "@/utils/axiosInstance";
-
-interface ITemplate {
-  id: number;
-  name: string;
-  description?: string;
-  category?: string;
-}
+import { useTemplateAction, useTemplateState } from "@/providers/templates-provider";
 
 interface CreateProjectPageProps {
   onNavigate: (page: string) => void;
@@ -31,23 +24,18 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
   const { isGithubConnected, hasCreatedProject } = useAuthState();
   const { connectGithub, markProjectCreated } = useAuthAction();
   const { create } = useProjectAction();
+  const { items: templates, isPending: isLoadingTemplates } = useTemplateState();
+  const { fetchAll: fetchTemplates } = useTemplateAction();
   const [currentStep, setCurrentStep] = useState(1);
   const [prompt, setPrompt] = useState("");
   const [framework, setFramework] = useState("Next.js");
   const [language, setLanguage] = useState("TypeScript");
   const [styling, setStyling] = useState("Tailwind CSS");
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
-  const [templates, setTemplates] = useState<ITemplate[]>([]);
 
   useEffect(() => {
-    const instance = getAxiosInstance();
-    instance
-      .get<{ result: { items: ITemplate[] } }>("/api/services/app/Template/GetAll", {
-        params: { MaxResultCount: 50, SkipCount: 0 },
-      })
-      .then((res) => setTemplates(res.data.result.items))
-      .catch(() => {/* templates are optional — silently ignore */});
-  }, []);
+    fetchTemplates();
+  }, [fetchTemplates]);
   const [database, setDatabase] = useState("PostgreSQL");
   const [authEnabled, setAuthEnabled] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -279,6 +267,72 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
             <div className={styles.mediumSection}>
               <h2 className={styles.title}>Choose your tech stack</h2>
 
+              {/* ── Template selection (always visible) ─────────────────── */}
+              <div className={styles.templateSection}>
+                <h3 className={styles.sectionLabel}>Start from a template</h3>
+                <p className={styles.templateHint}>
+                  Pick a template to guide the AI, or start from scratch and let it figure out the best structure.
+                </p>
+                <div className={styles.templateGrid}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTemplateId(null)}
+                    className={cx(
+                      styles.templateCard,
+                      styles.focusRing,
+                      selectedTemplateId === null ? styles.templateCardSelected : styles.templateCardDefault
+                    )}
+                  >
+                    {selectedTemplateId === null && (
+                      <div className={styles.selectionCheck}>
+                        <CheckIcon className={styles.iconSmall} />
+                      </div>
+                    )}
+                    <div className={styles.templateCardIcon}>
+                      <SparklesIcon style={{ width: 20, height: 20 }} />
+                    </div>
+                    <span className={styles.templateCardName}>Start from scratch</span>
+                    <span className={styles.templateCardDesc}>AI decides the best structure</span>
+                  </button>
+                  {isLoadingTemplates && templates.length === 0 && (
+                    <div className={styles.templateCardDesc} style={{ padding: 16, gridColumn: "1 / -1", textAlign: "center" }}>
+                      Loading templates...
+                    </div>
+                  )}
+                  {templates.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setSelectedTemplateId(t.id)}
+                      className={cx(
+                        styles.templateCard,
+                        styles.focusRing,
+                        selectedTemplateId === t.id ? styles.templateCardSelected : styles.templateCardDefault
+                      )}
+                    >
+                      {selectedTemplateId === t.id && (
+                        <div className={styles.selectionCheck}>
+                          <CheckIcon className={styles.iconSmall} />
+                        </div>
+                      )}
+                      <div className={styles.templateCardIcon}>
+                        <SparklesIcon style={{ width: 20, height: 20 }} />
+                      </div>
+                      <span className={styles.templateCardName}>{t.name}</span>
+                      {t.category && (
+                        <span className={styles.templateCardDesc}>{t.category}</span>
+                      )}
+                      {t.description && (
+                        <span className={styles.templateCardDesc}>{t.description}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className={styles.divider} />
+
+              {/* ── Stack configuration ─────────────────────────────────── */}
               <div className={styles.selectionSection}>
                 <div>
                   <h3 className={styles.sectionLabel}>Framework</h3>
@@ -300,51 +354,6 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
                   {renderSelectionCard(databases, database, setDatabase)}
                 </div>
               </div>
-
-              {templates.length > 0 && (
-                <div>
-                  <h3 className={styles.sectionLabel}>Template (optional)</h3>
-                  <div className={styles.selectionGrid}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTemplateId(null)}
-                      className={cx(
-                        styles.selectionCard,
-                        styles.focusRing,
-                        selectedTemplateId === null ? styles.selectionCardSelected : styles.selectionCardDefault
-                      )}
-                    >
-                      {selectedTemplateId === null && (
-                        <div className={styles.selectionCheck}>
-                          <CheckIcon className={styles.iconSmall} />
-                        </div>
-                      )}
-                      <span className={styles.selectionLabel}>No template</span>
-                    </button>
-                    {templates.map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => setSelectedTemplateId(t.id)}
-                        className={cx(
-                          styles.selectionCard,
-                          styles.focusRing,
-                          selectedTemplateId === t.id ? styles.selectionCardSelected : styles.selectionCardDefault
-                        )}
-                        title={t.description}
-                      >
-                        {selectedTemplateId === t.id && (
-                          <div className={styles.selectionCheck}>
-                            <CheckIcon className={styles.iconSmall} />
-                          </div>
-                        )}
-                        <span className={styles.selectionLabel}>{t.name}</span>
-                        {t.category && <span style={{ fontSize: 11, opacity: 0.6 }}>{t.category}</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               <div className={styles.divider} />
 
@@ -437,6 +446,14 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
                       <div className={styles.summaryItem}>
                         <span className={styles.summaryLabel}>Database</span>
                         <span>{database}</span>
+                      </div>
+                      <div className={styles.summaryItem}>
+                        <span className={styles.summaryLabel}>Template</span>
+                        <span>
+                          {selectedTemplateId === null
+                            ? "Start from scratch"
+                            : templates.find((t) => t.id === selectedTemplateId)?.name ?? "Custom"}
+                        </span>
                       </div>
                       <div className={styles.summaryItem}>
                         <span className={styles.summaryLabel}>Authentication</span>

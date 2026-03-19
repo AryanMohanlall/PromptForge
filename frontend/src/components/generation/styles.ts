@@ -47,11 +47,14 @@ export const useStyles = createStyles(({ token, css }) => ({
     margin: 0;
   `,
   statusBadge: css`
+    display: inline-flex;
+    align-items: center;
     padding: ${token.paddingSM / 2}px ${token.padding}px;
     border-radius: ${token.borderRadiusLG * 1.5}px;
     font-size: ${token.fontSizeSM}px;
     font-weight: ${token.fontWeightStrong};
     border: 1px solid transparent;
+    white-space: nowrap;
   `,
   statusGenerating: css`
     color: ${token.colorWarning};
@@ -87,6 +90,7 @@ export const useStyles = createStyles(({ token, css }) => ({
   `,
   progressFill: css`
     height: 100%;
+    border-radius: ${token.borderRadiusLG}px;
     background: linear-gradient(90deg, ${token.colorPrimary} 0%, ${token.colorSuccess} 100%);
   `,
   progressShimmer: css`
@@ -161,37 +165,46 @@ export const useStyles = createStyles(({ token, css }) => ({
     color: ${token.colorTextSecondary};
     font-size: ${token.fontSizeSM}px;
     font-weight: ${token.fontWeightStrong};
+    white-space: nowrap;
   `,
+
+  // ─── Pipeline steps ──────────────────────────────────────────────────
+
   stepStack: css`
     display: flex;
     flex-direction: column;
-    gap: ${token.marginSM}px;
+    gap: 0;
   `,
   stepRow: css`
     display: flex;
     gap: ${token.marginSM}px;
+    min-height: 56px;
   `,
   stepRail: css`
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: ${token.marginSM / 2}px;
+    width: 28px;
+    flex-shrink: 0;
   `,
   stepDot: css`
-    width: ${token.controlHeightSM}px;
-    height: ${token.controlHeightSM}px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
-    border: 1px solid ${token.colorBorder};
+    border: 2px solid ${token.colorBorder};
     display: flex;
     align-items: center;
     justify-content: center;
-    color: ${token.colorTextSecondary};
+    color: ${token.colorTextQuaternary};
     background: ${token.colorBgContainer};
-    transition: background 0.2s ease, border-color 0.2s ease;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
   `,
   stepDotActive: css`
     border-color: ${token.colorPrimary};
-    box-shadow: 0 0 0 ${token.controlOutlineWidth}px ${token.colorPrimaryBg};
+    color: ${token.colorPrimary};
+    background: ${token.colorPrimaryBg};
+    box-shadow: 0 0 0 4px ${token.colorPrimaryBg};
   `,
   stepDotCompleted: css`
     border-color: ${token.colorSuccess};
@@ -199,13 +212,19 @@ export const useStyles = createStyles(({ token, css }) => ({
     color: ${token.colorBgContainer};
   `,
   stepCheck: css`
-    width: ${token.fontSizeSM}px;
-    height: ${token.fontSizeSM}px;
+    width: 14px;
+    height: 14px;
+  `,
+  stepIcon: css`
+    width: 14px;
+    height: 14px;
   `,
   stepLine: css`
-    width: 1px;
+    width: 2px;
     flex: 1;
+    min-height: 16px;
     background: ${token.colorBorder};
+    transition: background 0.3s ease;
   `,
   stepLineCompleted: css`
     background: ${token.colorSuccess};
@@ -213,226 +232,146 @@ export const useStyles = createStyles(({ token, css }) => ({
   stepContent: css`
     display: flex;
     flex-direction: column;
-    gap: ${token.marginSM / 2}px;
-    padding-top: ${token.marginSM / 2}px;
+    gap: 2px;
+    padding: 4px 0 ${token.marginSM}px;
+    min-width: 0;
+  `,
+  stepTitleRow: css`
+    display: flex;
+    align-items: center;
+    gap: ${token.marginSM}px;
   `,
   stepTitle: css`
     font-size: ${token.fontSize}px;
     font-weight: ${token.fontWeightStrong};
     color: ${token.colorText};
   `,
+  stepTitleActive: css`
+    color: ${token.colorPrimary};
+  `,
+  stepTitlePending: css`
+    color: ${token.colorTextTertiary};
+  `,
+  stepActiveBadge: css`
+    font-size: 11px;
+    font-weight: ${token.fontWeightStrong};
+    color: ${token.colorPrimary};
+    background: ${token.colorPrimaryBg};
+    padding: 1px 8px;
+    border-radius: ${token.borderRadiusLG}px;
+    border: 1px solid ${token.colorPrimaryBorder};
+  `,
+  stepDescription: css`
+    font-size: ${token.fontSizeSM}px;
+    color: ${token.colorTextSecondary};
+    line-height: 1.4;
+  `,
+  stepDetail: css`
+    font-size: ${token.fontSizeSM}px;
+    color: ${token.colorPrimary};
+    font-weight: 500;
+    margin-top: 2px;
+    overflow: hidden;
+  `,
   stepDuration: css`
     font-size: ${token.fontSizeSM}px;
     color: ${token.colorTextSecondary};
   `,
-  codePanel: css`
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    border: 1px solid ${token.colorBorderSecondary};
-    background: ${token.colorBgContainer};
-    box-shadow: ${token.boxShadowSecondary};
-    overflow: hidden;
-  `,
-  codeHeader: css`
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: ${token.paddingSM}px ${token.paddingLG}px;
-    background: ${token.colorFillTertiary};
-    border-bottom: 1px solid ${token.colorBorderSecondary};
-  `,
-  windowDots: css`
-    display: flex;
-    gap: ${token.marginSM / 2}px;
-  `,
-  dot: css`
-    width: ${token.controlHeightSM / 2}px;
-    height: ${token.controlHeightSM / 2}px;
-    border-radius: 50%;
-    background: ${token.colorTextSecondary};
-    opacity: 0.6;
-  `,
-  codeTitle: css`
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorTextSecondary};
-    font-family: ${token.fontFamilyCode};
-  `,
-  codeActions: css`
-    display: flex;
-    gap: ${token.marginSM / 2}px;
-  `,
-  iconButton: css`
-    border: none;
-    background: ${token.colorFillSecondary};
-    width: ${token.controlHeightSM}px;
-    height: ${token.controlHeightSM}px;
-    border-radius: ${token.borderRadiusLG}px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: ${token.colorTextSecondary};
-    cursor: pointer;
-    transition: background 0.2s ease;
 
-    &:hover {
-      background: ${token.colorFillTertiary};
-    }
-  `,
-  codeBody: css`
-    display: grid;
-    grid-template-columns: 1fr;
-    min-height: ${token.paddingXL * 10}px;
+  // ─── Activity feed ────────────────────────────────────────────────────
 
-    @media (min-width: ${token.screenMD}px) {
-      grid-template-columns: ${token.paddingXL * 6}px 1fr;
-    }
-  `,
-  fileTree: css`
-    padding: ${token.paddingLG}px;
-    border-right: 1px solid ${token.colorBorderSecondary};
-    background: ${token.colorFillQuaternary};
+  activityFeed: css`
     display: flex;
     flex-direction: column;
-    gap: ${token.marginSM}px;
-  `,
-  treeItem: css`
-    display: flex;
-    align-items: center;
     gap: ${token.marginSM / 2}px;
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorTextSecondary};
-  `,
-  treeItemIndented: css`
-    display: flex;
-    align-items: center;
-    gap: ${token.marginSM / 2}px;
-    margin-left: ${token.marginLG}px;
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorTextSecondary};
-  `,
-  treeItemActive: css`
-    color: ${token.colorPrimary};
-  `,
-  treeChevron: css`
-    width: ${token.fontSizeSM}px;
-    height: ${token.fontSizeSM}px;
-  `,
-  treeFolder: css`
-    width: ${token.fontSize}px;
-    height: ${token.fontSize}px;
-    color: ${token.colorInfo};
-  `,
-  treeFile: css`
-    width: ${token.fontSize}px;
-    height: ${token.fontSize}px;
-  `,
-  codeContent: css`
-    padding: ${token.paddingLG}px;
-    overflow: auto;
-    background: ${token.colorBgContainer};
-  `,
-  codeBlock: css`
-    margin: 0;
-    font-size: ${token.fontSizeSM}px;
-    font-family: ${token.fontFamilyCode};
-    color: ${token.colorText};
-    white-space: pre-wrap;
-  `,
-  codeKeyword: css`
-    color: ${token.colorPrimary};
-  `,
-  codeString: css`
-    color: ${token.colorSuccess};
-  `,
-  codeFunction: css`
-    color: ${token.colorInfo};
-  `,
-  codeTag: css`
-    color: ${token.colorWarning};
-  `,
-  codeAttr: css`
-    color: ${token.colorPrimaryTextActive};
-  `,
-  logDetails: css`
-    border-radius: ${token.borderRadiusLG * 1.5}px;
-    border: 1px solid ${token.colorBorder};
-    background: ${token.colorFillTertiary};
-    overflow: hidden;
-  `,
-  logSummary: css`
-    padding: ${token.paddingSM}px ${token.paddingLG}px;
-    font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
-    cursor: pointer;
-    list-style: none;
-  `,
-  logBody: css`
-    padding: ${token.paddingLG}px;
-    background: ${token.colorBgContainer};
-    font-family: ${token.fontFamilyCode};
-    font-size: ${token.fontSizeSM}px;
-    color: ${token.colorSuccess};
-    max-height: ${token.paddingXL * 6}px;
+    max-height: 320px;
     overflow-y: auto;
-    line-height: 1.6;
-  `,
-  reviewGrid: css`
-    display: grid;
-    gap: ${token.marginLG}px;
+    padding: ${token.paddingSM}px;
+    background: ${token.colorFillQuaternary};
+    border-radius: ${token.borderRadiusLG}px;
 
-    @media (min-width: ${token.screenMD}px) {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: ${token.colorBorder};
+      border-radius: 2px;
     }
   `,
-  reviewLabel: css`
+  activityItem: css`
+    display: flex;
+    align-items: center;
+    gap: ${token.marginSM}px;
+    padding: 4px 8px;
+    border-radius: ${token.borderRadius}px;
     font-size: ${token.fontSizeSM}px;
-    font-weight: ${token.fontWeightStrong};
-    color: ${token.colorTextSecondary};
-    margin-bottom: ${token.marginSM}px;
   `,
-  reviewList: css`
-    list-style: none;
-    padding: 0;
-    margin: 0;
+  activityDot: css`
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: ${token.colorPrimary};
+    flex-shrink: 0;
+  `,
+  activityDotActive: css`
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: ${token.colorPrimary};
+    flex-shrink: 0;
+  `,
+  activityDotDone: css`
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: ${token.colorSuccess};
+    flex-shrink: 0;
+  `,
+  activityText: css`
+    color: ${token.colorTextSecondary};
+    line-height: 1.4;
+  `,
+  activityTextActive: css`
+    color: ${token.colorPrimary};
+    font-weight: 500;
+    line-height: 1.4;
+  `,
+
+  // ─── Summary grid ─────────────────────────────────────────────────────
+
+  summaryGrid: css`
     display: flex;
     flex-direction: column;
     gap: ${token.marginSM}px;
   `,
-  reviewItem: css`
+  summaryItem: css`
     display: flex;
+    align-items: center;
     gap: ${token.marginSM}px;
-    align-items: flex-start;
+    padding: ${token.paddingSM}px;
+    background: ${token.colorFillQuaternary};
+    border-radius: ${token.borderRadiusLG}px;
   `,
-  reviewIcon: css`
-    width: ${token.fontSizeLG}px;
-    height: ${token.fontSizeLG}px;
+  summaryIcon: css`
+    width: 20px;
+    height: 20px;
     color: ${token.colorPrimary};
-    margin-top: ${token.marginSM / 2}px;
+    flex-shrink: 0;
   `,
-  reviewTitle: css`
+  summaryLabel: css`
     display: block;
     font-weight: ${token.fontWeightStrong};
     color: ${token.colorText};
+    font-size: ${token.fontSize}px;
   `,
-  reviewText: css`
+  summaryValue: css`
     display: block;
     font-size: ${token.fontSizeSM}px;
     color: ${token.colorTextSecondary};
   `,
-  reviewFooter: css`
-    margin-top: ${token.marginLG}px;
-    padding-top: ${token.marginLG}px;
-    border-top: 1px solid ${token.colorBorderSecondary};
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: ${token.marginLG}px;
-    flex-wrap: wrap;
-  `,
-  liveUrlMuted: css`
-    margin: 0;
-    color: ${token.colorTextSecondary};
-    font-size: ${token.fontSizeSM}px;
-  `,
+
+  // ─── CTA / Deploy section ─────────────────────────────────────────────
+
   ctaCard: css`
     background: ${token.colorBgContainer};
     border-radius: ${token.borderRadiusLG * 1.5}px;
@@ -457,6 +396,7 @@ export const useStyles = createStyles(({ token, css }) => ({
     align-items: center;
     justify-content: center;
     color: ${token.colorSuccess};
+    flex-shrink: 0;
   `,
   ctaTitle: css`
     margin: 0 0 ${token.marginSM / 2}px;
@@ -702,6 +642,23 @@ export const useStyles = createStyles(({ token, css }) => ({
     color: ${token.colorBgContainer};
     font-weight: ${token.fontWeightStrong};
     cursor: pointer;
+  `,
+  iconButton: css`
+    border: none;
+    background: ${token.colorFillSecondary};
+    width: ${token.controlHeightSM}px;
+    height: ${token.controlHeightSM}px;
+    border-radius: ${token.borderRadiusLG}px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: ${token.colorTextSecondary};
+    cursor: pointer;
+    transition: background 0.2s ease;
+
+    &:hover {
+      background: ${token.colorFillTertiary};
+    }
   `,
   iconSmall: css`
     width: ${token.fontSize}px;

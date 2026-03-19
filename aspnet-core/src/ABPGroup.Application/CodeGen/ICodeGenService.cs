@@ -1,28 +1,25 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Abp.Application.Services;
+using ABPGroup.CodeGen.Dto;
 using ABPGroup.Projects.Dto;
 
-namespace ABPGroup.CodeGen
+namespace ABPGroup.CodeGen;
+
+public interface ICodeGenAppService : IApplicationService
 {
-    public interface ICodeGenAppService : IApplicationService
-    {
-        Task<CodeGenResult> GenerateProjectAsync(CreateUpdateProjectDto request, Func<string, Task> onProgress = null);
-    }
+    // Legacy single-shot generation (backward compat with ProjectAppService)
+    Task<CodeGenResult> GenerateProjectAsync(CreateUpdateProjectDto input);
+    Task<CodeGenResult> GenerateProjectAsync(CreateUpdateProjectDto input, Func<string, Task> onProgress);
 
-    public class CodeGenResult
-    {
-        public long GeneratedProjectId { get; set; }
-        public string OutputPath { get; set; }
-        public List<GeneratedFile> Files { get; set; }
-        public string ArchitectureSummary { get; set; }
-        public List<string> ModuleList { get; set; }
-    }
-
-    public class GeneratedFile
-    {
-        public string Path { get; set; }
-        public string Content { get; set; }
-    }
+    // Multi-step workflow
+    Task<CodeGenSessionDto> CreateSession(CreateSessionInput input);
+    Task<StackRecommendationDto> RecommendStack(string sessionId);
+    Task<CodeGenSessionDto> SaveStack(SaveStackInput input);
+    Task<CodeGenSessionDto> GenerateSpec(string sessionId);
+    Task<CodeGenSessionDto> SaveSpec(SaveSpecInput input);
+    Task<CodeGenSessionDto> ConfirmSpec(string sessionId);
+    Task<CodeGenSessionDto> Generate(string sessionId);
+    Task<GenerationStatusDto> GetStatus(string sessionId);
+    Task<CodeGenSessionDto> Repair(TriggerRepairInput input);
 }

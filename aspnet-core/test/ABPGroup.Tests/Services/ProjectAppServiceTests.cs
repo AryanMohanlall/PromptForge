@@ -67,7 +67,9 @@ namespace ABPGroup.Tests.Services
 
             var result = await _projectAppService.CreateAsync(dto);
 
-            result.Status.ShouldBe(ProjectStatus.PromptSubmitted);
+            // After creation with PromptSubmittedAt, codegen starts immediately
+            // so the returned status is CodeGenerationInProgress
+            result.Status.ShouldBe(ProjectStatus.CodeGenerationInProgress);
         }
 
         [Fact]
