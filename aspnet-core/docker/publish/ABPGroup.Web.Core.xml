@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>ABPGroup.Web.Core</name>
+    </assembly>
+    <members>
+        <member name="M:ABPGroup.Authentication.External.GitHub.GitHubApiService.GetRepositoryIdAsync(System.String,System.String,System.String)">
+            <summary>
+            Returns the numeric GitHub repository ID required by the Vercel API (gitSource.repoId).
+            Calls GET /repos/{owner}/{repo} and returns the "id" field.
+            </summary>
+        </member>
+        <member name="P:ABPGroup.Controllers.GitHubAppController.CommitGeneratedFilesInput.RepoId">
+            <summary>
+            Numeric GitHub repository ID returned by the GitHub API when
+            the repo was created (field "id"). Required for Vercel deployment.
+            If not provided, the controller will fetch it automatically.
+            </summary>
+        </member>
+        <member name="M:ABPGroup.Deployment.Vercel.IVercelDeploymentService.TriggerDeploymentAsync(System.String,System.Int64,System.String,System.String,System.String)">
+            <summary>
+            repoId — numeric GitHub repository ID from the GitHub API response
+            (field "id" on repo create/get). Required by Vercel gitSource.
+            </summary>
+        </member>
+    </members>
+</doc>
