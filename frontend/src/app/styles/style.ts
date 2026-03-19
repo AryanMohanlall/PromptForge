@@ -40,7 +40,7 @@ export const useStyles = createStyles(({ token, css }) => ({
     border-radius: 50%;
     background: radial-gradient(
       circle,
-      ${token.colorPurple} 0%,
+      #8b5cf6 0%,
       transparent 70%
     );
     opacity: 0.28;
@@ -119,7 +119,7 @@ export const useStyles = createStyles(({ token, css }) => ({
     background: linear-gradient(
       120deg,
       ${token.colorPrimary},
-      ${token.colorPurple},
+      #a855f7,
       ${token.colorWarning}
     );
     -webkit-background-clip: text;
