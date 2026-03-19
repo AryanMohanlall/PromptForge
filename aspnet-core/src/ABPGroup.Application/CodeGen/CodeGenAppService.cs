@@ -117,6 +117,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         context.AppendLine($"Architecture: {result.ArchitectureSummary}");
 
         // Phase 3: Frontend generation
+        await Task.Delay(1000); // Proactive delay to avoid rate limits
         await ReportProgress(onProgress, "[3/5] Generating frontend...");
         var frontendResponse = await CallGroqAsync(
             BuildCodeGenSystemPrompt("frontend pages and components", input.Framework.ToString()),
@@ -130,6 +131,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
             result.ArchitectureSummary = frontendArch;
 
         // Phase 4: Backend generation
+        await Task.Delay(1000); // Proactive delay
         await ReportProgress(onProgress, "[4/5] Generating backend...");
         var backendResponse = await CallGroqAsync(
             BuildCodeGenSystemPrompt("backend API routes and server logic", input.Framework.ToString()),
@@ -139,6 +141,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         result.ModuleList.AddRange(ParseModules(backendResponse));
 
         // Phase 5: Database generation
+        await Task.Delay(1000); // Proactive delay
         await ReportProgress(onProgress, "[5/5] Generating database layer...");
         var dbResponse = await CallGroqAsync(
             BuildCodeGenSystemPrompt("database schema and data access layer", input.Framework.ToString()),
@@ -218,40 +221,60 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
 
     public async Task<StackRecommendationDto> RecommendStack(string sessionId)
     {
-        var session = await LoadSession(sessionId);
-
-        var response = await CallGroqAsync(
-            "You are an expert software architect. Based on the application requirements, recommend the best technology stack. "
-            + "Return your recommendation in the following delimited format:\n"
-            + "===FRAMEWORK===\n<framework name, e.g. Next.js, React + Vite, Angular, Vue, .NET Blazor>\n===END FRAMEWORK===\n"
-            + "===LANGUAGE===\n<language, e.g. TypeScript, JavaScript, C#>\n===END LANGUAGE===\n"
-            + "===STYLING===\n<styling approach, e.g. Tailwind CSS, Ant Design, Material UI, CSS Modules>\n===END STYLING===\n"
-            + "===DATABASE===\n<database, e.g. PostgreSQL, MongoDB, SQLite>\n===END DATABASE===\n"
-            + "===ORM===\n<ORM, e.g. Prisma, Drizzle, TypeORM, Entity Framework>\n===END ORM===\n"
-            + "===AUTH===\n<auth approach, e.g. NextAuth.js, JWT, OAuth2, None>\n===END AUTH===\n"
-            + "===REASONING===\n<JSON object with keys matching each choice above, values explaining why>\n===END REASONING===\n",
-            $"Application: {session.NormalizedRequirement}\n"
-            + $"Features: {session.DetectedFeaturesJson}\n"
-            + $"Entities: {session.DetectedEntitiesJson}");
-
-        var reasoning = new Dictionary<string, string>();
-        var reasoningStr = ParseDelimitedSection(response, "REASONING")?.Trim();
-        if (!string.IsNullOrEmpty(reasoningStr))
+        try
         {
-            try { reasoning = JsonSerializer.Deserialize<Dictionary<string, string>>(reasoningStr, JsonOptions); }
-            catch { /* fallback to empty reasoning */ }
+            Logger.Debug($"RecommendStack: Loading session {sessionId}");
+            var session = await LoadSession(sessionId);
+
+            Logger.Debug($"RecommendStack: Calling Groq for session {sessionId}");
+            var response = await CallGroqAsync(
+                "You are an expert software architect. Based on the application requirements, recommend the best technology stack. "
+                + "Return your recommendation in the following delimited format:\n"
+                + "===FRAMEWORK===\n<framework name, e.g. Next.js, React + Vite, Angular, Vue, .NET Blazor>\n===END FRAMEWORK===\n"
+                + "===LANGUAGE===\n<language, e.g. TypeScript, JavaScript, C#>\n===END LANGUAGE===\n"
+                + "===STYLING===\n<styling approach, e.g. Tailwind CSS, Ant Design, Material UI, CSS Modules>\n===END STYLING===\n"
+                + "===DATABASE===\n<database, e.g. PostgreSQL, MongoDB, SQLite>\n===END DATABASE===\n"
+                + "===ORM===\n<ORM, e.g. Prisma, Drizzle, TypeORM, Entity Framework>\n===END ORM===\n"
+                + "===AUTH===\n<auth approach, e.g. NextAuth.js, JWT, OAuth2, None>\n===END AUTH===\n"
+                + "===REASONING===\n<JSON object with keys matching each choice above, values explaining why>\n===END REASONING===\n",
+                $"Application: {session.NormalizedRequirement}\n"
+                + $"Features: {session.DetectedFeaturesJson}\n"
+                + $"Entities: {session.DetectedEntitiesJson}");
+
+            var reasoning = new Dictionary<string, string>();
+            var reasoningStr = ParseDelimitedSection(response, "REASONING")?.Trim();
+            if (!string.IsNullOrEmpty(reasoningStr))
+            {
+                try
+                {
+                    reasoning = JsonSerializer.Deserialize<Dictionary<string, string>>(reasoningStr, JsonOptions);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn($"RecommendStack: Failed to parse reasoning JSON: {ex.Message}");
+                }
+            }
+
+            return new StackRecommendationDto
+            {
+                Framework = ParseDelimitedSection(response, "FRAMEWORK")?.Trim() ?? "Next.js",
+                Language = ParseDelimitedSection(response, "LANGUAGE")?.Trim() ?? "TypeScript",
+                Styling = ParseDelimitedSection(response, "STYLING")?.Trim() ?? "Tailwind CSS",
+                Database = ParseDelimitedSection(response, "DATABASE")?.Trim() ?? "PostgreSQL",
+                Orm = ParseDelimitedSection(response, "ORM")?.Trim() ?? "Prisma",
+                Auth = ParseDelimitedSection(response, "AUTH")?.Trim() ?? "NextAuth.js",
+                Reasoning = reasoning ?? new Dictionary<string, string>()
+            };
         }
-
-        return new StackRecommendationDto
+        catch (UserFriendlyException)
         {
-            Framework = ParseDelimitedSection(response, "FRAMEWORK")?.Trim() ?? "Next.js",
-            Language = ParseDelimitedSection(response, "LANGUAGE")?.Trim() ?? "TypeScript",
-            Styling = ParseDelimitedSection(response, "STYLING")?.Trim() ?? "Tailwind CSS",
-            Database = ParseDelimitedSection(response, "DATABASE")?.Trim() ?? "PostgreSQL",
-            Orm = ParseDelimitedSection(response, "ORM")?.Trim() ?? "Prisma",
-            Auth = ParseDelimitedSection(response, "AUTH")?.Trim() ?? "NextAuth.js",
-            Reasoning = reasoning ?? new Dictionary<string, string>()
-        };
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"RecommendStack: Unexpected error for session {sessionId}", ex);
+            throw new UserFriendlyException($"Failed to generate stack recommendation: {ex.Message}");
+        }
     }
 
     [HttpPut]
@@ -273,49 +296,66 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
 
     public async Task<CodeGenSessionDto> GenerateSpec(string sessionId)
     {
-        var session = await LoadSession(sessionId);
-        if (session.Status < (int)CodeGenStatus.StackConfirmed)
-            throw new UserFriendlyException("Stack must be confirmed before generating spec.");
-
-        var stack = DeserializeOrDefault<StackConfigDto>(session.ConfirmedStackJson);
-        var features = DeserializeOrDefault<List<string>>(session.DetectedFeaturesJson) ?? new List<string>();
-        var entities = DeserializeOrDefault<List<string>>(session.DetectedEntitiesJson) ?? new List<string>();
-
-        string response;
         try
         {
-            response = await CallGroqAsync(
-                "You are an expert software architect. Generate a comprehensive application specification as a JSON object. "
-                + "The spec must include: entities (with fields, types, relations), pages (with routes, components, data requirements), "
-                + "apiRoutes (with method, path, handler, requestBody, responseShape, auth), "
-                + "validations (rules the generated code must satisfy, e.g. file-exists, build-passes, auth-guard), "
-                + "and fileManifest (all files that will be generated). "
-                + "Return ONLY valid JSON wrapped in delimiters:\n"
-                + "===SPEC_JSON===\n{...}\n===END SPEC_JSON===",
-                $"Application: {session.NormalizedRequirement}\n"
-                + $"Features: {string.Join(", ", features)}\n"
-                + $"Entities: {string.Join(", ", entities)}\n"
-                + $"Stack: Framework={stack?.Framework}, Language={stack?.Language}, "
-                + $"Styling={stack?.Styling}, Database={stack?.Database}, ORM={stack?.Orm}, Auth={stack?.Auth}");
+            Logger.Debug($"GenerateSpec: Loading session {sessionId}");
+            var session = await LoadSession(sessionId);
+            if (session.Status < (int)CodeGenStatus.StackConfirmed)
+                throw new UserFriendlyException("Stack must be confirmed before generating spec.");
+
+            var stack = DeserializeOrDefault<StackConfigDto>(session.ConfirmedStackJson);
+            var features = DeserializeOrDefault<List<string>>(session.DetectedFeaturesJson) ?? new List<string>();
+            var entities = DeserializeOrDefault<List<string>>(session.DetectedEntitiesJson) ?? new List<string>();
+
+            Logger.Debug($"GenerateSpec: Calling Groq for session {sessionId}");
+            string response;
+            try
+            {
+                response = await CallGroqAsync(
+                    "You are an expert software architect. Generate a comprehensive application specification as a JSON object. "
+                    + "The spec must include: entities (with fields, types, relations), pages (with routes, components, data requirements), "
+                    + "apiRoutes (with method, path, handler, requestBody, responseShape, auth), "
+                    + "validations (rules the generated code must satisfy, e.g. file-exists, build-passes, auth-guard), "
+                    + "and fileManifest (all files that will be generated). "
+                    + "Return ONLY valid JSON wrapped in delimiters:\n"
+                    + "===SPEC_JSON===\n{...}\n===END SPEC_JSON===",
+                    $"Application: {session.NormalizedRequirement}\n"
+                    + $"Features: {string.Join(", ", features)}\n"
+                    + $"Entities: {string.Join(", ", entities)}\n"
+                    + $"Stack: Framework={stack?.Framework}, Language={stack?.Language}, "
+                    + $"Styling={stack?.Styling}, Database={stack?.Database}, ORM={stack?.Orm}, Auth={stack?.Auth}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error("GenerateSpec: Groq API call failed", ex);
+                throw new UserFriendlyException($"AI service call failed: {ex.Message}");
+            }
+
+            Logger.Debug($"GenerateSpec: Parsing response for session {sessionId}");
+            var specJson = ParseDelimitedSection(response, "SPEC_JSON")?.Trim();
+            var spec = ParseSpecOrDefault(specJson, out var parseWarning);
+            if (!string.IsNullOrEmpty(parseWarning))
+            {
+                Logger.Warn(parseWarning);
+            }
+
+            Logger.Debug($"GenerateSpec: Saving spec for session {sessionId}");
+            session.SpecJson = JsonSerializer.Serialize(spec, JsonOptions);
+            session.Status = (int)CodeGenStatus.SpecGenerated;
+            session.UpdatedAt = DateTime.UtcNow;
+            
+            await SaveSession(session);
+            return MapSessionToDto(session);
+        }
+        catch (UserFriendlyException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            Logger.Error("GenerateSpec: Groq API call failed", ex);
-            throw new UserFriendlyException($"AI service call failed: {ex.Message}");
+            Logger.Error($"GenerateSpec: Unexpected error for session {sessionId}", ex);
+            throw new UserFriendlyException($"An unexpected error occurred during spec generation: {ex.Message}");
         }
-
-        var specJson = ParseDelimitedSection(response, "SPEC_JSON")?.Trim();
-        var spec = ParseSpecOrDefault(specJson, out var parseWarning);
-        if (!string.IsNullOrEmpty(parseWarning))
-        {
-            Logger.Warn(parseWarning);
-        }
-
-        session.SpecJson = JsonSerializer.Serialize(spec, JsonOptions);
-        session.Status = (int)CodeGenStatus.SpecGenerated;
-        session.UpdatedAt = DateTime.UtcNow;
-        await SaveSession(session);
-        return MapSessionToDto(session);
     }
 
     [HttpPut]
@@ -461,36 +501,64 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
         var apiKey = _configuration["Groq:ApiKey"];
         var model = _configuration["Groq:Model"] ?? "llama-3.3-70b-versatile";
 
-        var client = _httpClientFactory.CreateClient();
-        var requestBody = new
+        int maxRetries = 3;
+        int delaySeconds = 2;
+
+        for (int i = 0; i <= maxRetries; i++)
         {
-            model,
-            messages = new[]
+            try
             {
-                new { role = "system", content = systemPrompt },
-                new { role = "user", content = userPrompt }
-            },
-            temperature = 0.7,
-            max_tokens = 8192
-        };
+                var client = _httpClientFactory.CreateClient();
+                var requestBody = new
+                {
+                    model,
+                    messages = new[]
+                    {
+                        new { role = "system", content = systemPrompt },
+                        new { role = "user", content = userPrompt }
+                    },
+                    temperature = 0.7,
+                    max_tokens = 8192
+                };
 
-        var json = JsonSerializer.Serialize(requestBody);
-        var request = new HttpRequestMessage(HttpMethod.Post, "https://api.groq.com/openai/v1/chat/completions")
-        {
-            Content = new StringContent(json, Encoding.UTF8, "application/json")
-        };
-        request.Headers.Add("Authorization", $"Bearer {apiKey}");
+                var json = JsonSerializer.Serialize(requestBody);
+                var request = new HttpRequestMessage(HttpMethod.Post, "https://api.groq.com/openai/v1/chat/completions")
+                {
+                    Content = new StringContent(json, Encoding.UTF8, "application/json")
+                };
+                request.Headers.Add("Authorization", $"Bearer {apiKey}");
 
-        var response = await client.SendAsync(request);
-        response.EnsureSuccessStatusCode();
+                var response = await client.SendAsync(request);
+                
+                if (response.StatusCode == (System.Net.HttpStatusCode)429)
+                {
+                    if (i == maxRetries) throw new UserFriendlyException("AI service is currently overloaded. Please try again in a few minutes.");
+                    
+                    Logger.Warn($"Groq API Rate Limit (429). Retrying in {delaySeconds}s... (Attempt {i + 1}/{maxRetries})");
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                    delaySeconds *= 2; // Exponential backoff
+                    continue;
+                }
 
-        var responseJson = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(responseJson);
-        return doc.RootElement
-            .GetProperty("choices")[0]
-            .GetProperty("message")
-            .GetProperty("content")
-            .GetString() ?? string.Empty;
+                response.EnsureSuccessStatusCode();
+
+                var responseJson = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(responseJson);
+                return doc.RootElement
+                    .GetProperty("choices")[0]
+                    .GetProperty("message")
+                    .GetProperty("content")
+                    .GetString() ?? string.Empty;
+            }
+            catch (HttpRequestException ex) when (i < maxRetries)
+            {
+                Logger.Warn($"Groq API Request failed: {ex.Message}. Retrying in {delaySeconds}s...");
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                delaySeconds *= 2;
+            }
+        }
+
+        throw new UserFriendlyException("Failed to communicate with the AI service after multiple attempts.");
     }
 
     // ──────────────────────────────────────────────────────────────────────────

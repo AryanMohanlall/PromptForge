@@ -50,8 +50,8 @@ public class ABPGroupDbContext : AbpZeroDbContext<Tenant, Role, User, ABPGroupDb
         {
             b.ToTable("CodeGenSessions");
             b.HasKey(x => x.Id);
-            b.Property(x => x.Prompt).HasMaxLength(5000);
-            b.Property(x => x.NormalizedRequirement).HasMaxLength(5000);
+            b.Property(x => x.Prompt).HasMaxLength(10000);
+            b.Property(x => x.NormalizedRequirement).HasMaxLength(10000);
             b.Property(x => x.ProjectName).HasMaxLength(128);
             b.Property(x => x.ScaffoldTemplate).HasMaxLength(256);
             b.Property(x => x.CurrentPhase).HasMaxLength(128);
