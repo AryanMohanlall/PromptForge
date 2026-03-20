@@ -1,11 +1,9 @@
 using System.ComponentModel.DataAnnotations;
-using Abp.AutoMapper;
-using ABPGroup.Git;
+using Abp.Application.Services.Dto;
 
 namespace ABPGroup.Git.Dto
 {
-    [AutoMapTo(typeof(GitProfile))]
-    public class CreateUpdateGitProfileDto
+    public class CreateUpdateGitProfileDto : EntityDto<long>
     {
         public GitProvider Provider { get; set; }
 

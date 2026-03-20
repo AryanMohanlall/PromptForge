@@ -76,7 +76,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
     public Task<CodeGenResult> GenerateProjectAsync(CreateUpdateProjectDto input)
         => GenerateProjectAsync(input, null);
 
-    public async Task<CodeGenResult> GenerateProjectAsync(
+    internal async Task<CodeGenResult> GenerateProjectAsync(
         CreateUpdateProjectDto input,
         Func<string, Task> onProgress)
     {

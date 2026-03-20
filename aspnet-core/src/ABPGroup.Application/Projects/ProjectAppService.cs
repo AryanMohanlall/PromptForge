@@ -148,7 +148,7 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
                     }
 
                     Console.WriteLine($"[CodeGen] Starting GenerateProjectAsync for project {projectId}");
-                    var codeGenResult = await codeGenAppService.GenerateProjectAsync(input, OnProgress);
+                    var codeGenResult = await ((CodeGen.CodeGenAppService)codeGenAppService).GenerateProjectAsync(input, OnProgress);
                     Console.WriteLine($"[CodeGen] GenerateProjectAsync completed for project {projectId}. Files: {codeGenResult?.Files?.Count ?? 0}");
 
                     var project = await repository.GetAsync(projectId);

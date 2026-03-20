@@ -28,4 +28,27 @@ public static class PermissionNames
     public const string Pages_Templates_Create = "Pages.Templates.Create";
     public const string Pages_Templates_Edit = "Pages.Templates.Edit";
     public const string Pages_Templates_Delete = "Pages.Templates.Delete";
+
+    public const string Pages_GitProfiles = "Pages.GitProfiles";
+    public const string Pages_GitProfiles_Create = "Pages.GitProfiles.Create";
+    public const string Pages_GitProfiles_Edit = "Pages.GitProfiles.Edit";
+    public const string Pages_GitProfiles_Delete = "Pages.GitProfiles.Delete";
+
+    public const string Pages_ProjectRepositories = "Pages.ProjectRepositories";
+    public const string Pages_ProjectRepositories_Create = "Pages.ProjectRepositories.Create";
+    public const string Pages_ProjectRepositories_Edit = "Pages.ProjectRepositories.Edit";
+    public const string Pages_ProjectRepositories_Delete = "Pages.ProjectRepositories.Delete";
+
+    public const string Pages_RepositoryCommits = "Pages.RepositoryCommits";
+
+    public const string Pages_BuildJobs = "Pages.BuildJobs";
+
+    public const string Pages_GeneratedArtifacts = "Pages.GeneratedArtifacts";
+
+    public const string Pages_Deployments = "Pages.Deployments";
+    public const string Pages_Deployments_Create = "Pages.Deployments.Create";
+    public const string Pages_Deployments_Edit = "Pages.Deployments.Edit";
+    public const string Pages_Deployments_Delete = "Pages.Deployments.Delete";
+
+    public const string Pages_DeploymentLogs = "Pages.DeploymentLogs";
 }

@@ -32,6 +32,29 @@ public class ABPGroupAuthorizationProvider : AuthorizationProvider
         templatesPermission.CreateChildPermission(PermissionNames.Pages_Templates_Create, L("CreateTemplate"));
         templatesPermission.CreateChildPermission(PermissionNames.Pages_Templates_Edit, L("EditTemplate"));
         templatesPermission.CreateChildPermission(PermissionNames.Pages_Templates_Delete, L("DeleteTemplate"));
+
+        var gitProfilesPermission = context.CreatePermission(PermissionNames.Pages_GitProfiles, L("GitProfiles"));
+        gitProfilesPermission.CreateChildPermission(PermissionNames.Pages_GitProfiles_Create, L("CreateGitProfile"));
+        gitProfilesPermission.CreateChildPermission(PermissionNames.Pages_GitProfiles_Edit, L("EditGitProfile"));
+        gitProfilesPermission.CreateChildPermission(PermissionNames.Pages_GitProfiles_Delete, L("DeleteGitProfile"));
+
+        var projectRepositoriesPermission = context.CreatePermission(PermissionNames.Pages_ProjectRepositories, L("ProjectRepositories"));
+        projectRepositoriesPermission.CreateChildPermission(PermissionNames.Pages_ProjectRepositories_Create, L("CreateProjectRepository"));
+        projectRepositoriesPermission.CreateChildPermission(PermissionNames.Pages_ProjectRepositories_Edit, L("EditProjectRepository"));
+        projectRepositoriesPermission.CreateChildPermission(PermissionNames.Pages_ProjectRepositories_Delete, L("DeleteProjectRepository"));
+
+        context.CreatePermission(PermissionNames.Pages_RepositoryCommits, L("RepositoryCommits"));
+
+        context.CreatePermission(PermissionNames.Pages_BuildJobs, L("BuildJobs"));
+
+        context.CreatePermission(PermissionNames.Pages_GeneratedArtifacts, L("GeneratedArtifacts"));
+
+        var deploymentsPermission = context.CreatePermission(PermissionNames.Pages_Deployments, L("Deployments"));
+        deploymentsPermission.CreateChildPermission(PermissionNames.Pages_Deployments_Create, L("CreateDeployment"));
+        deploymentsPermission.CreateChildPermission(PermissionNames.Pages_Deployments_Edit, L("EditDeployment"));
+        deploymentsPermission.CreateChildPermission(PermissionNames.Pages_Deployments_Delete, L("DeleteDeployment"));
+
+        context.CreatePermission(PermissionNames.Pages_DeploymentLogs, L("DeploymentLogs"));
     }
 
     private static ILocalizableString L(string name)

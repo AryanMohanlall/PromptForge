@@ -1,11 +1,8 @@
 using System;
 using Abp.Application.Services.Dto;
-using Abp.AutoMapper;
-using ABPGroup.Builds;
 
 namespace ABPGroup.Builds.Dto
 {
-    [AutoMapFrom(typeof(GeneratedArtifact))]
     public class GeneratedArtifactDto : EntityDto<long>
     {
         public long ProjectId { get; set; }

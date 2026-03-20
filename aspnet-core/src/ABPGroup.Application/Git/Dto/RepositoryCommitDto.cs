@@ -1,11 +1,8 @@
 using System;
 using Abp.Application.Services.Dto;
-using Abp.AutoMapper;
-using ABPGroup.Git;
 
 namespace ABPGroup.Git.Dto
 {
-    [AutoMapFrom(typeof(RepositoryCommit))]
     public class RepositoryCommitDto : EntityDto<long>
     {
         public long ProjectRepositoryId { get; set; }
