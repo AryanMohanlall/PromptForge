@@ -76,7 +76,6 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       framework: frameworkMap[item.framework] ?? "Next.js",
       language: languageMap[item.language] ?? "TypeScript",
       updatedAt: `Updated ${new Date(item.updatedAt).toLocaleString()}`,
-      url: item.lastDeploymentUrl || undefined,
     }));
   }, [items]);
 

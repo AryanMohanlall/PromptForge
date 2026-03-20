@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  LayoutGridIcon,
   FolderIcon,
   LayoutTemplateIcon,
   SettingsIcon,
@@ -178,7 +177,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         <div className={styles.footer}>
           <button
             type="button"
-            className={cx(styles.profileButton, styles.focusRing)}
+            className={cx(styles.profileCard, styles.focusRing)}
           >
             <div className={styles.profileInfo}>
               <div className={styles.avatar}>{initials}</div>
@@ -188,7 +187,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                 <span className={styles.roleBadge}>{rolesLabel}</span>
               </div>
             </div>
-          </div>
+          </button>
 
           <button
             type="button"

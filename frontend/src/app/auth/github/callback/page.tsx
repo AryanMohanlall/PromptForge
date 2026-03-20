@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { setAuthToken } from "@/utils/axiosInstance";
 
 const AUTH_USER_KEY = "auth_user";
 const GITHUB_CONNECTED_KEY = "github_connected";
@@ -18,7 +19,7 @@ function deleteCookie(name: string) {
 function GitHubCallback() {
   const router = useRouter();
 
-/*   useEffect(() => {
+  /*   useEffect(() => {
     const raw = getCookie("github_auth_result");
 
     if (!raw) {
@@ -40,29 +41,29 @@ function GitHubCallback() {
   }, [router]); */
 
   useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  const accessToken = params.get("token");
-  const userId = params.get("userId");
-  const expireInSeconds = params.get("expireInSeconds");
+    const params = new URLSearchParams(window.location.search);
+    const accessToken = params.get("token");
+    const userId = params.get("userId");
+    const expireInSeconds = params.get("expireInSeconds");
 
-  if (!accessToken || !userId) {
-    router.replace("/login?error=missing_token");
-    return;
-  }
+    if (!accessToken || !userId) {
+      router.replace("/login?error=missing_token");
+      return;
+    }
 
-  setAuthToken(accessToken);
+    setAuthToken(accessToken);
 
-  sessionStorage.setItem(
-    AUTH_USER_KEY,
-    JSON.stringify({
-      userId: Number(userId),
-      accessToken,
-      expireInSeconds: Number(expireInSeconds ?? 86400),
-    }),
-  );
+    sessionStorage.setItem(
+      AUTH_USER_KEY,
+      JSON.stringify({
+        userId: Number(userId),
+        accessToken,
+        expireInSeconds: Number(expireInSeconds ?? 86400),
+      }),
+    );
 
-  router.replace("/dashboard");
-}, [router]);
+    router.replace("/dashboard");
+  }, [router]);
 
   return (
     <div
