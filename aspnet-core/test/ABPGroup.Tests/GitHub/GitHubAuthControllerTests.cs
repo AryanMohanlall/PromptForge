@@ -319,7 +319,7 @@ namespace ABPGroup.Tests.GitHub
         // ── GitHubCallback — happy path ────────────────────────────────────
 
         [Fact]
-        public async Task GitHubCallback_Success_RedirectsToFrontendCallback()
+        public async Task GitHubCallback_Success_RedirectsToFrontendCallbackWithTokenInUrl()
         {
             const string state = "state-ok";
             _requestCookies.Setup(c => c["github_oauth_state"]).Returns(state);
@@ -350,42 +350,9 @@ namespace ABPGroup.Tests.GitHub
 
             var result = (RedirectResult)await controller.GitHubCallback("code", state);
 
-            Assert.Equal(ClientRoot + "/auth/github/callback", result.Url);
-        }
-
-        [Fact]
-        public async Task GitHubCallback_Success_SetsGitHubAuthResultCookie()
-        {
-            const string state = "state-cookie";
-            _requestCookies.Setup(c => c["github_oauth_state"]).Returns(state);
-
-            var appUser = new User { Id = 7, UserName = "cookie-dev" };
-            var principal = BuildClaimsPrincipal("7");
-
-            _gitHubApi
-                .Setup(s => s.ExchangeCodeForAccessTokenAsync(
-                    It.IsAny<string>(), It.IsAny<string>(),
-                    It.IsAny<string>(), It.IsAny<string>()))
-                .ReturnsAsync("gho_token");
-            _gitHubApi
-                .Setup(s => s.GetUserInfoAsync(It.IsAny<string>()))
-                .ReturnsAsync(new GitHubUserInfo { Id = 10, Login = "cookie-dev" });
-            _gitHubUserService
-                .Setup(s => s.GetOrCreateAsync(It.IsAny<GitHubUserInfo>(), It.IsAny<string>()))
-                .ReturnsAsync(appUser);
-            _claimsFactory
-                .Setup(f => f.CreateAsync(appUser))
-                .ReturnsAsync(principal);
-
-            var controller = BuildController();
-            await controller.GitHubCallback("code", state);
-
-            _responseCookies.Verify(
-                c => c.Append(
-                    "github_auth_result",
-                    It.IsNotNull<string>(),
-                    It.IsAny<CookieOptions>()),
-                Times.Once);
+            Assert.StartsWith(ClientRoot + "/auth/github/callback?token=", result.Url);
+            Assert.Contains("&userId=5", result.Url);
+            Assert.Contains("&expireInSeconds=86400", result.Url);
         }
 
         [Fact]
