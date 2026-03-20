@@ -11,7 +11,15 @@
       "Bash(nvm use:*)",
       "Bash(npx next:*)",
       "Bash(dotnet test:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(npx eslint:*)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet ef:*)",
+      "Bash(PGPASSWORD='Q5TpUyf1LIzmKsifececMQ2Q3er2GCdW' psql -h dpg-d6q19175gffc73ducn0g-a.oregon-postgres.render.com -p 5432 -U abpgroup_user -d abpgroup -c \"SELECT \"\"MigrationId\"\" FROM \"\"__EFMigrationsHistory\"\" ORDER BY \"\"MigrationId\"\" DESC LIMIT 5;\")",
+      "Bash(dotnet add:*)",
+      "Bash(dotnet run:*)",
+      "Skill(add-endpoint)",
+      "Skill(add-endpoint:*)"
     ]
   }
 }

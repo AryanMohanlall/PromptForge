@@ -1,5 +1,6 @@
 ﻿using Abp.Authorization.Users;
 using Abp.Extensions;
+using ABPGroup.Git;
 using ABPGroup.Persons;
 using System;
 using System.Collections.Generic;
@@ -14,6 +15,7 @@ public class User : AbpUser<User>
 
     public PersonRole Role { get; set; } = PersonRole.Admin;
 
+    // Legacy GitHub fields kept for backward compatibility.
     [MaxLength(256)]
     public string GitHubUsername { get; set; }
 
@@ -22,6 +24,11 @@ public class User : AbpUser<User>
 
     [MaxLength(1024)]
     public string AvatarUrl { get; set; }
+
+    /// <summary>
+    /// Git provider connections for this user.
+    /// </summary>
+    public ICollection<GitProfile> GitProfiles { get; set; } = new List<GitProfile>();
 
     public const string DefaultPassword = "123qwe";
 

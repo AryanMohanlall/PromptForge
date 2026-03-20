@@ -1,10 +1,16 @@
 using Abp.Domain.Entities;
+using ABPGroup.Builds;
+using ABPGroup.Deployments;
+using ABPGroup.Git;
 using ABPGroup.MultiTenancy;
 using System;
 using System.Collections.Generic;
 
 namespace ABPGroup.Projects;
 
+/// <summary>
+/// Main aggregate root for a generated application.
+/// </summary>
 public class Project : Entity<long>
 {
     public int WorkspaceId { get; set; }
@@ -46,4 +52,15 @@ public class Project : Entity<long>
     public string StatusMessage { get; set; }
 
     public ICollection<Prompt> Prompts { get; set; }
+
+    /// <summary>
+    /// The Git repository backing this project (1:1).
+    /// </summary>
+    public ProjectRepository Repository { get; set; }
+
+    public ICollection<BuildJob> BuildJobs { get; set; } = new List<BuildJob>();
+
+    public ICollection<GeneratedArtifact> GeneratedArtifacts { get; set; } = new List<GeneratedArtifact>();
+
+    public ICollection<Deployment> Deployments { get; set; } = new List<Deployment>();
 }
