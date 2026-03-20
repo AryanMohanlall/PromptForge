@@ -13,7 +13,13 @@ import {
 } from "antd";
 import { useEffect, useState } from "react";
 import { getAxiosInstance } from "@/utils/axiosInstance";
-import { GithubIcon, CheckCircleIcon, AlertCircleIcon } from "lucide-react";
+import {
+  GithubIcon,
+  CheckCircleIcon,
+  AlertCircleIcon,
+  UserPlusIcon,
+} from "lucide-react";
+import InviteModal from "@/components/auth/InviteModal";
 
 interface GitHubStatus {
   connected: boolean;
@@ -28,6 +34,7 @@ export default function SettingsPage() {
   const { styles } = useStyles();
   const [githubStatus, setGithubStatus] = useState<GitHubStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
   const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:44311";
@@ -188,7 +195,34 @@ export default function SettingsPage() {
             )}
           </Spin>
         </Card>
+
+        <Card
+          className={styles.card}
+          title={
+            <Space>
+              <UserPlusIcon size={20} />
+              User Invitations
+            </Space>
+          }
+        >
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+            Invite new users to join your organization. They will receive an
+            email with a link to create their account.
+          </Typography.Paragraph>
+          <Button
+            type="primary"
+            onClick={() => setInviteModalOpen(true)}
+            icon={<UserPlusIcon size={16} />}
+          >
+            Invite User
+          </Button>
+        </Card>
       </div>
+
+      <InviteModal
+        open={inviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+      />
     </div>
   );
 }

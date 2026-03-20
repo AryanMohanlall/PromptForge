@@ -10,12 +10,7 @@ import {
   useInputStyles,
   useAuthStyles,
 } from "./styles/style";
-import {
-  MailIcon,
-  LockIcon,
-  UserIcon,
-  BrandingStackIcon,
-} from "./icons";
+import { MailIcon, LockIcon, UserIcon, BrandingStackIcon } from "./icons";
 import { useAuthAction, useAuthState } from "@/providers/auth-provider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -30,7 +25,12 @@ interface InputProps {
   readonly confirmState?: "idle" | "match" | "mismatch";
 }
 
-const decodeTenantId = (value: string | null) => {
+interface InvitePayload {
+  tenantId: number;
+  role: string;
+}
+
+const decodeInviteToken = (value: string | null): InvitePayload | undefined => {
   if (!value) return undefined;
   try {
     const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -40,8 +40,14 @@ const decodeTenantId = (value: string | null) => {
         ? normalized.padEnd(normalized.length + (4 - padding), "=")
         : normalized,
     );
-    const tenantId = Number.parseInt(decoded, 10);
-    return Number.isNaN(tenantId) ? undefined : tenantId;
+    const payload = JSON.parse(decoded) as InvitePayload;
+    if (
+      typeof payload.tenantId === "number" &&
+      typeof payload.role === "string"
+    ) {
+      return payload;
+    }
+    return undefined;
   } catch {
     return undefined;
   }
@@ -161,7 +167,9 @@ function SignUpPage() {
   const [attempted, setAttempted] = useState(false);
   const [validationError, setValidationError] = useState("");
   const searchParams = useSearchParams();
-  const tenantId = decodeTenantId(searchParams.get("tenant"));
+  const inviteToken = searchParams.get("token");
+  const invitePayload = decodeInviteToken(inviteToken);
+  const tenantId = invitePayload?.tenantId;
   const { register } = useAuthAction();
   const { isPending, isError } = useAuthState();
   const { styles } = useAuthStyles();
