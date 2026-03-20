@@ -6,7 +6,11 @@ export interface IUser {
   userId: number;
   accessToken: string;
   expireInSeconds: number;
-  roleNames?: string[];
+  userName?: string;
+  name?: string;
+  surname?: string;
+  emailAddress?: string;
+  roleNames: string[];
 }
 
 export interface IAuthStateContext {

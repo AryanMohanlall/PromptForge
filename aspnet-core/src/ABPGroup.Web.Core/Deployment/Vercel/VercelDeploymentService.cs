@@ -165,7 +165,7 @@ namespace ABPGroup.Deployment.Vercel
         {
             var endpoint = _configuration["Vercel:DeploymentsEndpoint"];
             return string.IsNullOrWhiteSpace(endpoint)
-                ? "https://api.vercel.com/v13/deployments?skipAutoDetectionConfirmation=1&"
+                ? "https://api.vercel.com/v13/deployments?skipAutoDetectionConfirmation=1"
                 : endpoint;
         }
 

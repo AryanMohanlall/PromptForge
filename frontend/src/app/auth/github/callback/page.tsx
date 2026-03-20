@@ -28,7 +28,7 @@ function GitHubCallback() {
         userId: Number(oauthParams.userId),
         accessToken: oauthParams.token,
         expireInSeconds: Number(oauthParams.expireInSeconds ?? 86400),
-      })
+      }),
     );
 
     sessionStorage.setItem(GITHUB_OAUTH_COMPLETE_KEY, "true");

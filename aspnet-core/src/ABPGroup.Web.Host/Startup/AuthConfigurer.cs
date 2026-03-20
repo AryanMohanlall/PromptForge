@@ -1,12 +1,15 @@
 ﻿using Abp.Runtime.Security;
+using ABPGroup.Authorization.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Linq;
+using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 
 namespace ABPGroup.Web.Host.Startup
 {
@@ -47,9 +50,47 @@ namespace ABPGroup.Web.Host.Startup
 
                     options.Events = new JwtBearerEvents
                     {
-                        OnMessageReceived = QueryStringTokenResolver
+                        OnMessageReceived = QueryStringTokenResolver,
+                        OnTokenValidated = ValidateUserExistsAsync,
+                        OnChallenge = async context =>
+                        {
+                            context.HandleResponse();
+                            context.Response.StatusCode = 401;
+                            context.Response.ContentType = "application/json";
+                            var error = new
+                            {
+                                error = "Token is stale or user does not exist. Please login again."
+                            };
+                            await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(error));
+                        }
                     };
                 });
+            }
+        }
+
+        private static async Task ValidateUserExistsAsync(TokenValidatedContext context)
+        {
+            var userId = context.Principal?.Claims
+                .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)
+                ?.Value;
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                context.Fail("Invalid token: missing user id claim.");
+                return;
+            }
+
+            var userManager = context.HttpContext.RequestServices.GetService<UserManager>();
+            if (userManager == null)
+            {
+                context.Fail("Authentication service unavailable.");
+                return;
+            }
+
+            var user = await userManager.FindByIdAsync(userId);
+            if (user == null || user.IsDeleted || !user.IsActive)
+            {
+                context.Fail("Token belongs to a non-existent or inactive user.");
             }
         }
 

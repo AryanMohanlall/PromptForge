@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TemplateCategory } from "./context";
 import { TemplateReducer } from "./reducer";
 import { INITIAL_STATE } from "./context";
 import { fetchAllPending, fetchAllSuccess, fetchAllError } from "./actions";
@@ -20,8 +21,20 @@ describe("TemplateReducer", () => {
           {
             id: 1,
             name: "Landing Page",
-            slug: "landing-page",
-            category: "Marketing",
+            category: TemplateCategory.LandingPages,
+            framework: 1 as const,
+            language: 1 as const,
+            database: 1 as const,
+            includesAuth: false,
+            tags: [],
+            thumbnailUrl: null,
+            previewUrl: null,
+            status: 2,
+            version: "1.0.0",
+            isFeatured: false,
+            forkCount: 0,
+            isFavorite: false,
+            createdAt: "2024-01-01",
           },
         ],
         totalCount: 1,

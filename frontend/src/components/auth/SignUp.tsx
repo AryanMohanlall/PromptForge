@@ -3,30 +3,20 @@
 import { useState } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { Button, Input, Divider } from "antd";
+import { Button, Input } from "antd";
 import {
   usePageStyles,
   useCardStyles,
   useInputStyles,
-  useSocialBtnStyles,
-  useDividerStyles,
   useAuthStyles,
 } from "./styles/style";
 import {
-  GitHubIcon,
   MailIcon,
   LockIcon,
   UserIcon,
   BrandingStackIcon,
 } from "./icons";
 import { useAuthAction, useAuthState } from "@/providers/auth-provider";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:44311";
-
-const handleGitHubSignIn = () => {
-  window.location.href = `${API_BASE_URL}/api/TokenAuth/GitHubLogin`;
-};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface InputProps {
@@ -38,12 +28,6 @@ interface InputProps {
   readonly onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   readonly showToggle?: boolean;
   readonly confirmState?: "idle" | "match" | "mismatch";
-}
-
-interface SocialButtonProps {
-  readonly icon: React.ReactNode;
-  readonly label: string;
-  readonly onClick?: () => void;
 }
 
 const decodeTenantId = (value: string | null) => {
@@ -102,20 +86,6 @@ function AuthInput({
       className={styles.input}
     />
   );
-}
-
-function SocialButton({ icon, label, onClick }: SocialButtonProps) {
-  const { styles } = useSocialBtnStyles();
-  return (
-    <Button block icon={icon} onClick={onClick} className={styles.btn}>
-      {label}
-    </Button>
-  );
-}
-
-function AuthDivider() {
-  const { styles } = useDividerStyles();
-  return <Divider className={styles.divider}>or</Divider>;
 }
 
 function AuthCard({ children }: { readonly children: React.ReactNode }) {
@@ -245,10 +215,6 @@ function SignUpPage() {
         <h2 className={styles.heading}>Create your account</h2>
         <p className={styles.subtitle}>Start building with PromptForge</p>
       </div>
-
-      <SocialButton icon={<GitHubIcon />} label="Sign up with GitHub" onClick={handleGitHubSignIn} />
-
-      <AuthDivider />
 
       <div className={styles.formGroup}>
         <AuthInput

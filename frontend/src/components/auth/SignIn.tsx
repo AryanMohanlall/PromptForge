@@ -167,7 +167,11 @@ function SignInPage({ onSwitch }: PageProps) {
         <p className={styles.subtitle}>Sign in to your PromptForge account</p>
       </div>
 
-      <SocialButton icon={<GitHubIcon />} label="Continue with GitHub" onClick={handleGitHubSignIn} />
+      <SocialButton
+        icon={<GitHubIcon />}
+        label="Continue with GitHub"
+        onClick={handleGitHubSignIn}
+      />
 
       <AuthDivider />
 

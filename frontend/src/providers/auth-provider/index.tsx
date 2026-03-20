@@ -1,9 +1,19 @@
 "use client";
 
 import { useContext, useEffect, useReducer } from "react";
-import { getAxiosInstance, setAuthToken, removeAuthToken } from "@/utils/axiosInstance";
+import {
+  getAxiosInstance,
+  setAuthToken,
+  removeAuthToken,
+} from "@/utils/axiosInstance";
 import { AuthReducer } from "./reducer";
-import { INITIAL_STATE, AuthStateContext, AuthActionContext, type IRegisterInput, type IUser } from "./context";
+import {
+  INITIAL_STATE,
+  AuthStateContext,
+  AuthActionContext,
+  type IRegisterInput,
+  type IUser,
+} from "./context";
 import {
   loginPending,
   loginSuccess,
@@ -22,7 +32,14 @@ import {
 const AUTH_USER_KEY = "auth_user";
 const GITHUB_OAUTH_COMPLETE_KEY = "github_oauth_complete";
 const PROJECT_STORAGE_KEY = "project_created";
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:44311";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:44311";
+
+const clearStoredAuth = () => {
+  removeAuthToken();
+  sessionStorage.removeItem(AUTH_USER_KEY);
+  sessionStorage.removeItem(GITHUB_CONNECTED_KEY);
+};
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const instance = getAxiosInstance();
@@ -31,8 +48,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem(AUTH_USER_KEY);
-      const hasCreatedProject = sessionStorage.getItem(PROJECT_STORAGE_KEY) === "true";
-      const isGithubConnected = sessionStorage.getItem(GITHUB_OAUTH_COMPLETE_KEY) === "true";
+      const hasCreatedProject =
+        sessionStorage.getItem(PROJECT_STORAGE_KEY) === "true";
+      const isGithubConnected =
+        sessionStorage.getItem(GITHUB_OAUTH_COMPLETE_KEY) === "true";
 
       if (stored) {
         const user: IUser = JSON.parse(stored);
@@ -62,9 +81,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         password,
         rememberClient: true,
       });
-      const { accessToken, expireInSeconds, userId } = res.data.result;
-      const user: IUser = { accessToken, expireInSeconds, userId };
+      const {
+        accessToken,
+        expireInSeconds,
+        userId,
+        userName,
+        name,
+        surname,
+        emailAddress,
+        roleNames,
+      } = res.data.result;
       setAuthToken(accessToken);
+      const user: IUser = {
+        accessToken,
+        expireInSeconds,
+        userId,
+        userName,
+        name,
+        surname,
+        emailAddress,
+        roleNames: Array.isArray(roleNames) ? roleNames : [],
+      };
+      sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
       dispatch(loginSuccess(user));
       return user;
     } catch {
@@ -86,9 +124,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               headers: {
                 "Abp.TenantId": String(tenantId),
               },
-            }
+            },
       );
-      const user = await login(input.userName || input.emailAddress, input.password);
+      const user = await login(
+        input.userName || input.emailAddress,
+        input.password,
+      );
       if (user) {
         dispatch(registerSuccess(user));
       } else {

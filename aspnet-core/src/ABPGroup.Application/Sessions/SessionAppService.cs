@@ -1,6 +1,7 @@
 ﻿using Abp.Auditing;
 using ABPGroup.Sessions.Dto;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace ABPGroup.Sessions;
@@ -27,7 +28,9 @@ public class SessionAppService : ABPGroupAppServiceBase, ISessionAppService
 
         if (AbpSession.UserId.HasValue)
         {
-            output.User = ObjectMapper.Map<UserLoginInfoDto>(await GetCurrentUserAsync());
+            var currentUser = await GetCurrentUserAsync();
+            output.User = ObjectMapper.Map<UserLoginInfoDto>(currentUser);
+            output.User.RoleNames = (await UserManager.GetRolesAsync(currentUser)).ToArray();
         }
 
         return output;

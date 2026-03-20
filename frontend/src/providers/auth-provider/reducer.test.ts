@@ -22,7 +22,7 @@ describe("AuthReducer", () => {
   it("sets authenticated user on login success", () => {
     const next = AuthReducer(
       INITIAL_STATE,
-      loginSuccess({ accessToken: "token", expireInSeconds: 120, userId: 5 })
+      loginSuccess({ accessToken: "token", expireInSeconds: 120, userId: 5, roleNames: [] })
     );
     expect(next.isAuthenticated).toBe(true);
     expect(next.user?.userId).toBe(5);

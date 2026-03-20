@@ -27,6 +27,7 @@ import {
 } from "@/providers/projects-provider";
 import { useAuthState } from "@/providers/auth-provider";
 import { getAxiosInstance } from "@/utils/axiosInstance";
+import { ClaimDeployment } from "@/components/blocks/claim-deployment";
 
 interface GenerationPageProps {
   onNavigate: (page: string) => void;
@@ -46,18 +47,45 @@ interface PipelinePhase {
 }
 
 const PIPELINE_PHASES: PipelinePhase[] = [
-  { id: 1, name: "Requirements Analysis", description: "AI analyzes your prompt and extracts features", icon: SearchIcon },
-  { id: 2, name: "Scaffolding",           description: "Setting up project structure from your template", icon: FolderPlusIcon },
-  { id: 3, name: "Frontend",              description: "Building UI pages and components",              icon: MonitorIcon },
-  { id: 4, name: "Backend",               description: "Generating API routes and services",            icon: ServerIcon },
-  { id: 5, name: "Database",              description: "Creating schemas, models, and migrations",      icon: DatabaseIcon },
+  {
+    id: 1,
+    name: "Requirements Analysis",
+    description: "AI analyzes your prompt and extracts features",
+    icon: SearchIcon,
+  },
+  {
+    id: 2,
+    name: "Scaffolding",
+    description: "Setting up project structure from your template",
+    icon: FolderPlusIcon,
+  },
+  {
+    id: 3,
+    name: "Frontend",
+    description: "Building UI pages and components",
+    icon: MonitorIcon,
+  },
+  {
+    id: 4,
+    name: "Backend",
+    description: "Generating API routes and services",
+    icon: ServerIcon,
+  },
+  {
+    id: 5,
+    name: "Database",
+    description: "Creating schemas, models, and migrations",
+    icon: DatabaseIcon,
+  },
 ];
 
 const TOTAL_PHASES = PIPELINE_PHASES.length;
 
 // ─── Parse [N/5] prefix from statusMessage ───────────────────────────────────
 
-function parsePhase(msg: string | null | undefined): { phase: number; detail: string } | null {
+function parsePhase(
+  msg: string | null | undefined,
+): { phase: number; detail: string } | null {
   if (!msg) return null;
   const match = msg.match(/^\[(\d+)\/\d+\]\s*(.*)/);
   if (!match) return null;
@@ -111,17 +139,25 @@ const PipelineStep = ({ phase, status, detail, isLast }: PipelineStepProps) => {
           className={cx(
             styles.stepDot,
             isCompleted && styles.stepDotCompleted,
-            isActive && styles.stepDotActive
+            isActive && styles.stepDotActive,
           )}
           animate={isActive ? { scale: [1, 1.12, 1] } : {}}
-          transition={isActive ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" } : {}}
+          transition={
+            isActive
+              ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
+              : {}
+          }
         >
           {isCompleted ? (
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: "spring", stiffness: 400, damping: 15 }}
-              style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
             >
               <CheckIcon className={styles.stepCheck} />
             </motion.div>
@@ -133,18 +169,20 @@ const PipelineStep = ({ phase, status, detail, isLast }: PipelineStepProps) => {
           <div
             className={cx(
               styles.stepLine,
-              isCompleted && styles.stepLineCompleted
+              isCompleted && styles.stepLineCompleted,
             )}
           />
         )}
       </div>
       <div className={styles.stepContent}>
         <div className={styles.stepTitleRow}>
-          <span className={cx(
-            styles.stepTitle,
-            isActive && styles.stepTitleActive,
-            status === "pending" && styles.stepTitlePending
-          )}>
+          <span
+            className={cx(
+              styles.stepTitle,
+              isActive && styles.stepTitleActive,
+              status === "pending" && styles.stepTitlePending,
+            )}
+          >
             {phase.name}
           </span>
           {isActive && (
@@ -193,14 +231,16 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
     const fromState = project?.id ?? null;
     const urlParam = searchParams.get("id");
     const fromUrl = urlParam ? parseInt(urlParam, 10) : NaN;
-    const stored = typeof window !== "undefined"
-      ? parseInt(sessionStorage.getItem("generatingProjectId") ?? "", 10)
-      : NaN;
-    const resolved = fromState
-      ?? (!Number.isNaN(fromUrl) ? fromUrl : null)
-      ?? (!Number.isNaN(stored) ? stored : null);
+    const stored =
+      typeof window !== "undefined"
+        ? parseInt(sessionStorage.getItem("generatingProjectId") ?? "", 10)
+        : NaN;
+    const resolved =
+      fromState ??
+      (!Number.isNaN(fromUrl) ? fromUrl : null) ??
+      (!Number.isNaN(stored) ? stored : null);
     if (resolved) setProjectId(resolved);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id]);
 
   const [isDeploying, setIsDeploying] = useState(false);
@@ -211,7 +251,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const [isCreatingRepo, setIsCreatingRepo] = useState(false);
   const [deployError, setDeployError] = useState<string | null>(null);
   const [githubRepoUrl, setGithubRepoUrl] = useState<string | null>(null);
-  const [githubRepoFullName, setGithubRepoFullName] = useState<string | null>(null);
+  const [githubRepoFullName, setGithubRepoFullName] = useState<string | null>(
+    null,
+  );
 
   // Track the latest phase detail from statusMessage
   const [phaseDetails, setPhaseDetails] = useState<Record<number, string>>({});
@@ -226,7 +268,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       { name: "Running deployment" },
       { name: "Publishing LiveUrl" },
     ],
-    []
+    [],
   );
 
   // Poll for real project status every 3 seconds
@@ -237,7 +279,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       fetchById(projectId);
     }, 3000);
     return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   const projectTitle = project?.name ?? "New PromptForge build";
@@ -245,12 +287,14 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const displayOwner = configuredOwner || "owner";
 
   // Derive real codegen state from backend status
-  const isCodeGenInProgress = !project ||
+  const isCodeGenInProgress =
+    !project ||
     project.status === ProjectStatus.Draft ||
     project.status === ProjectStatus.PromptSubmitted ||
     project.status === ProjectStatus.CodeGenerationInProgress;
   const isCodeGenFailed = project?.status === ProjectStatus.Failed;
-  const isCodeGenDone = project?.status === ProjectStatus.CodeGenerationCompleted ||
+  const isCodeGenDone =
+    project?.status === ProjectStatus.CodeGenerationCompleted ||
     project?.status === ProjectStatus.RepositoryPushInProgress ||
     project?.status === ProjectStatus.Deployed;
 
@@ -305,17 +349,26 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const progressPercentage = isCodeGenDone
     ? 100
     : currentPhase > 0
-      ? Math.min(Math.round(((currentPhase - 1) / TOTAL_PHASES) * 100 + (1 / TOTAL_PHASES) * 50), 95)
+      ? Math.min(
+          Math.round(
+            ((currentPhase - 1) / TOTAL_PHASES) * 100 + (1 / TOTAL_PHASES) * 50,
+          ),
+          95,
+        )
       : 0;
 
   // Update default repo name once project loads
   useEffect(() => {
     if (project?.name && repoName === "promptforge-app") {
       setRepoName(
-        project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50) || "promptforge-app"
+        project.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
+          .slice(0, 50) || "promptforge-app",
       );
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.name]);
 
   const isGenerated = isCodeGenDone;
@@ -376,8 +429,12 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       const repository = response.data.repository;
       const repoUrl = repository?.htmlUrl ?? "";
       const fullName = repository?.fullName ?? "";
-      const ownerFromFullName = fullName.includes("/") ? fullName.split("/")[0] : configuredOwner || undefined;
-      const repoFromFullName = fullName.includes("/") ? fullName.split("/")[1] : repository?.name ?? sanitizedRepoName;
+      const ownerFromFullName = fullName.includes("/")
+        ? fullName.split("/")[0]
+        : configuredOwner || undefined;
+      const repoFromFullName = fullName.includes("/")
+        ? fullName.split("/")[1]
+        : (repository?.name ?? sanitizedRepoName);
 
       setDeploymentStep(1);
 
@@ -394,7 +451,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       setDeploymentStep(deploymentSteps.length);
 
       setGithubRepoUrl(repository?.htmlUrl ?? null);
-      setGithubRepoFullName(repository?.fullName ?? repository?.name ?? sanitizedRepoName);
+      setGithubRepoFullName(
+        repository?.fullName ?? repository?.name ?? sanitizedRepoName,
+      );
     } catch (error) {
       setIsDeploying(false);
       setDeploymentStep(-1);
@@ -416,7 +475,7 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
       setDeployError(
         backendMessage ||
-          "Repository creation failed. Verify GitHub App credentials and installation access."
+          "Repository creation failed. Verify GitHub App credentials and installation access.",
       );
     } finally {
       setIsCreatingRepo(false);
@@ -432,7 +491,8 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
             <p className={styles.eyebrow}>Generation workspace</p>
             <h1 className={styles.title}>{projectTitle}</h1>
             <p className={styles.subtitle}>
-              Building your app step by step — sit back while we handle the heavy lifting.
+              Building your app step by step — sit back while we handle the
+              heavy lifting.
             </p>
           </div>
           <StatusBadge status={generationStatus} />
@@ -463,8 +523,17 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
       {/* ── Error state ────────────────────────────────────────────────── */}
       {isCodeGenFailed && (
-        <div className={styles.card} style={{ borderColor: "var(--ant-color-error)", marginBottom: 16 }}>
-          <p style={{ color: "var(--ant-color-error)", margin: 0, fontWeight: 600 }}>
+        <div
+          className={styles.card}
+          style={{ borderColor: "var(--ant-color-error)", marginBottom: 16 }}
+        >
+          <p
+            style={{
+              color: "var(--ant-color-error)",
+              margin: 0,
+              fontWeight: 600,
+            }}
+          >
             Code generation failed. Please go back and create a new project.
           </p>
         </div>
@@ -510,7 +579,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
             <div className={styles.cardHeader}>
               <div>
                 <h3 className={styles.cardTitle}>Live activity</h3>
-                <p className={styles.cardSubtitle}>Real-time updates from the build</p>
+                <p className={styles.cardSubtitle}>
+                  Real-time updates from the build
+                </p>
               </div>
             </div>
 
@@ -534,7 +605,8 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 )}
                 {completedMessages.map((msg, i) => {
                   const parsed = parsePhase(msg);
-                  const isLatest = i === completedMessages.length - 1 && isCodeGenInProgress;
+                  const isLatest =
+                    i === completedMessages.length - 1 && isCodeGenInProgress;
                   return (
                     <motion.div
                       key={msg}
@@ -552,7 +624,13 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                       ) : (
                         <span className={styles.activityDotDone} />
                       )}
-                      <span className={isLatest ? styles.activityTextActive : styles.activityText}>
+                      <span
+                        className={
+                          isLatest
+                            ? styles.activityTextActive
+                            : styles.activityText
+                        }
+                      >
                         {parsed ? parsed.detail : msg}
                       </span>
                     </motion.div>
@@ -573,7 +651,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 <div className={styles.cardHeader}>
                   <div>
                     <h3 className={styles.cardTitle}>Build summary</h3>
-                    <p className={styles.cardSubtitle}>What was generated for your app</p>
+                    <p className={styles.cardSubtitle}>
+                      What was generated for your app
+                    </p>
                   </div>
                   <div className={styles.cardBadge}>Complete</div>
                 </div>
@@ -583,21 +663,27 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                     <MonitorIcon className={styles.summaryIcon} />
                     <div>
                       <span className={styles.summaryLabel}>Frontend</span>
-                      <span className={styles.summaryValue}>Pages, components & routing</span>
+                      <span className={styles.summaryValue}>
+                        Pages, components & routing
+                      </span>
                     </div>
                   </div>
                   <div className={styles.summaryItem}>
                     <ServerIcon className={styles.summaryIcon} />
                     <div>
                       <span className={styles.summaryLabel}>Backend</span>
-                      <span className={styles.summaryValue}>API routes & services</span>
+                      <span className={styles.summaryValue}>
+                        API routes & services
+                      </span>
                     </div>
                   </div>
                   <div className={styles.summaryItem}>
                     <DatabaseIcon className={styles.summaryIcon} />
                     <div>
                       <span className={styles.summaryLabel}>Database</span>
-                      <span className={styles.summaryValue}>Schema & migrations</span>
+                      <span className={styles.summaryValue}>
+                        Schema & migrations
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -669,7 +755,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 disabled={isCreatingRepo || !repoName.trim()}
               >
                 <RocketIcon className={styles.iconSmall} />
-                {isCreatingRepo ? "Creating repository..." : "Commit and deploy"}
+                {isCreatingRepo
+                  ? "Creating repository..."
+                  : "Commit and deploy"}
               </button>
             </div>
 
@@ -711,7 +799,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
               <div className={styles.cardHeader}>
                 <div>
                   <h3 className={styles.cardTitle}>Deployment pipeline</h3>
-                  <p className={styles.cardSubtitle}>Pushing to GitHub and deploying</p>
+                  <p className={styles.cardSubtitle}>
+                    Pushing to GitHub and deploying
+                  </p>
                 </div>
                 <div className={styles.cardBadge}>BuildJob</div>
               </div>
@@ -720,7 +810,12 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 {deploymentSteps.map((step, index) => (
                   <PipelineStep
                     key={step.name}
-                    phase={{ id: index, name: step.name, description: "", icon: RocketIcon }}
+                    phase={{
+                      id: index,
+                      name: step.name,
+                      description: "",
+                      icon: RocketIcon,
+                    }}
                     status={getStepStatus(index, deploymentStep)}
                     isLast={index === deploymentSteps.length - 1}
                   />
@@ -769,13 +864,19 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                   className={cx(styles.successGhost, styles.focusRing)}
                   onClick={() => {
                     if (githubRepoUrl) {
-                      window.open(githubRepoUrl, "_blank", "noopener,noreferrer");
+                      window.open(
+                        githubRepoUrl,
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
                     }
                   }}
                   disabled={!githubRepoUrl}
                 >
                   <GithubIcon className={styles.iconSmall} />
-                  {githubRepoFullName ? `View ${githubRepoFullName}` : "View on GitHub"}
+                  {githubRepoFullName
+                    ? `View ${githubRepoFullName}`
+                    : "View on GitHub"}
                 </button>
                 <button className={cx(styles.successGhost, styles.focusRing)}>
                   <RefreshCwIcon className={styles.iconSmall} />
@@ -783,6 +884,27 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 </button>
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isDeployed && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className={styles.claimWrap}
+          >
+            <ClaimDeployment
+              url={`https://live.promptforge.app/${repoName}`}
+              onClaimClick={() => {
+                const claimUrl = `https://vercel.com/oauth/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=${encodeURIComponent(
+                  window.location.origin,
+                )}/vercel/callback&response_type=code`;
+                window.location.href = claimUrl;
+              }}
+            />
           </motion.div>
         )}
       </AnimatePresence>
