@@ -1,4 +1,5 @@
 using Abp.Application.Services;
+using Abp.Application.Services.Dto;
 using Abp.Domain.Repositories;
 using Abp.Extensions;
 using Abp.Linq.Extensions;
@@ -37,6 +38,16 @@ public class ProjectAppService : AsyncCrudAppService<Project, ProjectDto, long, 
         CreatePermissionName = null;
         UpdatePermissionName = null;
         DeletePermissionName = null;
+    }
+
+    public override async Task<PagedResultDto<ProjectDto>> GetAllAsync(PagedProjectResultRequestDto input)
+    {
+        if (AbpSession.TenantId.HasValue && AbpSession.TenantId.Value > 0)
+        {
+            input.WorkspaceId = AbpSession.TenantId.Value;
+        }
+
+        return await base.GetAllAsync(input);
     }
 
     public override async Task<ProjectDto> CreateAsync(CreateUpdateProjectDto input)
