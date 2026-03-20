@@ -82,6 +82,12 @@ namespace ABPGroup.Controllers
                 tenancyName
             );
 
+            var roleNames = loginResult.Identity.Claims
+                .Where(c => c.Type == ClaimTypes.Role)
+                .Select(c => c.Value)
+                .Distinct()
+                .ToArray();
+
             var accessToken = CreateAccessToken(CreateJwtClaims(loginResult.Identity));
 
             return new AuthenticateResultModel
@@ -89,12 +95,17 @@ namespace ABPGroup.Controllers
                 AccessToken = accessToken,
                 EncryptedAccessToken = GetEncryptedAccessToken(accessToken),
                 ExpireInSeconds = (int)_configuration.Expiration.TotalSeconds,
-                UserId = loginResult.User.Id
+                UserId = loginResult.User.Id,
+                UserName = loginResult.User.UserName,
+                Name = loginResult.User.Name,
+                Surname = loginResult.User.Surname,
+                EmailAddress = loginResult.User.EmailAddress,
+                RoleNames = roleNames
             };
         }
 
         [HttpGet]
-        public IActionResult GitHubLogin()
+        public IActionResult GitHubLogin([FromQuery] long? linkUserId = null)
         {
             var state = Guid.NewGuid().ToString("N");
 
@@ -105,6 +116,17 @@ namespace ABPGroup.Controllers
                 SameSite = SameSiteMode.Lax,
                 MaxAge = TimeSpan.FromMinutes(10)
             });
+
+            if (linkUserId.HasValue)
+            {
+                Response.Cookies.Append("github_link_user_id", linkUserId.Value.ToString(), new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = HttpContext.Request.IsHttps,
+                    SameSite = SameSiteMode.Lax,
+                    MaxAge = TimeSpan.FromMinutes(10)
+                });
+            }
 
             var clientId = GetGitHubOAuthConfig("ClientId");
             var redirectUri = Uri.EscapeDataString(GetGitHubOAuthConfig("RedirectUri"));
@@ -131,6 +153,9 @@ namespace ABPGroup.Controllers
 
             Response.Cookies.Delete("github_oauth_state");
 
+            var linkedUserIdRaw = Request.Cookies["github_link_user_id"];
+            Response.Cookies.Delete("github_link_user_id");
+
             var githubAccessToken = await _gitHubApiService.ExchangeCodeForAccessTokenAsync(
                 code,
                 GetGitHubOAuthConfig("ClientId"),
@@ -151,7 +176,14 @@ namespace ABPGroup.Controllers
             User user;
             try
             {
-                user = await _gitHubUserService.GetOrCreateAsync(githubUser, githubAccessToken);
+                if (!string.IsNullOrWhiteSpace(linkedUserIdRaw) && long.TryParse(linkedUserIdRaw, out var linkedUserId))
+                {
+                    user = await LinkGitHubToExistingUserAsync(linkedUserId, githubUser, githubAccessToken);
+                }
+                else
+                {
+                    user = await _gitHubUserService.GetOrCreateAsync(githubUser, githubAccessToken);
+                }
             }
             catch (Exception ex)
             {
@@ -163,8 +195,14 @@ namespace ABPGroup.Controllers
             var identity = (ClaimsIdentity)principal.Identity;
             var accessToken = CreateAccessToken(CreateJwtClaims(identity));
             var expireInSeconds = (int)_configuration.Expiration.TotalSeconds;
+            var roleNames = identity.Claims
+                .Where(c => c.Type == ClaimTypes.Role)
+                .Select(c => c.Value)
+                .Distinct()
+                .ToArray();
+            var encodedRoleNames = Uri.EscapeDataString(string.Join(",", roleNames));
 
-            Response.Cookies.Append("github_auth_result", accessToken + "|" + user.Id + "|" + expireInSeconds, new CookieOptions
+            Response.Cookies.Append("github_auth_result", accessToken + "|" + user.Id + "|" + expireInSeconds + "|" + encodedRoleNames, new CookieOptions
             {
                 HttpOnly = false,
                 Secure = HttpContext.Request.IsHttps,
@@ -179,6 +217,31 @@ namespace ABPGroup.Controllers
         {
             var value = _appConfiguration[$"GitHubOAuth:{key}"];
             return string.IsNullOrEmpty(value) ? _appConfiguration[$"GitHub:{key}"] : value;
+        }
+
+        private async Task<User> LinkGitHubToExistingUserAsync(long userId, GitHubUserInfo githubUser, string githubAccessToken)
+        {
+            using (var uow = _unitOfWorkManager.Begin())
+            using (_unitOfWorkManager.Current.DisableFilter(AbpDataFilters.MustHaveTenant, AbpDataFilters.MayHaveTenant))
+            {
+                var user = await _userRepository.FirstOrDefaultAsync(userId);
+                if (user == null)
+                {
+                    throw new Exception($"User with id {userId} was not found for GitHub linking.");
+                }
+
+                user.GitHubUsername = githubUser.Id.ToString();
+                user.GitHubAccessToken = githubAccessToken;
+                if (!string.IsNullOrWhiteSpace(githubUser.AvatarUrl))
+                {
+                    user.AvatarUrl = githubUser.AvatarUrl;
+                }
+
+                await _userRepository.UpdateAsync(user);
+                await uow.CompleteAsync();
+
+                return user;
+            }
         }
 
         private string GetTenancyNameOrNull()

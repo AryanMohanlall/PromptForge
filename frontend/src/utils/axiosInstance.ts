@@ -26,11 +26,12 @@ export const getAxiosInstance = () => {
 
 export const setAuthToken = (token: string) => {
   Cookies.set(AUTH_TOKEN_KEY, token, {
+    path: "/",
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
   });
 };
 
 export const removeAuthToken = () => {
-  Cookies.remove(AUTH_TOKEN_KEY);
+  Cookies.remove(AUTH_TOKEN_KEY, { path: "/" });
 };

@@ -16,6 +16,7 @@ public class ABPGroupDbContext : AbpZeroDbContext<Tenant, Role, User, ABPGroupDb
     public DbSet<Prompt> Prompts { get; set; }
     public DbSet<Template> Templates { get; set; }
     public DbSet<CodeGenSession> CodeGenSessions { get; set; }
+    public DbSet<UserFavoriteTemplate> UserFavoriteTemplates { get; set; }
 
     public ABPGroupDbContext(DbContextOptions<ABPGroupDbContext> options)
         : base(options)
@@ -68,6 +69,35 @@ public class ABPGroupDbContext : AbpZeroDbContext<Tenant, Role, User, ABPGroupDb
                 .WithMany(x => x.Prompts)
                 .HasForeignKey(x => x.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Template>(builder =>
+        {
+            builder.ToTable("Templates");
+            builder.Property(x => x.Name).IsRequired().HasMaxLength(128);
+            builder.Property(x => x.Description).HasMaxLength(1000);
+            builder.Property(x => x.Author).HasMaxLength(128);
+            builder.Property(x => x.Tags).HasMaxLength(500);
+            builder.Property(x => x.ThumbnailUrl).HasMaxLength(500);
+            builder.Property(x => x.PreviewUrl).HasMaxLength(500);
+            builder.Property(x => x.Version).HasMaxLength(20);
+            builder.Property(x => x.ScaffoldConfig).HasColumnType("nvarchar(max)");
+            builder.Property(x => x.Category).HasConversion<int>().IsRequired();
+            builder.Property(x => x.Framework).HasConversion<int>().IsRequired();
+            builder.Property(x => x.Language).HasConversion<int>().IsRequired();
+            builder.Property(x => x.Database).HasConversion<int>().IsRequired();
+            builder.Property(x => x.Status).HasConversion<int>().IsRequired();
+            builder.HasIndex(x => x.Category);
+            builder.HasIndex(x => x.Status);
+            builder.HasIndex(x => x.IsFeatured);
+        });
+
+        modelBuilder.Entity<UserFavoriteTemplate>(builder =>
+        {
+            builder.ToTable("UserFavoriteTemplates");
+            builder.HasIndex(x => x.UserId);
+            builder.HasIndex(x => x.TemplateId);
+            builder.HasIndex(x => new { x.UserId, x.TemplateId }).IsUnique();
         });
     }
 }

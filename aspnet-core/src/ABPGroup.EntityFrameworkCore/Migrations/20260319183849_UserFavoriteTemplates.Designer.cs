@@ -3,6 +3,7 @@ using System;
 using ABPGroup.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ABPGroup.Migrations
 {
     [DbContext(typeof(ABPGroupDbContext))]
-    partial class ABPGroupDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260319183849_UserFavoriteTemplates")]
+    partial class UserFavoriteTemplates
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -244,89 +247,6 @@ namespace ABPGroup.Migrations
                     b.ToTable("AbpUsers");
                 });
 
-            modelBuilder.Entity("ABPGroup.CodeGen.CodeGenSession", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CompletedStepsJson")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ConfirmedStackJson")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CurrentPhase")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<string>("DetectedEntitiesJson")
-                        .HasColumnType("text");
-
-                    b.Property<string>("DetectedFeaturesJson")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("GeneratedFilesJson")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("GenerationCompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("GenerationStartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("NormalizedRequirement")
-                        .HasMaxLength(5000)
-                        .HasColumnType("character varying(5000)");
-
-                    b.Property<long?>("ProjectId")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("ProjectName")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<string>("Prompt")
-                        .HasMaxLength(5000)
-                        .HasColumnType("character varying(5000)");
-
-                    b.Property<int>("RepairAttempts")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ScaffoldTemplate")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<DateTime?>("SpecConfirmedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("SpecJson")
-                        .HasColumnType("text");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long?>("UserId")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("ValidationResultsJson")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("CodeGenSessions", (string)null);
-                });
-
             modelBuilder.Entity("ABPGroup.MultiTenancy.Tenant", b =>
                 {
                     b.Property<int>("Id")
@@ -399,10 +319,6 @@ namespace ABPGroup.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<string>("ArchitectureSummary")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -411,10 +327,6 @@ namespace ABPGroup.Migrations
 
                     b.Property<int>("Framework")
                         .HasColumnType("integer");
-
-                    b.Property<string>("GeneratedModules")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
 
                     b.Property<bool>("IncludeAuth")
                         .HasColumnType("boolean");
@@ -441,13 +353,6 @@ namespace ABPGroup.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("StatusMessage")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<int?>("TemplateId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")

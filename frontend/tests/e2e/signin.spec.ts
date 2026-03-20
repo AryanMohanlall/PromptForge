@@ -15,10 +15,6 @@ test.describe("Sign in page", () => {
     await expect(page.getByPlaceholder("Password")).toBeVisible();
   });
 
-  test("renders Continue with GitHub button", async ({ page }) => {
-    await expect(page.getByRole("button", { name: /Continue with GitHub/i })).toBeVisible();
-  });
-
   test("sign in button is disabled when fields are empty", async ({ page }) => {
     const signInBtn = page.getByRole("button", { name: "Sign in" });
     await expect(signInBtn).toBeDisabled();

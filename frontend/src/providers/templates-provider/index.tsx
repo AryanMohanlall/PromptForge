@@ -8,6 +8,7 @@ import {
   ITemplateCreateInput,
   ITemplateItem,
   ITemplateUpdateInput,
+  ITemplateListInput,
   TemplateActionContext,
   TemplateStateContext,
 } from "./context";
@@ -44,26 +45,33 @@ export const TemplateProvider = ({ children }: { children: ReactNode }) => {
   const instance = getAxiosInstance();
   const [state, dispatch] = useReducer(TemplateReducer, INITIAL_STATE);
 
-  const fetchAll = useCallback(async () => {
-    dispatch(fetchAllPending());
-    try {
-      const res = await instance.get<AbpResult<AbpPagedResult<ITemplateItem>>>(
-        `${ENDPOINT}/GetAll`,
-      );
-      const { items, totalCount } = res.data.result;
-      dispatch(fetchAllSuccess({ items, totalCount }));
-    } catch {
-      dispatch(fetchAllError());
-    }
-  }, [instance]);
+  const fetchAll = useCallback(
+    async (input?: ITemplateListInput) => {
+      dispatch(fetchAllPending());
+      try {
+        const res = await instance.get<AbpResult<AbpPagedResult<ITemplateItem>>>(
+          `${ENDPOINT}/GetList`,
+          { params: input },
+        );
+        const { items, totalCount } = res.data.result;
+        dispatch(fetchAllSuccess({ items, totalCount }));
+      } catch {
+        dispatch(fetchAllError());
+      }
+    },
+    [instance],
+  );
 
   const fetchById = useCallback(
     async (id: number) => {
       dispatch(fetchOnePending());
       try {
-        const res = await instance.get<AbpResult<ITemplateItem>>(`${ENDPOINT}/Get`, {
-          params: { id },
-        });
+        const res = await instance.get<AbpResult<ITemplateItem>>(
+          `${ENDPOINT}/Get`,
+          {
+            params: { id },
+          },
+        );
         dispatch(fetchOneSuccess(res.data.result));
       } catch {
         dispatch(fetchOneError());
@@ -91,7 +99,9 @@ export const TemplateProvider = ({ children }: { children: ReactNode }) => {
     async (data: ITemplateUpdateInput) => {
       dispatch(updatePending());
       try {
-        await instance.put(`${ENDPOINT}/Update`, data);
+        await instance.put(`${ENDPOINT}/Update`, data, {
+          params: { id: data.id },
+        });
         dispatch(updateSuccess());
         await fetchAll();
       } catch (error) {
@@ -117,10 +127,74 @@ export const TemplateProvider = ({ children }: { children: ReactNode }) => {
     [fetchAll, instance],
   );
 
+  const publish = useCallback(
+    async (id: number) => {
+      try {
+        await instance.post(`${ENDPOINT}/Publish`, null, { params: { id } });
+        await fetchAll();
+      } catch (error) {
+        throw error;
+      }
+    },
+    [fetchAll, instance],
+  );
+
+  const deprecate = useCallback(
+    async (id: number) => {
+      try {
+        await instance.post(`${ENDPOINT}/Deprecate`, null, { params: { id } });
+        await fetchAll();
+      } catch (error) {
+        throw error;
+      }
+    },
+    [fetchAll, instance],
+  );
+
+  const setFeatured = useCallback(
+    async (id: number, featured: boolean) => {
+      try {
+        await instance.post(`${ENDPOINT}/SetFeatured`, null, {
+          params: { id, featured },
+        });
+        await fetchAll();
+      } catch (error) {
+        throw error;
+      }
+    },
+    [fetchAll, instance],
+  );
+
+  const toggleFavorite = useCallback(
+    async (id: number) => {
+      try {
+        await instance.post(`${ENDPOINT}/ToggleFavorite`, null, {
+          params: { id },
+        });
+        // We can either fetchAll or just update the local state for better UX
+        // For simplicity, let's just fetchAll or the single item
+        await fetchAll();
+      } catch (error) {
+        throw error;
+      }
+    },
+    [fetchAll, instance],
+  );
+
   return (
     <TemplateStateContext.Provider value={state}>
       <TemplateActionContext.Provider
-        value={{ fetchAll, fetchById, create, update, remove }}
+        value={{
+          fetchAll,
+          fetchById,
+          create,
+          update,
+          remove,
+          publish,
+          deprecate,
+          setFeatured,
+          toggleFavorite,
+        }}
       >
         {children}
       </TemplateActionContext.Provider>
@@ -144,4 +218,8 @@ export const useTemplateAction = () => {
   return context;
 };
 
-export type { ITemplateCreateInput, ITemplateItem, ITemplateUpdateInput } from "./context";
+export type {
+  ITemplateCreateInput,
+  ITemplateItem,
+  ITemplateUpdateInput,
+} from "./context";

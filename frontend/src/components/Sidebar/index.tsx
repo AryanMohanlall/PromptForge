@@ -6,7 +6,6 @@ import {
   LayoutTemplateIcon,
   SettingsIcon,
   PlusIcon,
-  ChevronDownIcon,
   BarChart3Icon,
   UsersIcon,
   LayersIcon,
@@ -30,6 +29,19 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const { user } = useAuthState();
   const { logout } = useAuthAction();
   const isAdmin = user?.roleNames?.includes("PlatformAdministrator");
+  const displayName =
+    [user?.name, user?.surname].filter(Boolean).join(" ").trim() ||
+    user?.userName ||
+    "User";
+  const roles = user?.roleNames ?? [];
+  const rolesLabel = roles.length > 0 ? roles.join(", ") : "No role assigned";
+  const initials =
+    displayName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "U";
   const mainNav = [
     {
       id: "dashboard",
@@ -114,15 +126,20 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => onNavigate(item.id === "projects" ? "dashboard" : item.id)}
+                onClick={() =>
+                  onNavigate(item.id === "projects" ? "dashboard" : item.id)
+                }
                 className={cx(
                   styles.navButton,
                   styles.focusRing,
-                  isActive && styles.navButtonActive
+                  isActive && styles.navButtonActive,
                 )}
               >
                 <item.icon
-                  className={cx(styles.navIcon, isActive && styles.navIconActive)}
+                  className={cx(
+                    styles.navIcon,
+                    isActive && styles.navIconActive,
+                  )}
                 />
                 {item.label}
               </button>
@@ -143,18 +160,20 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                     key={item.id}
                     type="button"
                     onClick={() =>
-                      onNavigate(item.id.startsWith("admin") ? "admin" : item.id)
+                      onNavigate(
+                        item.id.startsWith("admin") ? "admin" : item.id,
+                      )
                     }
                     className={cx(
                       styles.navButton,
                       styles.focusRing,
-                      isActive && styles.navButtonActive
+                      isActive && styles.navButtonActive,
                     )}
                   >
                     <item.icon
                       className={cx(
                         styles.navIcon,
-                        isActive && styles.navIconActive
+                        isActive && styles.navIconActive,
                       )}
                     />
                     {item.label}
@@ -166,13 +185,16 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         )}
 
         <div className={styles.footer}>
-          <button type="button" className={cx(styles.profileButton, styles.focusRing)}>
+          <div className={styles.profileCard}>
             <div className={styles.profileInfo}>
-              <div className={styles.avatar}>AC</div>
-              <span className={styles.profileName}>Alex Chen</span>
+              <div className={styles.avatar}>{initials}</div>
+              <div className={styles.profileTextBlock}>
+                <span className={styles.profileName}>{displayName}</span>
+                {/* <span className={styles.profileMeta}>{identityLabel}</span> */}
+                <span className={styles.roleBadge}>{rolesLabel}</span>
+              </div>
             </div>
-            <ChevronDownIcon className={styles.chevron} />
-          </button>
+          </div>
 
           <button
             type="button"

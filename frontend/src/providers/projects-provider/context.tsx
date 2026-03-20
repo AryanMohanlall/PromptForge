@@ -48,6 +48,7 @@ export interface IProjectItem {
   status: ProjectStatus;
   statusMessage?: string | null;
   templateId?: number | null;
+  lastDeploymentUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -96,11 +97,12 @@ export const INITIAL_STATE: IProjectStateContext = {
   totalCount: 0,
 };
 
-export const ProjectStateContext = createContext<IProjectStateContext>(INITIAL_STATE);
+export const ProjectStateContext =
+  createContext<IProjectStateContext>(INITIAL_STATE);
 export const ProjectActionContext = createContext<IProjectActionContext>({
   fetchAll: async () => {},
   fetchById: async () => {},
-  create: async () => ({} as IProjectItem),
+  create: async () => ({}) as IProjectItem,
   update: async () => {},
   remove: async () => {},
 });

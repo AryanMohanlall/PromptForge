@@ -3,11 +3,15 @@ import { renderHook, act } from "@testing-library/react";
 import { AuthProvider, useAuthAction } from "./index";
 
 const postMock = vi.hoisted(() => vi.fn());
+const getMock = vi.hoisted(() => vi.fn());
 const setAuthTokenMock = vi.hoisted(() => vi.fn());
 const removeAuthTokenMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/utils/axiosInstance", () => ({
-  getAxiosInstance: () => ({ post: postMock }),
+  getAxiosInstance: () => ({
+    get: getMock,
+    post: postMock,
+  }),
   setAuthToken: setAuthTokenMock,
   removeAuthToken: removeAuthTokenMock,
 }));
@@ -15,13 +19,26 @@ vi.mock("@/utils/axiosInstance", () => ({
 describe("AuthProvider actions", () => {
   beforeEach(() => {
     postMock.mockReset();
+    getMock.mockReset();
     setAuthTokenMock.mockReset();
     removeAuthTokenMock.mockReset();
+    sessionStorage.clear();
   });
 
-  it("stores token on login", async () => {
+  it("stores token and user session on login", async () => {
     postMock.mockResolvedValueOnce({
-      data: { result: { accessToken: "token-123", expireInSeconds: 3600, userId: 7 } },
+      data: {
+        result: {
+          accessToken: "token-123",
+          expireInSeconds: 3600,
+          userId: 7,
+          userName: "jane.doe",
+          name: "Jane",
+          surname: "Doe",
+          emailAddress: "jane@example.com",
+          roleNames: ["PlatformAdministrator"],
+        },
+      },
     });
 
     const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -36,6 +53,18 @@ describe("AuthProvider actions", () => {
     });
 
     expect(setAuthTokenMock).toHaveBeenCalledWith("token-123");
+    expect(sessionStorage.getItem("auth_user")).toBe(
+      JSON.stringify({
+        accessToken: "token-123",
+        expireInSeconds: 3600,
+        userId: 7,
+        userName: "jane.doe",
+        name: "Jane",
+        surname: "Doe",
+        emailAddress: "jane@example.com",
+        roleNames: ["PlatformAdministrator"],
+      }),
+    );
   });
 
   it("sends Abp.TenantId header when tenantId is provided", async () => {
@@ -44,7 +73,18 @@ describe("AuthProvider actions", () => {
         return Promise.resolve({ data: { result: {} } });
       }
       return Promise.resolve({
-        data: { result: { accessToken: "token-123", expireInSeconds: 3600, userId: 7 } },
+        data: {
+          result: {
+            accessToken: "token-123",
+            expireInSeconds: 3600,
+            userId: 7,
+            userName: "jane.doe",
+            name: "Jane",
+            surname: "Doe",
+            emailAddress: "jane@example.com",
+            roleNames: ["PlatformAdministrator"],
+          },
+        },
       });
     });
 
@@ -65,7 +105,9 @@ describe("AuthProvider actions", () => {
       });
     });
 
-    expect(postMock.mock.calls[0][0]).toBe("/api/services/app/Account/Register");
+    expect(postMock.mock.calls[0][0]).toBe(
+      "/api/services/app/Account/Register",
+    );
     expect(postMock.mock.calls[0][2]).toEqual({
       headers: {
         "Abp.TenantId": "12",
@@ -79,7 +121,18 @@ describe("AuthProvider actions", () => {
         return Promise.resolve({ data: { result: {} } });
       }
       return Promise.resolve({
-        data: { result: { accessToken: "token-123", expireInSeconds: 3600, userId: 7 } },
+        data: {
+          result: {
+            accessToken: "token-123",
+            expireInSeconds: 3600,
+            userId: 7,
+            userName: "jane.doe",
+            name: "Jane",
+            surname: "Doe",
+            emailAddress: "jane@example.com",
+            roleNames: ["PlatformAdministrator"],
+          },
+        },
       });
     });
 
@@ -99,7 +152,9 @@ describe("AuthProvider actions", () => {
       });
     });
 
-    expect(postMock.mock.calls[0][0]).toBe("/api/services/app/Account/Register");
+    expect(postMock.mock.calls[0][0]).toBe(
+      "/api/services/app/Account/Register",
+    );
     expect(postMock.mock.calls[0][2]).toBeUndefined();
   });
 });

@@ -26,6 +26,7 @@ import {
   useProjectState,
 } from "@/providers/projects-provider";
 import { getAxiosInstance } from "@/utils/axiosInstance";
+import { ClaimDeployment } from "@/components/blocks/claim-deployment";
 
 interface GenerationPageProps {
   onNavigate: (page: string) => void;
@@ -774,6 +775,27 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
                 </button>
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isDeployed && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className={styles.claimWrap}
+          >
+            <ClaimDeployment
+              url={resolvedLiveUrl ?? `https://live.promptforge.app/${repoName}`}
+              onClaimClick={() => {
+                const claimUrl = `https://vercel.com/oauth/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=${encodeURIComponent(
+                  window.location.origin,
+                )}/vercel/callback&response_type=code`;
+                window.location.href = claimUrl;
+              }}
+            />
           </motion.div>
         )}
       </AnimatePresence>
