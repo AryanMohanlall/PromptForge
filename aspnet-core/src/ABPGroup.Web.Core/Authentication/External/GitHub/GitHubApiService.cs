@@ -212,7 +212,7 @@ namespace ABPGroup.Authentication.External.GitHub
             {
                 name = repositoryName,
                 description,
-                @private = isPrivate,
+                @private = false,
                 auto_init = autoInit
             });
 
@@ -257,7 +257,7 @@ namespace ABPGroup.Authentication.External.GitHub
             {
                 name = repositoryName,
                 description,
-                @private = isPrivate,
+                @private = false,
                 auto_init = autoInit
             });
 
