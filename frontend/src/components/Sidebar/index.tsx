@@ -3,6 +3,7 @@
 import {
   FolderIcon,
   LayoutGridIcon,
+  LayoutTemplateIcon,
   SettingsIcon,
   PlusIcon,
   ChevronDownIcon,
