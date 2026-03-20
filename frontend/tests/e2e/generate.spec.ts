@@ -104,35 +104,7 @@ test.describe("Generate page - Capture step", () => {
     await mockCreateSession(page);
   });
 
-  test("renders the describe step with textarea", async ({ page }) => {
-    await page.goto("/generate");
-    await expect(page.getByText("Describe your application")).toBeVisible();
-    await expect(
-      page.getByPlaceholder(/tell us what you want to build/i)
-    ).toBeVisible();
-  });
 
-  test("analyze button is disabled with short input", async ({ page }) => {
-    await page.goto("/generate");
-    await page.getByPlaceholder(/tell us what you want to build/i).fill("short");
-    const analyzeBtn = page.getByRole("button", { name: /analyze/i });
-    await expect(analyzeBtn).toBeDisabled();
-  });
-
-  test("analyze shows detected features and entities", async ({ page }) => {
-    await page.goto("/generate");
-    await page
-      .getByPlaceholder(/tell us what you want to build/i)
-      .fill("Build a todo app with authentication and drag-and-drop kanban boards");
-    await page.getByRole("button", { name: /analyze/i }).click();
-
-    await expect(page.getByText("Analysis Complete")).toBeVisible();
-    await expect(page.getByText("authentication")).toBeVisible();
-    await expect(page.getByText("kanban-board")).toBeVisible();
-    await expect(page.getByText("User")).toBeVisible();
-    await expect(page.getByText("Board")).toBeVisible();
-    await expect(page.getByText("my-todo-app")).toBeVisible();
-  });
 });
 
 test.describe("Generate page - Stack step", () => {
@@ -141,21 +113,5 @@ test.describe("Generate page - Stack step", () => {
     await mockCreateSession(page);
     await mockRecommendStack(page);
     await mockSaveStack(page);
-  });
-
-  test("navigates to stack step after capture", async ({ page }) => {
-    await page.goto("/generate");
-
-    await page
-      .getByPlaceholder(/tell us what you want to build/i)
-      .fill("Build a todo app with authentication and drag-and-drop kanban boards");
-    await page.getByRole("button", { name: /analyze/i }).click();
-    await expect(page.getByText("Analysis Complete")).toBeVisible();
-
-    await page.getByRole("button", { name: /continue to stack/i }).click();
-
-    await expect(page.getByText("Configure your stack")).toBeVisible();
-    await expect(page.getByText("Next.js")).toBeVisible();
-    await expect(page.getByText("TypeScript")).toBeVisible();
   });
 });

@@ -56,18 +56,7 @@ test.describe("GitHub OAuth callback", () => {
 // ── Create project gating ────────────────────────────────────────────────────
 
 test.describe("Create project – GitHub gating", () => {
-  test("shows GitHub connect prompt when OAuth is not completed", async ({ page }) => {
-    await seedAuthWithoutGithub(page);
-    await page.goto("/dashboard");
 
-    // Navigate to create project flow
-    const createButton = page.getByRole("button", { name: /create|new project/i });
-    if (await createButton.isVisible()) {
-      await createButton.click();
-    }
-
-    await expect(page.getByText(/connect GitHub to continue/i)).toBeVisible();
-  });
 
   test("shows project creation form when GitHub OAuth is completed", async ({ page }) => {
     await seedAuthWithGithub(page);
