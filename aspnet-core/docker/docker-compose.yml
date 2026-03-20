@@ -1,5 +1,4 @@
 services:
-
   abp_host:
     image: abpgroup/host-local
     build:

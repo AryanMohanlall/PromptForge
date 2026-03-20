@@ -1,6 +1,6 @@
-# Exclude everything
-*
-
-# Only include what the Dockerfile needs
-!docker/publish/
-!src/ABPGroup.Web.Host/Dockerfile
+**/.git/
+**/.vs/
+**/bin/
+**/obj/
+docker/publish/
+.DS_Store
