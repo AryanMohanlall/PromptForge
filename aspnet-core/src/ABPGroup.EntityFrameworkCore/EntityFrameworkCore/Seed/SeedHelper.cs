@@ -1,4 +1,4 @@
-﻿using Abp.Dependency;
+using Abp.Dependency;
 using Abp.Domain.Uow;
 using Abp.EntityFrameworkCore.Uow;
 using Abp.MultiTenancy;
@@ -13,6 +13,49 @@ namespace ABPGroup.EntityFrameworkCore.Seed;
 
 public static class SeedHelper
 {
+    private static bool PostgreSqlColumnExists(DbContext context, string tableName, string columnName)
+    {
+        var connection = context.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+
+        if (shouldClose)
+        {
+            connection.Open();
+        }
+
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText =
+                @"
+SELECT EXISTS (
+  SELECT 1
+  FROM information_schema.columns
+  WHERE table_name = @tableName
+    AND column_name = @columnName
+);";
+            var tableParam = command.CreateParameter();
+            tableParam.ParameterName = "@tableName";
+            tableParam.Value = tableName;
+            command.Parameters.Add(tableParam);
+
+            var columnParam = command.CreateParameter();
+            columnParam.ParameterName = "@columnName";
+            columnParam.Value = columnName;
+            command.Parameters.Add(columnParam);
+
+            var result = command.ExecuteScalar();
+            return result is bool exists && exists;
+        }
+        finally
+        {
+            if (shouldClose)
+            {
+                connection.Close();
+            }
+        }
+    }
+
     public static void SeedHostDb(IIocResolver iocResolver)
     {
         WithDbContext<ABPGroupDbContext>(iocResolver, SeedHostDb);
@@ -42,7 +85,20 @@ public static class SeedHelper
             }
             else
             {
-                context.Database.EnsureCreated();
+                // Core tables exist, but domain tables may be behind the current EF model.
+                // Example: Templates table exists but is missing newer columns like "Database".
+                var hasTemplates = PostgreSqlTableExists(context, "Templates");
+                var templatesDbColumnMissing = hasTemplates &&
+                                              !PostgreSqlColumnExists(context, "Templates", "Database");
+
+                if (templatesDbColumnMissing)
+                {
+                    context.Database.Migrate();
+                }
+                else
+                {
+                    context.Database.EnsureCreated();
+                }
             }
         }
         else

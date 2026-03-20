@@ -3,9 +3,9 @@ using Abp.Application.Services.Dto;
 using Abp.Authorization;
 using Abp.Collections.Extensions;
 using Abp.Domain.Repositories;
+using Abp.Domain.Uow;
 using Abp.Linq.Extensions;
 using Abp.Runtime.Session;
-using ABPGroup.Authorization;
 using ABPGroup.Authorization.Users;
 using ABPGroup.Templates.Dto;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +14,6 @@ using System.Threading.Tasks;
 
 namespace ABPGroup.Templates;
 
-[AbpAuthorize(PermissionNames.Pages_Templates)]
 public class TemplateAppService
     : AsyncCrudAppService<Template, TemplateDto, int, TemplateListInput, CreateUpdateTemplateDto, CreateUpdateTemplateDto, EntityDto<int>, EntityDto<int>>,
       ITemplateAppService
@@ -31,51 +30,84 @@ public class TemplateAppService
         _favoriteRepository = favoriteRepository;
         _userManager = userManager;
 
+        // Everyone should be able to browse/create templates once authenticated.
+        // Permissions are intentionally disabled for this app service.
+        GetPermissionName = null;
+        GetAllPermissionName = null;
+        CreatePermissionName = null;
+        UpdatePermissionName = null;
+        DeletePermissionName = null;
     }
 
     public override async Task<TemplateDto> CreateAsync(CreateUpdateTemplateDto input)
     {
-        var user = await _userManager.GetUserByIdAsync(AbpSession.GetUserId());
-        var template = MapToEntity(input);
+        var entity = ObjectMapper.Map<Template>(input);
 
-        template.Author = user.FullName;
-        template.TenantId = AbpSession.TenantId;
-        template.Status = TemplateStatus.Active; // Make active by default when user posts
+        // Set TenantId from current session
+        entity.TenantId = AbpSession.TenantId;
 
-        await Repository.InsertAsync(template);
+        // If Author is not provided, try to get the current user's name
+        if (string.IsNullOrWhiteSpace(entity.Author) && AbpSession.UserId.HasValue)
+        {
+            var user = await _userManager.GetUserByIdAsync(AbpSession.GetUserId());
+            entity.Author = user?.FullName ?? user?.UserName;
+        }
+
+        // Set status to Active by default so templates appear in marketplace
+        if (entity.Status == TemplateStatus.Draft)
+        {
+            entity.Status = TemplateStatus.Active;
+        }
+
+        await Repository.InsertAsync(entity);
         await CurrentUnitOfWork.SaveChangesAsync();
 
-        return MapToEntityDto(template);
+        return MapToEntityDto(entity);
     }
+
 
     public async Task<PagedResultDto<TemplateDto>> GetListAsync(TemplateListInput input)
     {
-        var query = CreateFilteredQuery(input);
-
-        var totalCount = await query.CountAsync();
-
-        query = ApplySorting(query, input);
-        query = ApplyPaging(query, input);
-
-        var entities = await query.ToListAsync();
-        var dtos = entities.Select(MapToEntityDto).ToList();
-
-
-        // Fill IsFavorite
-        if (AbpSession.UserId.HasValue)
+        // Marketplace queries must cross tenant boundaries — disable the MayHaveTenant
+        // filter so active templates from all tenants are visible.
+        // My Templates keeps the filter enabled and scopes by TenantId in the query.
+        using (input.IsMyTemplates != true
+            ? CurrentUnitOfWork.DisableFilter(AbpDataFilters.MayHaveTenant)
+            : null)
         {
-            var favoriteTemplateIds = await _favoriteRepository.GetAll()
-                .Where(x => x.UserId == AbpSession.UserId.Value)
-                .Select(x => x.TemplateId)
-                .ToListAsync();
+            var query = CreateFilteredQuery(input);
 
-            foreach (var dto in dtos)
+            var totalCount = await query.CountAsync();
+
+            query = ApplySorting(query, input);
+            query = ApplyPaging(query, input);
+
+            var entities = await query.ToListAsync();
+            var dtos = entities.Select(MapToEntityDto).ToList();
+
+            // Fill IsFavorite
+            if (AbpSession.UserId.HasValue)
             {
-                dto.IsFavorite = favoriteTemplateIds.Contains(dto.Id);
-            }
-        }
+                var favoriteTemplateIds = await _favoriteRepository.GetAll()
+                    .Where(x => x.UserId == AbpSession.UserId.Value)
+                    .Select(x => x.TemplateId)
+                    .ToListAsync();
 
-        return new PagedResultDto<TemplateDto>(totalCount, dtos);
+                foreach (var dto in dtos)
+                {
+                    dto.IsFavorite = favoriteTemplateIds.Contains(dto.Id);
+                }
+            }
+
+            return new PagedResultDto<TemplateDto>(totalCount, dtos);
+        }
+    }
+
+    // ABP's AsyncCrudAppService exposes both GetListAsync and GetAllAsync.
+    // Our frontend uses GetAll, so keep the behavior consistent between them.
+    public override async Task<PagedResultDto<TemplateDto>> GetAllAsync(TemplateListInput input)
+    {
+        return await GetListAsync(input);
     }
 
     public async Task<TemplateDto> GetAsync(int id)
@@ -124,18 +156,46 @@ public class TemplateAppService
         }
     }
 
+    public async Task<TemplateDto> PublishAsync(int id)
+    {
+        var template = await Repository.GetAsync(id);
+        if (template.Status == TemplateStatus.Draft)
+        {
+            template.Status = TemplateStatus.Active;
+        }
+        return MapToEntityDto(template);
+    }
+
+    public async Task<TemplateDto> DeprecateAsync(int id)
+    {
+        var template = await Repository.GetAsync(id);
+        if (template.Status == TemplateStatus.Active)
+        {
+            template.Status = TemplateStatus.Deprecated;
+        }
+        return MapToEntityDto(template);
+    }
+
+    public async Task<TemplateDto> SetFeaturedAsync(int id, bool featured)
+    {
+        var template = await Repository.GetAsync(id);
+        template.IsFeatured = featured;
+        return MapToEntityDto(template);
+    }
+
     protected override IQueryable<Template> CreateFilteredQuery(TemplateListInput input)
     {
         var query = Repository.GetAll();
 
         if (input.IsMyTemplates == true && AbpSession.TenantId.HasValue)
         {
-            // Only templates created by current tenant
+            // Only templates created by the current tenant
             query = query.Where(x => x.TenantId == AbpSession.TenantId.Value);
         }
         else
         {
-            // Marketplace: All active templates (can be system templates or from other tenants)
+            // Marketplace: only publish-ready templates across all tenants.
+            // MayHaveTenant filter is disabled by the caller for this branch.
             query = query.Where(x => x.Status == TemplateStatus.Active);
         }
 
@@ -163,32 +223,5 @@ public class TemplateAppService
         }
 
         return base.ApplySorting(query, input);
-    }
-
-    public async Task<TemplateDto> PublishAsync(int id)
-    {
-        var template = await Repository.GetAsync(id);
-        if (template.Status == TemplateStatus.Draft)
-        {
-            template.Status = TemplateStatus.Active;
-        }
-        return MapToEntityDto(template);
-    }
-
-    public async Task<TemplateDto> DeprecateAsync(int id)
-    {
-        var template = await Repository.GetAsync(id);
-        if (template.Status == TemplateStatus.Active)
-        {
-            template.Status = TemplateStatus.Deprecated;
-        }
-        return MapToEntityDto(template);
-    }
-
-    public async Task<TemplateDto> SetFeaturedAsync(int id, bool featured)
-    {
-        var template = await Repository.GetAsync(id);
-        template.IsFeatured = featured;
-        return MapToEntityDto(template);
     }
 }

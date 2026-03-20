@@ -100,7 +100,8 @@ namespace ABPGroup.Controllers
                 Name = loginResult.User.Name,
                 Surname = loginResult.User.Surname,
                 EmailAddress = loginResult.User.EmailAddress,
-                RoleNames = roleNames
+                RoleNames = roleNames,
+                TenantId = loginResult.Tenant?.Id
             };
         }
 
@@ -184,6 +185,19 @@ namespace ABPGroup.Controllers
                 {
                     user = await _gitHubUserService.GetOrCreateAsync(githubUser, githubAccessToken);
                 }
+
+                // Re-fetch user from database to ensure it's fully persisted
+                using (var uow = _unitOfWorkManager.Begin())
+                using (_unitOfWorkManager.Current.DisableFilter(AbpDataFilters.MustHaveTenant, AbpDataFilters.MayHaveTenant))
+                {
+                    var persistedUser = await _userRepository.FirstOrDefaultAsync(user.Id);
+                    if (persistedUser == null)
+                    {
+                        throw new Exception($"User {user.Id} was not found in database after creation.");
+                    }
+                    user = persistedUser;
+                    uow.Complete();
+                }
             }
             catch (Exception ex)
             {
@@ -193,10 +207,25 @@ namespace ABPGroup.Controllers
 
             var principal = await _userClaimsPrincipalFactory.CreateAsync(user);
             var identity = (ClaimsIdentity)principal.Identity;
+
+            // Ensure the NameIdentifier claim is set correctly with the user ID
+            var existingNameIdClaim = identity.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
+            if (existingNameIdClaim != null)
+            {
+                identity.RemoveClaim(existingNameIdClaim);
+            }
+            identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()));
+
             var accessToken = CreateAccessToken(CreateJwtClaims(identity));
             var expireInSeconds = (int)_configuration.Expiration.TotalSeconds;
 
-            return Redirect($"{clientRoot}/auth/github/callback?token={Uri.EscapeDataString(accessToken)}&userId={user.Id}&expireInSeconds={expireInSeconds}");
+            var redirectUrl = $"{clientRoot}/auth/github/callback?token={Uri.EscapeDataString(accessToken)}&userId={user.Id}&expireInSeconds={expireInSeconds}";
+            if (user.TenantId.HasValue)
+            {
+                redirectUrl += $"&tenantId={user.TenantId.Value}";
+            }
+
+            return Redirect(redirectUrl);
         }
 
         private string GetGitHubOAuthConfig(string key)

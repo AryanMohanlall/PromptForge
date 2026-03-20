@@ -19,5 +19,7 @@
         public string EmailAddress { get; set; }
 
         public string[] RoleNames { get; set; }
+
+        public int? TenantId { get; set; }
     }
 }

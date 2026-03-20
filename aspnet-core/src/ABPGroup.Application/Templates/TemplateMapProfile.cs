@@ -20,6 +20,7 @@ public class TemplateMapProfile : Profile
                 opt => opt.MapFrom(src => src.CreationTime));
 
         CreateMap<CreateUpdateTemplateDto, Template>()
+            .ForMember(dest => dest.Id, opt => opt.Ignore())
             .ForMember(dest => dest.Tags,
                 opt => opt.MapFrom(src =>
                     src.Tags == null ? null : src.Tags.Trim()));

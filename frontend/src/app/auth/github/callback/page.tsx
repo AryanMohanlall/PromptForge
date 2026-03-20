@@ -13,8 +13,9 @@ function GitHubCallback() {
     const token = params.get("token");
     const userId = params.get("userId");
     const expireInSeconds = params.get("expireInSeconds");
+    const tenantId = params.get("tenantId");
     if (!token || !userId) return null;
-    return { token, userId, expireInSeconds };
+    return { token, userId, expireInSeconds, tenantId };
   }, []);
 
   useEffect(() => {
@@ -28,6 +29,7 @@ function GitHubCallback() {
         userId: Number(oauthParams.userId),
         accessToken: oauthParams.token,
         expireInSeconds: Number(oauthParams.expireInSeconds ?? 86400),
+        tenantId: oauthParams.tenantId ? Number(oauthParams.tenantId) : null,
       }),
     );
 

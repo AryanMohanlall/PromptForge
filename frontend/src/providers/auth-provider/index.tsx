@@ -90,6 +90,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         surname,
         emailAddress,
         roleNames,
+        tenantId,
       } = res.data.result;
       setAuthToken(accessToken);
       const user: IUser = {
@@ -101,6 +102,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         surname,
         emailAddress,
         roleNames: Array.isArray(roleNames) ? roleNames : [],
+        tenantId,
       };
       sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
       dispatch(loginSuccess(user));

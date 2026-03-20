@@ -60,7 +60,7 @@ describe("TemplateProvider actions", () => {
       await result.current.actions.fetchAll();
     });
 
-    expect(getMock).toHaveBeenCalledWith("/api/services/app/Template/GetList", {
+    expect(getMock).toHaveBeenCalledWith("/api/services/app/Template/GetAll", {
       params: undefined,
     });
     expect(result.current.state.items).toHaveLength(1);
@@ -114,7 +114,7 @@ describe("TemplateProvider actions", () => {
     });
 
     expect(postMock).toHaveBeenCalledTimes(1);
-    expect(getMock).toHaveBeenCalledWith("/api/services/app/Template/GetList", {
+    expect(getMock).toHaveBeenCalledWith("/api/services/app/Template/GetAll", {
       params: undefined,
     });
     expect(result.current.state.items).toHaveLength(1);

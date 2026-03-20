@@ -50,7 +50,7 @@ export const TemplateProvider = ({ children }: { children: ReactNode }) => {
       dispatch(fetchAllPending());
       try {
         const res = await instance.get<AbpResult<AbpPagedResult<ITemplateItem>>>(
-          `${ENDPOINT}/GetList`,
+          `${ENDPOINT}/GetAll`,
           { params: input },
         );
         const { items, totalCount } = res.data.result;
