@@ -32,11 +32,6 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const isAdmin = user?.roleNames?.includes("PlatformAdministrator");
   const mainNav = [
     {
-      id: "dashboard",
-      label: "Dashboard",
-      icon: LayoutGridIcon,
-    },
-    {
       id: "projects",
       label: "My Projects",
       icon: FolderIcon,
@@ -98,7 +93,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <button
           type="button"
-          onClick={() => onNavigate("create")}
+          onClick={() => onNavigate("generate")}
           className={cx(styles.newButton, styles.focusRing)}
         >
           <PlusIcon className={styles.newIcon} />
@@ -107,22 +102,23 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <nav className={styles.nav}>
           {mainNav.map((item) => {
-            const isActive =
-              currentPage === item.id ||
-              (currentPage === "create" && item.id === "projects");
+            const isActive = currentPage === item.id;
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => onNavigate(item.id === "projects" ? "dashboard" : item.id)}
+                onClick={() => onNavigate(item.id)}
                 className={cx(
                   styles.navButton,
                   styles.focusRing,
-                  isActive && styles.navButtonActive
+                  isActive && styles.navButtonActive,
                 )}
               >
                 <item.icon
-                  className={cx(styles.navIcon, isActive && styles.navIconActive)}
+                  className={cx(
+                    styles.navIcon,
+                    isActive && styles.navIconActive,
+                  )}
                 />
                 {item.label}
               </button>
@@ -143,18 +139,20 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                     key={item.id}
                     type="button"
                     onClick={() =>
-                      onNavigate(item.id.startsWith("admin") ? "admin" : item.id)
+                      onNavigate(
+                        item.id.startsWith("admin") ? "admin" : item.id,
+                      )
                     }
                     className={cx(
                       styles.navButton,
                       styles.focusRing,
-                      isActive && styles.navButtonActive
+                      isActive && styles.navButtonActive,
                     )}
                   >
                     <item.icon
                       className={cx(
                         styles.navIcon,
-                        isActive && styles.navIconActive
+                        isActive && styles.navIconActive,
                       )}
                     />
                     {item.label}
@@ -166,7 +164,10 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         )}
 
         <div className={styles.footer}>
-          <button type="button" className={cx(styles.profileButton, styles.focusRing)}>
+          <button
+            type="button"
+            className={cx(styles.profileButton, styles.focusRing)}
+          >
             <div className={styles.profileInfo}>
               <div className={styles.avatar}>AC</div>
               <span className={styles.profileName}>Alex Chen</span>

@@ -25,19 +25,19 @@ export default function MainLayout({
   }
 
   const segments = pathname.split("/").filter(Boolean);
-  const section = segments[0] ?? "dashboard";
+  const section = segments[0] ?? "projects";
   const subSection = segments[1];
 
   const currentPage =
-    section === "create-project"
-      ? "create"
+    section === "generate"
+      ? "generate"
       : section === "admin" && subSection
         ? `admin-${subSection}`
         : section;
 
   const handleNavigate = (page: string) => {
-    if (page === "create") {
-      router.push("/create-project");
+    if (page === "generate") {
+      router.push("/generate");
       return;
     }
     router.push(`/${page}`);
