@@ -3,6 +3,7 @@ using Abp.Application.Services.Dto;
 using Abp.Authorization;
 using Abp.Collections.Extensions;
 using Abp.Domain.Repositories;
+using Abp.Domain.Uow;
 using Abp.Linq.Extensions;
 using Abp.Runtime.Session;
 using ABPGroup.Authorization;
@@ -54,32 +55,39 @@ public class TemplateAppService
 
     public async Task<PagedResultDto<TemplateDto>> GetListAsync(TemplateListInput input)
     {
-        var query = CreateFilteredQuery(input);
-
-        var totalCount = await query.CountAsync();
-
-        query = ApplySorting(query, input);
-        query = ApplyPaging(query, input);
-
-        var entities = await query.ToListAsync();
-        var dtos = entities.Select(MapToEntityDto).ToList();
-
-
-        // Fill IsFavorite
-        if (AbpSession.UserId.HasValue)
+        // Marketplace must cross tenant boundaries — disable the MayHaveTenant filter
+        // so active templates from all tenants are visible. My Templates keeps the
+        // filter enabled and scopes by TenantId explicitly in CreateFilteredQuery.
+        using (input.IsMyTemplates != true
+            ? CurrentUnitOfWork.DisableFilter(AbpDataFilters.MayHaveTenant)
+            : null)
         {
-            var favoriteTemplateIds = await _favoriteRepository.GetAll()
-                .Where(x => x.UserId == AbpSession.UserId.Value)
-                .Select(x => x.TemplateId)
-                .ToListAsync();
+            var query = CreateFilteredQuery(input);
 
-            foreach (var dto in dtos)
+            var totalCount = await query.CountAsync();
+
+            query = ApplySorting(query, input);
+            query = ApplyPaging(query, input);
+
+            var entities = await query.ToListAsync();
+            var dtos = entities.Select(MapToEntityDto).ToList();
+
+            // Fill IsFavorite
+            if (AbpSession.UserId.HasValue)
             {
-                dto.IsFavorite = favoriteTemplateIds.Contains(dto.Id);
-            }
-        }
+                var favoriteTemplateIds = await _favoriteRepository.GetAll()
+                    .Where(x => x.UserId == AbpSession.UserId.Value)
+                    .Select(x => x.TemplateId)
+                    .ToListAsync();
 
-        return new PagedResultDto<TemplateDto>(totalCount, dtos);
+                foreach (var dto in dtos)
+                {
+                    dto.IsFavorite = favoriteTemplateIds.Contains(dto.Id);
+                }
+            }
+
+            return new PagedResultDto<TemplateDto>(totalCount, dtos);
+        }
     }
 
     public override async Task<TemplateDto> GetAsync(EntityDto<int> input)
@@ -142,12 +150,13 @@ public class TemplateAppService
 
         if (input.IsMyTemplates == true && AbpSession.TenantId.HasValue)
         {
-            // Only templates created by current tenant
+            // Only templates created by the current tenant
             query = query.Where(x => x.TenantId == AbpSession.TenantId.Value);
         }
         else
         {
-            // Marketplace: All active templates (can be system templates or from other tenants)
+            // Marketplace: all active templates across all tenants.
+            // MayHaveTenant filter is disabled by the caller for this branch.
             query = query.Where(x => x.Status == TemplateStatus.Active);
         }
 
