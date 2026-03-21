@@ -177,6 +177,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         <div className={styles.footer}>
           <button
             type="button"
+            onClick={() => onNavigate("settings")}
             className={cx(styles.profileCard, styles.focusRing)}
           >
             <div className={styles.profileInfo}>
@@ -185,6 +186,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                 <span className={styles.profileName}>{displayName}</span>
                 <span className={styles.roleBadge}>{rolesLabel}</span>
               </div>
+              <SettingsIcon className={styles.profileActionIcon} />
             </div>
           </button>
 
