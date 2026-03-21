@@ -225,12 +225,34 @@ namespace ABPGroup.Controllers
             {
                 var principal = await _userClaimsPrincipalFactory.CreateAsync(user);
                 identity = (ClaimsIdentity)principal.Identity;
+
+                var roles = _roleManager.Roles
+                    .Where(r => r.TenantId == user.TenantId)
+                    .Select(r => r.Name)
+                    .ToList();
+
+                foreach (var role in roles)
+                    identity.AddClaim(new Claim(ClaimTypes.Role, role));
             }
 
             var accessToken = CreateAccessToken(CreateJwtClaims(identity));
             var expireInSeconds = (int)_configuration.Expiration.TotalSeconds;
 
-            return Redirect($"{clientRoot}/auth/github/callback?token={Uri.EscapeDataString(accessToken)}&userId={user.Id}&expireInSeconds={expireInSeconds}");
+            //return Redirect($"{clientRoot}/auth/github/callback?token={Uri.EscapeDataString(accessToken)}&userId={user.Id}&expireInSeconds={expireInSeconds}");
+           return Redirect(
+                            $"{clientRoot}/auth/github/callback" +
+                            $"?token={Uri.EscapeDataString(accessToken)}" +
+                            $"&userId={user.Id}" +
+                            $"&expireInSeconds={expireInSeconds}" +
+                            $"&tenantId={user.TenantId}" +
+                            $"&userName={Uri.EscapeDataString(user.UserName ?? "")}" +
+                            $"&name={Uri.EscapeDataString(user.Name ?? "")}" +
+                            $"&surname={Uri.EscapeDataString(user.Surname ?? "")}" +
+                            $"&email={Uri.EscapeDataString(user.EmailAddress ?? "")}" +
+                            $"&avatarUrl={Uri.EscapeDataString(user.AvatarUrl ?? "")}" +
+                            $"&githubUsername={Uri.EscapeDataString(user.GitHubUsername ?? "")}" + 
+                            $"&roleNames={Uri.EscapeDataString(string.Join(",", identity.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value)))}"
+                            );
         }
 
 
