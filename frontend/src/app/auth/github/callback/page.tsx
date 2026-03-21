@@ -12,7 +12,7 @@ const oauthParams = useMemo(() => {
   const params = new URLSearchParams(window.location.search);
   const token = params.get("token");
   const userId = params.get("userId");
-  console.log(params.get("roleNames"));
+
   if (!token || !userId) return null;
   return {
     token,
@@ -48,7 +48,7 @@ sessionStorage.setItem(
     avatarUrl: oauthParams.avatarUrl,
     githubUsername: oauthParams.githubUsername,
     roleNames: oauthParams.roleNames?.split(",").filter(Boolean) ?? [],
-  }),
+    }),
     );
 
     sessionStorage.setItem(GITHUB_OAUTH_COMPLETE_KEY, "true");
