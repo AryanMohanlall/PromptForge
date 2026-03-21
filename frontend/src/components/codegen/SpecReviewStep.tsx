@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { Skeleton, Spin, message } from "antd";
 import { RocketIcon, ArrowLeftIcon, FileTextIcon } from "lucide-react";
 import { motion } from "framer-motion";
-import { useCodeGenAction, useCodeGenState } from "@/providers/codegen-provider";
+import {
+  useCodeGenAction,
+  useCodeGenState,
+} from "@/providers/codegen-provider";
 import type { IReadmeResult } from "@/providers/codegen-provider";
 import { useStyles } from "./SpecReviewStep.styles";
 
@@ -36,7 +39,11 @@ function isNonEmpty(value: string | null | undefined): value is string {
   return Boolean(value && value.trim());
 }
 
-function describeCount(count: number, singular: string, plural = `${singular}s`) {
+function describeCount(
+  count: number,
+  singular: string,
+  plural = `${singular}s`,
+) {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
@@ -46,10 +53,10 @@ function buildPlanHeadline(result: IReadmeResult | null): string {
     return "";
   }
 
-  const packageCount =
-    [...(plan.dependencyPlan?.dependencies ?? []), ...(plan.dependencyPlan?.devDependencies ?? [])].filter(
-      (dependency) => !dependency.isExisting,
-    ).length;
+  const packageCount = [
+    ...(plan.dependencyPlan?.dependencies ?? []),
+    ...(plan.dependencyPlan?.devDependencies ?? []),
+  ].filter((dependency) => !dependency.isExisting).length;
 
   return [
     describeCount(plan.entities.length, "entity"),
@@ -74,10 +81,16 @@ function buildPlannedPackages(result: IReadmeResult | null) {
       ...dependency,
       kind: "dev",
     })),
-  ].filter((dependency) => !dependency.isExisting && isNonEmpty(dependency.name));
+  ].filter(
+    (dependency) => !dependency.isExisting && isNonEmpty(dependency.name),
+  );
 }
 
-export function SpecReviewStep({ sessionId, onConfirm, onBack }: SpecReviewStepProps) {
+export function SpecReviewStep({
+  sessionId,
+  onConfirm,
+  onBack,
+}: SpecReviewStepProps) {
   const { styles } = useStyles();
   const { isPending } = useCodeGenState();
   const { generateReadme, confirmReadme } = useCodeGenAction();
@@ -188,7 +201,9 @@ export function SpecReviewStep({ sessionId, onConfirm, onBack }: SpecReviewStepP
           <div className={styles.loadingStageRow}>
             <Spin size="large" />
             <div className={styles.loadingStageCopy}>
-              <span className={styles.loadingEyebrow}>Preparing your review</span>
+              <span className={styles.loadingEyebrow}>
+                Preparing your review
+              </span>
               <span className={styles.loadingTitle}>
                 {LOADING_STAGES[loadingStageIndex]?.title}
               </span>
@@ -208,8 +223,11 @@ export function SpecReviewStep({ sessionId, onConfirm, onBack }: SpecReviewStepP
                     : styles.loadingStagePending;
 
               return (
-                <div key={stage.title} className={`${styles.loadingStagePill} ${stateClassName}`}>
-                  <span className={styles.loadingStageLabel}>{stage.title}</span>
+                <div
+                  key={stage.title}
+                  className={`${styles.loadingStagePill} ${stateClassName}`}
+                >
+                  <span>{stage.title}</span>
                 </div>
               );
             })}
@@ -235,12 +253,22 @@ export function SpecReviewStep({ sessionId, onConfirm, onBack }: SpecReviewStepP
     return (
       <div className={styles.container}>
         <div className={styles.loadingWrap}>
-          <span className={styles.loadingText}>{loadError || "README is unavailable."}</span>
+          <span className={styles.loadingText}>
+            {loadError || "README is unavailable."}
+          </span>
           <div className={styles.actionRow}>
-            <button type="button" className={styles.backButton} onClick={onBack}>
+            <button
+              type="button"
+              className={styles.backButton}
+              onClick={onBack}
+            >
               Back
             </button>
-            <button type="button" className={styles.confirmButton} onClick={handleRetry}>
+            <button
+              type="button"
+              className={styles.confirmButton}
+              onClick={handleRetry}
+            >
               Retry
             </button>
           </div>
@@ -257,7 +285,9 @@ export function SpecReviewStep({ sessionId, onConfirm, onBack }: SpecReviewStepP
         </div>
         <h2 className={styles.title}>Review Application Spec</h2>
         <p className={styles.subtitle}>
-          Review the AI-generated README below. A structured build plan is derived from this exact README and reused during scaffolding and generation.
+          Review the AI-generated README below. A structured build plan is
+          derived from this exact README and reused during scaffolding and
+          generation.
         </p>
       </div>
 
@@ -284,7 +314,8 @@ export function SpecReviewStep({ sessionId, onConfirm, onBack }: SpecReviewStepP
             <div className={styles.planHeaderCopy}>
               <h3 className={styles.summaryTitle}>Plan Preview</h3>
               <p className={styles.summaryText}>
-                {planHeadline}. This preview is generated from the approved README and becomes the implementation plan we scaffold from.
+                {planHeadline}. This preview is generated from the approved
+                README and becomes the implementation plan we scaffold from.
               </p>
             </div>
             <span className={styles.planStatusBadge}>
@@ -306,7 +337,9 @@ export function SpecReviewStep({ sessionId, onConfirm, onBack }: SpecReviewStepP
             <div className={styles.previewSection}>
               <div className={styles.previewSectionHeader}>
                 <h4 className={styles.previewSectionTitle}>Entities</h4>
-                <span className={styles.previewSectionHint}>What the app tracks</span>
+                <span className={styles.previewSectionHint}>
+                  What the app tracks
+                </span>
               </div>
               {entityPreview.length > 0 ? (
                 <div className={styles.previewList}>
@@ -320,13 +353,16 @@ export function SpecReviewStep({ sessionId, onConfirm, onBack }: SpecReviewStepP
                     return (
                       <div key={entity.name} className={styles.previewListItem}>
                         <div className={styles.previewItemRow}>
-                          <span className={styles.previewItemPrimary}>{entity.name}</span>
+                          <span className={styles.previewItemPrimary}>
+                            {entity.name}
+                          </span>
                           <span className={styles.previewBadge}>
                             {describeCount(entity.fields.length, "field")}
                           </span>
                         </div>
                         <span className={styles.previewItemSecondary}>
-                          {fieldNames || "Fields will be refined during generation."}
+                          {fieldNames ||
+                            "Fields will be refined during generation."}
                         </span>
                       </div>
                     );
@@ -334,7 +370,8 @@ export function SpecReviewStep({ sessionId, onConfirm, onBack }: SpecReviewStepP
                 </div>
               ) : (
                 <p className={styles.emptyState}>
-                  No persistent entities are planned yet. That can still be fine for a small client-side app.
+                  No persistent entities are planned yet. That can still be fine
+                  for a small client-side app.
                 </p>
               )}
             </div>
@@ -342,15 +379,24 @@ export function SpecReviewStep({ sessionId, onConfirm, onBack }: SpecReviewStepP
             <div className={styles.previewSection}>
               <div className={styles.previewSectionHeader}>
                 <h4 className={styles.previewSectionTitle}>Pages</h4>
-                <span className={styles.previewSectionHint}>Routes the user can visit</span>
+                <span className={styles.previewSectionHint}>
+                  Routes the user can visit
+                </span>
               </div>
               {pagePreview.length > 0 ? (
                 <div className={styles.previewList}>
                   {pagePreview.map((page) => (
-                    <div key={`${page.route}-${page.name}`} className={styles.previewListItem}>
+                    <div
+                      key={`${page.route}-${page.name}`}
+                      className={styles.previewListItem}
+                    >
                       <div className={styles.previewItemRow}>
-                        <span className={styles.previewItemPrimary}>{page.route}</span>
-                        <span className={styles.previewBadge}>{page.layout}</span>
+                        <span className={styles.previewItemPrimary}>
+                          {page.route}
+                        </span>
+                        <span className={styles.previewBadge}>
+                          {page.layout}
+                        </span>
                       </div>
                       <span className={styles.previewItemSecondary}>
                         {page.description || `${page.name} page`}
@@ -360,7 +406,8 @@ export function SpecReviewStep({ sessionId, onConfirm, onBack }: SpecReviewStepP
                 </div>
               ) : (
                 <p className={styles.emptyState}>
-                  No pages are planned yet. The generator will struggle without a visible route map.
+                  No pages are planned yet. The generator will struggle without
+                  a visible route map.
                 </p>
               )}
             </div>
@@ -368,12 +415,17 @@ export function SpecReviewStep({ sessionId, onConfirm, onBack }: SpecReviewStepP
             <div className={styles.previewSection}>
               <div className={styles.previewSectionHeader}>
                 <h4 className={styles.previewSectionTitle}>API Routes</h4>
-                <span className={styles.previewSectionHint}>Server work expected</span>
+                <span className={styles.previewSectionHint}>
+                  Server work expected
+                </span>
               </div>
               {apiPreview.length > 0 ? (
                 <div className={styles.previewList}>
                   {apiPreview.map((route) => (
-                    <div key={`${route.method}-${route.path}`} className={styles.previewListItem}>
+                    <div
+                      key={`${route.method}-${route.path}`}
+                      className={styles.previewListItem}
+                    >
                       <div className={styles.previewItemRow}>
                         <span className={styles.previewItemPrimary}>
                           {route.method} {route.path}
@@ -390,7 +442,8 @@ export function SpecReviewStep({ sessionId, onConfirm, onBack }: SpecReviewStepP
                 </div>
               ) : (
                 <p className={styles.emptyState}>
-                  No backend API routes are planned. For a local-only app, that is completely okay.
+                  No backend API routes are planned. For a local-only app, that
+                  is completely okay.
                 </p>
               )}
             </div>
@@ -398,25 +451,36 @@ export function SpecReviewStep({ sessionId, onConfirm, onBack }: SpecReviewStepP
             <div className={styles.previewSection}>
               <div className={styles.previewSectionHeader}>
                 <h4 className={styles.previewSectionTitle}>Packages</h4>
-                <span className={styles.previewSectionHint}>New additions beyond the scaffold</span>
+                <span className={styles.previewSectionHint}>
+                  New additions beyond the scaffold
+                </span>
               </div>
               {packagePreview.length > 0 ? (
                 <div className={styles.previewList}>
                   {packagePreview.map((dependency) => (
-                    <div key={`${dependency.kind}-${dependency.name}`} className={styles.previewListItem}>
+                    <div
+                      key={`${dependency.kind}-${dependency.name}`}
+                      className={styles.previewListItem}
+                    >
                       <div className={styles.previewItemRow}>
-                        <span className={styles.previewItemPrimary}>{dependency.name}</span>
-                        <span className={styles.previewBadge}>{dependency.kind}</span>
+                        <span className={styles.previewItemPrimary}>
+                          {dependency.name}
+                        </span>
+                        <span className={styles.previewBadge}>
+                          {dependency.kind}
+                        </span>
                       </div>
                       <span className={styles.previewItemSecondary}>
-                        {dependency.purpose || `Planned package addition (${dependency.version}).`}
+                        {dependency.purpose ||
+                          `Planned package addition (${dependency.version}).`}
                       </span>
                     </div>
                   ))}
                 </div>
               ) : (
                 <p className={styles.emptyState}>
-                  No package additions are currently planned. The base scaffold should be enough.
+                  No package additions are currently planned. The base scaffold
+                  should be enough.
                 </p>
               )}
             </div>

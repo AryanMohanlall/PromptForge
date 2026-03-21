@@ -42,6 +42,8 @@ export const useStyles = createStyles(({ css }) => ({
     line-height: 1.6;
     max-width: 700px;
   `,
+
+  // ── Loading (generating) state ─────────────────────────────────────────────
   loadingCard: css`
     background: rgba(12, 18, 28, 0.4);
     backdrop-filter: blur(20px);
@@ -110,6 +112,23 @@ export const useStyles = createStyles(({ css }) => ({
     border-radius: 16px;
     padding: 24px;
   `,
+
+  // ── Error / unavailable state ──────────────────────────────────────────────
+  loadingWrap: css`
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 80px 24px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(12, 18, 28, 0.4);
+    backdrop-filter: blur(20px);
+    border-radius: 24px;
+    text-align: center;
+  `,
+
+  // ── Summary card ───────────────────────────────────────────────────────────
   summaryCard: css`
     background: rgba(45, 212, 168, 0.05);
     border: 1px solid rgba(45, 212, 168, 0.15);
@@ -128,6 +147,8 @@ export const useStyles = createStyles(({ css }) => ({
     line-height: 1.6;
     margin: 0;
   `,
+
+  // ── Plan card ──────────────────────────────────────────────────────────────
   planCard: css`
     background: rgba(12, 18, 28, 0.4);
     backdrop-filter: blur(20px);
@@ -156,7 +177,10 @@ export const useStyles = createStyles(({ css }) => ({
     color: #ffffff;
     font-size: 12px;
     font-weight: 500;
+    white-space: nowrap;
   `,
+
+  // ── Metrics ────────────────────────────────────────────────────────────────
   metricGrid: css`
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -189,6 +213,8 @@ export const useStyles = createStyles(({ css }) => ({
     line-height: 1.4;
     margin-top: 4px;
   `,
+
+  // ── Preview grid (entities / pages / routes / packages) ───────────────────
   previewGrid: css`
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -249,12 +275,16 @@ export const useStyles = createStyles(({ css }) => ({
     background: rgba(45, 212, 168, 0.1);
     padding: 2px 8px;
     border-radius: 6px;
+    white-space: nowrap;
   `,
   emptyState: css`
     font-size: 13px;
     color: #5a6572;
     font-style: italic;
+    margin: 0;
   `,
+
+  // ── README viewer ──────────────────────────────────────────────────────────
   readmeCard: css`
     background: #0d1117;
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -286,6 +316,8 @@ export const useStyles = createStyles(({ css }) => ({
     color: #c9d1d9;
     white-space: pre-wrap;
   `,
+
+  // ── Footer actions ─────────────────────────────────────────────────────────
   actionRow: css`
     display: flex;
     justify-content: space-between;
@@ -306,6 +338,7 @@ export const useStyles = createStyles(({ css }) => ({
     font-weight: 500;
     border-radius: 12px;
     cursor: pointer;
+    transition: all 0.2s ease;
 
     &:hover {
       background: rgba(255, 255, 255, 0.05);
@@ -333,7 +366,7 @@ export const useStyles = createStyles(({ css }) => ({
       box-shadow: 0 12px 32px rgba(45, 212, 168, 0.4);
       filter: brightness(1.1);
     }
-    
+
     &:disabled {
       background: rgba(45, 212, 168, 0.3);
       color: rgba(12, 18, 28, 0.5);
