@@ -62,6 +62,11 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       label: "Settings",
       icon: SettingsIcon,
     },
+    {
+      id: "admin-page",
+      label: "Admin",
+      icon: BarChart3Icon,
+    }
   ];
 
   const adminNav = [

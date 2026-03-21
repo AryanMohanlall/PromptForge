@@ -650,6 +650,95 @@ namespace ABPGroup.Authentication.External.GitHub
             return null;
         }
 
+    public async Task<List<object>> GetCommitsAsync(
+        string userAccessToken, string owner, string repo,
+        string branch = null, int perPage = 30)
+    {
+        var url = $"https://api.github.com/repos/{owner}/{repo}/commits?per_page={perPage}";
+        if (!string.IsNullOrWhiteSpace(branch))
+            url += $"&sha={Uri.EscapeDataString(branch)}";
+
+        var client = _httpClientFactory.CreateClient();
+        var request = BuildGitHubRequest(HttpMethod.Get, url, userAccessToken);
+        var response = await client.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"GitHub commits request failed: {(int)response.StatusCode} {error}");
+        }
+
+        var doc = System.Text.Json.JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        var commits = new List<object>();
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            commits.Add(new
+            {
+                sha = item.GetProperty("sha").GetString(),
+                message = item.GetProperty("commit").GetProperty("message").GetString(),
+                author = item.GetProperty("commit")
+                            .GetProperty("author")
+                            .GetProperty("name").GetString(),
+                date = item.GetProperty("commit")
+                        .GetProperty("author")
+                        .GetProperty("date").GetString(),
+                url = item.GetProperty("html_url").GetString()
+            });
+        }
+        return commits;
+    }
+
+    public async Task<List<object>> GetBranchesAsync(
+        string userAccessToken, string owner, string repo)
+    {
+        var url = $"https://api.github.com/repos/{owner}/{repo}/branches";
+        var client = _httpClientFactory.CreateClient();
+        var request = BuildGitHubRequest(HttpMethod.Get, url, userAccessToken);
+        var response = await client.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"GitHub branches request failed: {(int)response.StatusCode} {error}");
+        }
+
+        var doc = System.Text.Json.JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        var branches = new List<object>();
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            branches.Add(new
+            {
+                name = item.GetProperty("name").GetString(),
+                sha = item.GetProperty("commit").GetProperty("sha").GetString(),
+                @protected = item.GetProperty("protected").GetBoolean()
+            });
+        }
+        return branches;
+    }
+
+    public async Task<List<GitHubRepositoryInfo>> GetUserRepositoriesAsync(string userAccessToken)
+    {
+        var client = _httpClientFactory.CreateClient();
+        var request = BuildGitHubRequest(
+            HttpMethod.Get,
+            "https://api.github.com/user/repos?per_page=100&sort=updated",
+            userAccessToken);
+
+        var response = await client.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"GitHub user repositories request failed: {(int)response.StatusCode} {error}");
+        }
+
+        return await response.Content.ReadFromJsonAsync<List<GitHubRepositoryInfo>>()
+            ?? new List<GitHubRepositoryInfo>();
+    }
+
         // ── Response models ───────────────────────────────────────────────────
 
         private class GitHubTokenResponse
