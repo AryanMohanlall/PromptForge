@@ -4,27 +4,25 @@ export const useStyles = createStyles(({ css }) => ({
   container: css`
     display: flex;
     flex-direction: column;
-    gap: 32px;
-    font-family: 'Inter', sans-serif;
+    gap: 24px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   section: css`
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(15, 17, 21, 0.8);
-    backdrop-filter: blur(16px);
-    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(12,18,28,0.7);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
     overflow: hidden;
-    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
+    box-shadow: 0 0 80px rgba(45,212,168,0.03);
   `,
   sectionHeader: css`
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 20px;
-    background: linear-gradient(135deg, #EA580C, #F7931A);
+    padding: 12px 16px;
+    background: linear-gradient(135deg, rgba(45,212,168,0.1), rgba(32,196,154,0.1));
     color: #ffffff;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
     font-size: 14px;
   `,
   sectionTitle: css`
@@ -32,10 +30,10 @@ export const useStyles = createStyles(({ css }) => ({
     font-size: 14px;
     font-weight: 600;
     color: #ffffff;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   sectionBody: css`
-    padding: 20px;
+    padding: 16px;
   `,
   previewContainer: css`
     display: flex;
@@ -49,20 +47,19 @@ export const useStyles = createStyles(({ css }) => ({
   `,
   previewLabel: css`
     font-size: 12px;
-    font-weight: 600;
-    color: #ffffff;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    color: #8b95a2;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   previewValue: css`
     font-size: 14px;
-    color: #94A3B8;
-    font-family: 'Inter', sans-serif;
-    background: rgba(15, 17, 21, 0.8);
-    border: 1px solid rgba(255,255,255,0.1);
+    color: #ffffff;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: rgba(12,18,28,0.7);
+    border: 1px solid rgba(255,255,255,0.06);
     padding: 12px;
     border-radius: 12px;
+    backdrop-filter: blur(20px);
     white-space: pre-wrap;
     overflow-x: auto;
   `,
@@ -74,48 +71,43 @@ export const useStyles = createStyles(({ css }) => ({
   `,
   actionButton: css`
     padding: 10px 20px;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(15, 17, 21, 0.8);
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(12,18,28,0.7);
     color: #ffffff;
     font-size: 14px;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    font-weight: 500;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     cursor: pointer;
     transition: all 0.2s ease;
     border-radius: 12px;
-    backdrop-filter: blur(16px);
+    backdrop-filter: blur(20px);
 
     &:hover {
-      background: rgba(255,255,255,0.05);
-      border-color: rgba(247,147,26,0.5);
-      box-shadow: 0 0 20px -5px rgba(247,147,26,0.3);
+      background: rgba(20,30,42,0.8);
+      border-color: rgba(255,255,255,0.15);
     }
   `,
   primaryAction: css`
     padding: 10px 20px;
     border: none;
-    background: linear-gradient(to right, #EA580C, #F7931A);
-    color: #ffffff;
+    background: linear-gradient(135deg, #2dd4a8, #20c49a);
+    color: #0c121a;
     font-size: 14px;
     font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     cursor: pointer;
     transition: all 0.2s ease;
-    border-radius: 9999px;
-    box-shadow: 0 0 20px -5px rgba(247,147,26,0.4);
+    border-radius: 12px;
+    letter-spacing: -0.2px;
 
     &:hover {
       transform: translateY(-1px);
-      box-shadow: 0 0 30px -5px rgba(247,147,26,0.6);
+      box-shadow: 0 4px 24px rgba(45,212,168,0.35);
     }
   `,
   focusRing: css`
     &:focus-visible {
-      outline: 2px solid #F7931A;
+      outline: 2px solid #2dd4a8;
       outline-offset: 2px;
     }
   `,

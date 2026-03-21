@@ -6,20 +6,20 @@ export const useStyles = createStyles(({ css }) => ({
     flex-direction: column;
     gap: 16px;
     padding: 0;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(15, 17, 21, 0.8);
-    backdrop-filter: blur(16px);
-    font-family: 'Inter', sans-serif;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(12,18,28,0.7);
+    backdrop-filter: blur(20px);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     height: 100%;
-    border-radius: 16px;
+    border-radius: 20px;
     overflow: hidden;
-    transition: all 0.3s ease;
-    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
+    transition: all 0.2s ease;
+    box-shadow: 0 0 80px rgba(45,212,168,0.03);
 
     &:hover {
-      transform: translateY(-4px);
-      border-color: rgba(247,147,26,0.3);
-      box-shadow: 0 0 30px -5px rgba(247,147,26,0.3);
+      transform: translateY(-2px);
+      border-color: rgba(255,255,255,0.15);
+      box-shadow: 0 4px 24px rgba(45,212,168,0.35);
     }
   `,
   header: css`
@@ -28,11 +28,9 @@ export const useStyles = createStyles(({ css }) => ({
     justify-content: space-between;
     gap: 12px;
     padding: 16px 20px;
-    background: linear-gradient(135deg, #EA580C, #F7931A);
+    background: linear-gradient(135deg, rgba(45,212,168,0.1), rgba(32,196,154,0.1));
     color: #ffffff;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
     font-size: 14px;
   `,
   title: css`
@@ -40,57 +38,53 @@ export const useStyles = createStyles(({ css }) => ({
     font-weight: 600;
     color: #ffffff;
     margin: 0;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: -0.5px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   meta: css`
     font-size: 12px;
-    color: rgba(255,255,255,0.8);
+    color: #8b95a2;
     margin: 4px 0 0;
-    opacity: 0.9;
   `,
   statusBadge: css`
     padding: 4px 12px;
     font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    border: 1px solid rgba(255,255,255,0.3);
-    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    border: 1px solid rgba(255,255,255,0.1);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     border-radius: 8px;
-    background: rgba(255,255,255,0.1);
-    backdrop-filter: blur(8px);
+    background: rgba(12,18,28,0.7);
+    backdrop-filter: blur(20px);
   `,
   statusDraft: css`
-    color: #ffffff;
-    border-color: rgba(255,255,255,0.3);
-    background: rgba(255,255,255,0.1);
+    color: #8b95a2;
+    border-color: rgba(255,255,255,0.1);
+    background: rgba(12,18,28,0.7);
   `,
   statusGenerating: css`
-    color: #FFD600;
-    border-color: rgba(255,214,0,0.5);
-    background: rgba(255,214,0,0.1);
+    color: #faad14;
+    border-color: rgba(250,173,20,0.3);
+    background: rgba(250,173,20,0.1);
   `,
   statusGenerated: css`
-    color: #F7931A;
-    border-color: rgba(247,147,26,0.5);
-    background: rgba(247,147,26,0.1);
+    color: #2dd4a8;
+    border-color: rgba(45,212,168,0.3);
+    background: rgba(45,212,168,0.1);
   `,
   statusDeploying: css`
-    color: #FFD600;
-    border-color: rgba(255,214,0,0.5);
-    background: rgba(255,214,0,0.1);
+    color: #faad14;
+    border-color: rgba(250,173,20,0.3);
+    background: rgba(250,173,20,0.1);
   `,
   statusLive: css`
-    color: #22C55E;
-    border-color: rgba(34,197,94,0.5);
-    background: rgba(34,197,94,0.1);
+    color: #52c41a;
+    border-color: rgba(82,196,26,0.3);
+    background: rgba(82,196,26,0.1);
   `,
   statusFailed: css`
-    color: #EF4444;
-    border-color: rgba(239,68,68,0.5);
-    background: rgba(239,68,68,0.1);
+    color: #ff4d4f;
+    border-color: rgba(255,77,79,0.3);
+    background: rgba(255,77,79,0.1);
   `,
   body: css`
     display: flex;
@@ -100,23 +94,22 @@ export const useStyles = createStyles(({ css }) => ({
   `,
   updatedAt: css`
     font-size: 14px;
-    color: #94A3B8;
+    color: #8b95a2;
     margin: 0;
   `,
   url: css`
     font-size: 14px;
-    color: #F7931A;
+    color: #2dd4a8;
     text-decoration: none;
-    transition: all 0.2s ease;
+    transition: opacity 0.2s ease;
 
     &:hover {
-      color: #FFD600;
-      text-shadow: 0 0 10px rgba(247,147,26,0.5);
+      opacity: 0.8;
     }
   `,
   urlMuted: css`
     font-size: 14px;
-    color: #94A3B8;
+    color: #8b95a2;
   `,
   footer: css`
     margin-top: auto;
@@ -125,7 +118,7 @@ export const useStyles = createStyles(({ css }) => ({
     justify-content: space-between;
     gap: 12px;
     padding: 16px 20px;
-    border-top: 1px solid rgba(255,255,255,0.1);
+    border-top: 1px solid rgba(255,255,255,0.06);
   `,
   footerActions: css`
     display: flex;
@@ -134,22 +127,20 @@ export const useStyles = createStyles(({ css }) => ({
   `,
   deleteButton: css`
     padding: 8px 16px;
-    border: 1px solid rgba(239,68,68,0.3);
-    background: rgba(239,68,68,0.1);
-    color: #EF4444;
+    border: 1px solid rgba(255,77,79,0.3);
+    background: rgba(255,77,79,0.1);
+    color: #ff4d4f;
     font-size: 12px;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    font-weight: 500;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     cursor: pointer;
     transition: all 0.2s ease;
-    border-radius: 12px;
+    border-radius: 8px;
 
     &:hover:not(:disabled) {
-      background: rgba(239,68,68,0.2);
-      border-color: rgba(239,68,68,0.5);
-      box-shadow: 0 0 20px -5px rgba(239,68,68,0.3);
+      background: rgba(255,77,79,0.2);
+      border-color: rgba(255,77,79,0.5);
+      box-shadow: 0 4px 24px rgba(255,77,79,0.35);
     }
 
     &:disabled {
@@ -160,21 +151,19 @@ export const useStyles = createStyles(({ css }) => ({
   viewButton: css`
     padding: 8px 16px;
     border: none;
-    background: linear-gradient(to right, #EA580C, #F7931A);
-    color: #ffffff;
+    background: linear-gradient(135deg, #2dd4a8, #20c49a);
+    color: #0c121a;
     font-size: 12px;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    font-weight: 500;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     cursor: pointer;
     transition: all 0.2s ease;
-    border-radius: 12px;
-    box-shadow: 0 0 20px -5px rgba(247,147,26,0.4);
+    border-radius: 8px;
+    letter-spacing: -0.2px;
 
     &:hover {
       transform: translateY(-1px);
-      box-shadow: 0 0 30px -5px rgba(247,147,26,0.6);
+      box-shadow: 0 4px 24px rgba(45,212,168,0.35);
     }
 
     &:active {
@@ -183,22 +172,20 @@ export const useStyles = createStyles(({ css }) => ({
   `,
   claimButton: css`
     padding: 8px 16px;
-    border: 1px solid rgba(247,147,26,0.3);
-    background: rgba(247,147,26,0.1);
-    color: #F7931A;
+    border: 1px solid rgba(45,212,168,0.3);
+    background: rgba(45,212,168,0.1);
+    color: #2dd4a8;
     font-size: 12px;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    font-weight: 500;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     cursor: pointer;
     transition: all 0.2s ease;
-    border-radius: 12px;
+    border-radius: 8px;
 
     &:hover {
-      background: rgba(247,147,26,0.2);
-      border-color: rgba(247,147,26,0.5);
-      box-shadow: 0 0 20px -5px rgba(247,147,26,0.3);
+      background: rgba(45,212,168,0.2);
+      border-color: rgba(45,212,168,0.5);
+      box-shadow: 0 4px 24px rgba(45,212,168,0.35);
     }
 
     &:active {
@@ -207,11 +194,11 @@ export const useStyles = createStyles(({ css }) => ({
   `,
   details: css`
     font-size: 14px;
-    color: #94A3B8;
+    color: #8b95a2;
   `,
   focusRing: css`
     &:focus-visible {
-      outline: 2px solid #F7931A;
+      outline: 2px solid #2dd4a8;
       outline-offset: 2px;
     }
   `,

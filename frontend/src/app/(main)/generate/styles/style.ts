@@ -4,13 +4,16 @@ export const useStyles = createStyles(({ css }) => ({
   page: css`
     max-width: 1200px;
     margin: 0 auto;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  `,
+  stepSection: css`
+    margin-bottom: 32px;
   `,
   header: css`
     display: flex;
     flex-direction: column;
     gap: 16px;
-    margin-bottom: 32px;
+    margin-bottom: 24px;
 
     @media (min-width: 768px) {
       flex-direction: row;
@@ -19,23 +22,18 @@ export const useStyles = createStyles(({ css }) => ({
     }
   `,
   title: css`
-    font-size: 30px;
+    font-size: 24px;
     font-weight: 600;
     color: #ffffff;
     margin: 0;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    background: linear-gradient(to right, #F7931A, #FFD600);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: -0.5px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   subtitle: css`
     font-size: 14px;
-    color: #94A3B8;
+    color: #8b95a2;
     margin: 0;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   actions: css`
     display: flex;
@@ -45,68 +43,61 @@ export const useStyles = createStyles(({ css }) => ({
   `,
   actionButton: css`
     padding: 10px 20px;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(15, 17, 21, 0.8);
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(12,18,28,0.7);
     color: #ffffff;
     font-size: 14px;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    font-weight: 500;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     cursor: pointer;
     transition: all 0.2s ease;
     border-radius: 12px;
-    backdrop-filter: blur(16px);
+    backdrop-filter: blur(20px);
 
     &:hover {
-      background: rgba(255,255,255,0.05);
-      border-color: rgba(247,147,26,0.5);
-      box-shadow: 0 0 20px -5px rgba(247,147,26,0.3);
+      background: rgba(20,30,42,0.8);
+      border-color: rgba(255,255,255,0.15);
     }
   `,
   primaryAction: css`
     padding: 10px 20px;
     border: none;
-    background: linear-gradient(to right, #EA580C, #F7931A);
-    color: #ffffff;
+    background: linear-gradient(135deg, #2dd4a8, #20c49a);
+    color: #0c121a;
     font-size: 14px;
     font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     cursor: pointer;
     transition: all 0.2s ease;
-    border-radius: 9999px;
-    box-shadow: 0 0 20px -5px rgba(247,147,26,0.4);
+    border-radius: 12px;
+    letter-spacing: -0.2px;
 
     &:hover {
       transform: translateY(-1px);
-      box-shadow: 0 0 30px -5px rgba(247,147,26,0.6);
+      box-shadow: 0 4px 24px rgba(45,212,168,0.35);
     }
   `,
   content: css`
     display: flex;
     flex-direction: column;
-    gap: 32px;
+    gap: 24px;
   `,
   section: css`
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(15, 17, 21, 0.8);
-    backdrop-filter: blur(16px);
-    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(12,18,28,0.7);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
     overflow: hidden;
-    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
+    box-shadow: 0 0 80px rgba(45,212,168,0.03);
   `,
   sectionHeader: css`
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 20px;
-    background: linear-gradient(135deg, #EA580C, #F7931A);
+    padding: 12px 16px;
+    background: linear-gradient(135deg, rgba(45,212,168,0.1), rgba(32,196,154,0.1));
     color: #ffffff;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
     font-size: 14px;
   `,
   sectionTitle: css`
@@ -114,10 +105,10 @@ export const useStyles = createStyles(({ css }) => ({
     font-size: 14px;
     font-weight: 600;
     color: #ffffff;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   sectionBody: css`
-    padding: 20px;
+    padding: 16px;
   `,
   formGroup: css`
     display: flex;
@@ -131,69 +122,67 @@ export const useStyles = createStyles(({ css }) => ({
   `,
   label: css`
     font-size: 12px;
-    font-weight: 600;
-    color: #ffffff;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    color: #8b95a2;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   input: css`
     padding: 10px 16px;
     border: none;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
     background: transparent;
     color: #ffffff;
     font-size: 14px;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     transition: all 0.2s ease;
 
     &:focus {
       outline: none;
-      border-bottom-color: #F7931A;
-      box-shadow: 0 2px 0 0 rgba(247,147,26,0.5);
+      border-bottom-color: rgba(45,212,168,0.3);
+      box-shadow: 0 2px 0 0 rgba(45,212,168,0.2);
     }
 
     &::placeholder {
-      color: #94A3B8;
+      color: #5a6572;
     }
   `,
   textarea: css`
     padding: 10px 16px;
     border: none;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
     background: transparent;
     color: #ffffff;
     font-size: 14px;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     min-height: 100px;
     resize: vertical;
     transition: all 0.2s ease;
 
     &:focus {
       outline: none;
-      border-bottom-color: #F7931A;
-      box-shadow: 0 2px 0 0 rgba(247,147,26,0.5);
+      border-bottom-color: rgba(45,212,168,0.3);
+      box-shadow: 0 2px 0 0 rgba(45,212,168,0.2);
     }
 
     &::placeholder {
-      color: #94A3B8;
+      color: #5a6572;
     }
   `,
   select: css`
     padding: 10px 16px;
     border: none;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
     background: transparent;
     color: #ffffff;
     font-size: 14px;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     cursor: pointer;
     transition: all 0.2s ease;
 
     &:focus {
       outline: none;
-      border-bottom-color: #F7931A;
-      box-shadow: 0 2px 0 0 rgba(247,147,26,0.5);
+      border-bottom-color: rgba(45,212,168,0.3);
+      box-shadow: 0 2px 0 0 rgba(45,212,168,0.2);
     }
   `,
   checkbox: css`
@@ -201,17 +190,17 @@ export const useStyles = createStyles(({ css }) => ({
     align-items: center;
     gap: 12px;
     cursor: pointer;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-size: 14px;
     color: #ffffff;
   `,
   checkboxInput: css`
     width: 20px;
     height: 20px;
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.06);
     background: transparent;
     cursor: pointer;
-    accent-color: #F7931A;
+    accent-color: #2dd4a8;
     border-radius: 4px;
   `,
   grid: css`
@@ -225,7 +214,7 @@ export const useStyles = createStyles(({ css }) => ({
   `,
   focusRing: css`
     &:focus-visible {
-      outline: 2px solid #F7931A;
+      outline: 2px solid #2dd4a8;
       outline-offset: 2px;
     }
   `,

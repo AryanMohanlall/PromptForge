@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace ABPGroup.Templates;
 
-[AbpAuthorize(PermissionNames.Pages_Templates)]
+// [AbpAuthorize(PermissionNames.Pages_Templates)]
 public class TemplateAppService
     : AsyncCrudAppService<Template, TemplateDto, int, TemplateListInput, CreateUpdateTemplateDto, CreateUpdateTemplateDto, EntityDto<int>, EntityDto<int>>,
       ITemplateAppService

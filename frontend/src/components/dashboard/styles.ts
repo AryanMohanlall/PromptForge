@@ -4,13 +4,13 @@ export const useStyles = createStyles(({ css }) => ({
   page: css`
     max-width: 1200px;
     margin: 0 auto;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   header: css`
     display: flex;
     flex-direction: column;
     gap: 16px;
-    margin-bottom: 32px;
+    margin-bottom: 24px;
 
     @media (min-width: 768px) {
       flex-direction: row;
@@ -19,17 +19,12 @@ export const useStyles = createStyles(({ css }) => ({
     }
   `,
   title: css`
-    font-size: 30px;
+    font-size: 24px;
     font-weight: 600;
     color: #ffffff;
     margin: 0;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    background: linear-gradient(to right, #F7931A, #FFD600);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: -0.5px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   actions: css`
     display: flex;
@@ -47,28 +42,29 @@ export const useStyles = createStyles(({ css }) => ({
     transform: translateY(-50%);
     width: 20px;
     height: 20px;
-    color: #94A3B8;
+    color: #8b95a2;
   `,
   searchInput: css`
     padding: 10px 16px;
     padding-left: 40px;
-    background: rgba(15, 17, 21, 0.8);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(12,18,28,0.7);
+    border: 1px solid rgba(255,255,255,0.06);
     font-size: 14px;
     color: #ffffff;
     width: 200px;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     border-radius: 12px;
+    backdrop-filter: blur(20px);
     transition: all 0.2s ease;
 
     &:focus {
       outline: none;
-      border-color: rgba(247,147,26,0.5);
-      box-shadow: 0 0 20px -5px rgba(247,147,26,0.3);
+      border-color: rgba(45,212,168,0.3);
+      box-shadow: 0 0 0 2px rgba(45,212,168,0.2);
     }
 
     &::placeholder {
-      color: #94A3B8;
+      color: #5a6572;
     }
   `,
   filterWrap: css`
@@ -79,29 +75,28 @@ export const useStyles = createStyles(({ css }) => ({
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    background: rgba(15, 17, 21, 0.8);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(12,18,28,0.7);
+    border: 1px solid rgba(255,255,255,0.06);
     padding: 10px 16px;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     color: #ffffff;
     cursor: pointer;
     min-width: 150px;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     transition: all 0.2s ease;
     border-radius: 12px;
+    backdrop-filter: blur(20px);
 
     &:hover {
-      background: rgba(255,255,255,0.05);
-      border-color: rgba(247,147,26,0.3);
+      background: rgba(20,30,42,0.8);
+      border-color: rgba(255,255,255,0.15);
     }
   `,
   filterIcon: css`
     width: 16px;
     height: 16px;
-    color: #94A3B8;
+    color: #8b95a2;
   `,
   filterMenu: css`
     position: absolute;
@@ -109,13 +104,13 @@ export const useStyles = createStyles(({ css }) => ({
     right: 0;
     margin-top: 8px;
     width: 180px;
-    background: rgba(15, 17, 21, 0.95);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 16px;
+    background: rgba(12,18,28,0.7);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
     overflow: hidden;
     z-index: 20;
-    backdrop-filter: blur(16px);
-    box-shadow: 0 0 50px -10px rgba(247,147,26,0.2);
+    backdrop-filter: blur(20px);
+    box-shadow: 0 4px 24px rgba(45,212,168,0.35);
   `,
   filterItem: css`
     width: 100%;
@@ -124,17 +119,15 @@ export const useStyles = createStyles(({ css }) => ({
     font-size: 14px;
     background: transparent;
     border: none;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
     color: #ffffff;
     cursor: pointer;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     transition: all 0.1s ease;
 
     &:hover {
-      background: rgba(255,255,255,0.05);
-      color: #F7931A;
+      background: rgba(20,30,42,0.8);
+      color: #2dd4a8;
     }
 
     &:last-child {
@@ -142,12 +135,12 @@ export const useStyles = createStyles(({ css }) => ({
     }
   `,
   filterItemActive: css`
-    background: rgba(247,147,26,0.1);
-    color: #F7931A;
+    background: rgba(45,212,168,0.1);
+    color: #2dd4a8;
 
     &:hover {
-      background: rgba(247,147,26,0.15);
-      color: #F7931A;
+      background: rgba(45,212,168,0.15);
+      color: #2dd4a8;
     }
   `,
   grid: css`
@@ -165,20 +158,18 @@ export const useStyles = createStyles(({ css }) => ({
   `,
   emptyState: css`
     text-align: center;
-    padding: 64px;
-    background: rgba(15, 17, 21, 0.8);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 16px;
-    color: #94A3B8;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    backdrop-filter: blur(16px);
-    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
+    padding: 48px;
+    background: rgba(12,18,28,0.7);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 20px;
+    color: #8b95a2;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 0 80px rgba(45,212,168,0.03);
   `,
   focusRing: css`
     &:focus-visible {
-      outline: 2px solid #F7931A;
+      outline: 2px solid #2dd4a8;
       outline-offset: 2px;
     }
   `,

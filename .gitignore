@@ -12,3 +12,5 @@ aspnet-core/docker/mvc/Mvc-Logs/
 
 .env
 .env.local
+
+.next

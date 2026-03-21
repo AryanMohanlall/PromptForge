@@ -5,118 +5,340 @@ export const useStyles = createStyles(({ css }) => ({
     display: flex;
     flex-direction: column;
     gap: 32px;
-    font-family: 'Inter', sans-serif;
+    max-width: 1000px;
+    margin: 0 auto;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
-  section: css`
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(15, 17, 21, 0.8);
-    backdrop-filter: blur(16px);
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
-  `,
-  sectionHeader: css`
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 20px;
-    background: linear-gradient(135deg, #EA580C, #F7931A);
-    color: #ffffff;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-size: 14px;
-  `,
-  sectionTitle: css`
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: #ffffff;
-    font-family: 'Inter', sans-serif;
-  `,
-  sectionBody: css`
-    padding: 20px;
-  `,
-  reviewContainer: css`
+  header: css`
     display: flex;
     flex-direction: column;
+    align-items: center;
+    text-align: center;
     gap: 16px;
+    margin-bottom: 8px;
   `,
-  reviewItem: css`
+  headerIcon: css`
+    width: 56px;
+    height: 56px;
+    background: rgba(45, 212, 168, 0.1);
+    color: #2dd4a8;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(45, 212, 168, 0.2);
+  `,
+  title: css`
+    font-size: 32px;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 0;
+    letter-spacing: -0.02em;
+  `,
+  subtitle: css`
+    font-size: 16px;
+    color: #8b95a2;
+    margin: 0;
+    line-height: 1.6;
+    max-width: 700px;
+  `,
+  loadingCard: css`
+    background: rgba(12, 18, 28, 0.4);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 24px;
+    padding: 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  `,
+  loadingStageRow: css`
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  `,
+  loadingStageCopy: css`
     display: flex;
     flex-direction: column;
     gap: 8px;
   `,
-  reviewLabel: css`
+  loadingEyebrow: css`
     font-size: 12px;
     font-weight: 600;
-    color: #ffffff;
+    color: #2dd4a8;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    font-family: 'Inter', sans-serif;
   `,
-  reviewValue: css`
+  loadingTitle: css`
+    font-size: 24px;
+    font-weight: 600;
+    color: #ffffff;
+  `,
+  loadingText: css`
     font-size: 14px;
-    color: #94A3B8;
-    font-family: 'Inter', sans-serif;
-    background: rgba(15, 17, 21, 0.8);
-    border: 1px solid rgba(255,255,255,0.1);
-    padding: 12px;
-    border-radius: 12px;
-    white-space: pre-wrap;
-    overflow-x: auto;
+    color: #8b95a2;
   `,
-  actions: css`
+  loadingTimeline: css`
+    display: flex;
+    gap: 12px;
+  `,
+  loadingStagePill: css`
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    transition: all 0.5s ease;
+  `,
+  loadingStageActive: css`
+    background: #2dd4a8;
+    box-shadow: 0 0 12px rgba(45, 212, 168, 0.5);
+  `,
+  loadingStageComplete: css`
+    background: rgba(45, 212, 168, 0.3);
+  `,
+  loadingStagePending: css`
+    background: rgba(255, 255, 255, 0.06);
+  `,
+  loadingPreviewGrid: css`
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  `,
+  loadingPreviewCard: css`
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 24px;
+  `,
+  summaryCard: css`
+    background: rgba(45, 212, 168, 0.05);
+    border: 1px solid rgba(45, 212, 168, 0.15);
+    border-radius: 20px;
+    padding: 24px;
+  `,
+  summaryTitle: css`
+    font-size: 18px;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 12px;
+  `,
+  summaryText: css`
+    font-size: 15px;
+    color: #8b95a2;
+    line-height: 1.6;
+    margin: 0;
+  `,
+  planCard: css`
+    background: rgba(12, 18, 28, 0.4);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 24px;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  `,
+  planHeader: css`
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  `,
+  planHeaderCopy: css`
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  `,
+  planStatusBadge: css`
+    padding: 6px 14px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 500;
+  `,
+  metricGrid: css`
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  `,
+  metricCard: css`
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+  `,
+  metricLabel: css`
+    font-size: 12px;
+    font-weight: 600;
+    color: #5a6572;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  `,
+  metricValue: css`
+    font-size: 28px;
+    font-weight: 700;
+    color: #ffffff;
+  `,
+  metricDetail: css`
+    font-size: 11px;
+    color: #5a6572;
+    line-height: 1.4;
+    margin-top: 4px;
+  `,
+  previewGrid: css`
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  `,
+  previewSection: css`
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  `,
+  previewSectionHeader: css`
     display: flex;
     align-items: center;
     gap: 12px;
-    flex-wrap: wrap;
   `,
-  actionButton: css`
-    padding: 10px 20px;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(15, 17, 21, 0.8);
-    color: #ffffff;
-    font-size: 14px;
+  previewSectionTitle: css`
+    font-size: 15px;
     font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    cursor: pointer;
-    transition: all 0.2s ease;
+    color: #ffffff;
+    margin: 0;
+  `,
+  previewSectionHint: css`
+    font-size: 12px;
+    color: #5a6572;
+  `,
+  previewList: css`
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  `,
+  previewListItem: css`
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 12px;
-    backdrop-filter: blur(16px);
-
-    &:hover {
-      background: rgba(255,255,255,0.05);
-      border-color: rgba(247,147,26,0.5);
-      box-shadow: 0 0 20px -5px rgba(247,147,26,0.3);
-    }
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   `,
-  primaryAction: css`
-    padding: 10px 20px;
-    border: none;
-    background: linear-gradient(to right, #EA580C, #F7931A);
-    color: #ffffff;
+  previewItemRow: css`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  `,
+  previewItemPrimary: css`
     font-size: 14px;
+    font-weight: 500;
+    color: #ffffff;
+  `,
+  previewItemSecondary: css`
+    font-size: 12px;
+    color: #5a6572;
+  `,
+  previewBadge: css`
+    font-size: 10px;
     font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    color: #2dd4a8;
+    background: rgba(45, 212, 168, 0.1);
+    padding: 2px 8px;
+    border-radius: 6px;
+  `,
+  emptyState: css`
+    font-size: 13px;
+    color: #5a6572;
+    font-style: italic;
+  `,
+  readmeCard: css`
+    background: #0d1117;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  `,
+  readmeHeader: css`
+    background: #161b22;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #8b95a2;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  `,
+  readmeContent: css`
+    padding: 24px;
+    max-height: 400px;
+    overflow-y: auto;
+  `,
+  readmePre: css`
+    margin: 0;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #c9d1d9;
+    white-space: pre-wrap;
+  `,
+  actionRow: css`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  `,
+  backButton: css`
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #8b95a2;
+    font-size: 15px;
+    font-weight: 500;
+    border-radius: 12px;
     cursor: pointer;
-    transition: all 0.2s ease;
-    border-radius: 9999px;
-    box-shadow: 0 0 20px -5px rgba(247,147,26,0.4);
 
     &:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 0 30px -5px rgba(247,147,26,0.6);
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.15);
+      color: #ffffff;
     }
   `,
-  focusRing: css`
-    &:focus-visible {
-      outline: 2px solid #F7931A;
-      outline-offset: 2px;
+  confirmButton: css`
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 32px;
+    background: linear-gradient(135deg, #2dd4a8, #20c49a);
+    border: none;
+    color: #0c121a;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 14px;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(45, 212, 168, 0.25);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 32px rgba(45, 212, 168, 0.4);
+      filter: brightness(1.1);
+    }
+    
+    &:disabled {
+      background: rgba(45, 212, 168, 0.3);
+      color: rgba(12, 18, 28, 0.5);
+      cursor: not-allowed;
+      box-shadow: none;
     }
   `,
 }));

@@ -3,9 +3,9 @@ import { createStyles } from "antd-style";
 export const useStyles = createStyles(({ css }) => ({
   page: css`
     min-height: 100vh;
-    background: #030304;
+    background: #0c121a;
     color: #ffffff;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     position: relative;
     overflow: hidden;
   `,
@@ -14,25 +14,25 @@ export const useStyles = createStyles(({ css }) => ({
   `,
   bgOrbPrimary: css`
     position: absolute;
-    width: 600px;
-    height: 600px;
+    width: 400px;
+    height: 400px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(247,147,26,0.15) 0%, transparent 70%);
-    top: -200px;
-    right: -200px;
+    background: radial-gradient(circle, rgba(45,212,168,0.04) 0%, transparent 70%);
+    top: 10%;
+    left: -5%;
+    animation: orb1 20s ease-in-out infinite;
     pointer-events: none;
-    animation: float 8s ease-in-out infinite;
   `,
   bgOrbSecondary: css`
     position: absolute;
-    width: 800px;
-    height: 800px;
+    width: 500px;
+    height: 500px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(255,214,0,0.1) 0%, transparent 70%);
-    bottom: -400px;
-    left: -400px;
+    background: radial-gradient(circle, rgba(0,229,255,0.03) 0%, transparent 70%);
+    bottom: 5%;
+    right: -8%;
+    animation: orb2 25s ease-in-out infinite;
     pointer-events: none;
-    animation: float 10s ease-in-out infinite reverse;
   `,
   nav: css`
     position: sticky;
@@ -41,19 +41,20 @@ export const useStyles = createStyles(({ css }) => ({
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 32px;
-    background: rgba(3, 3, 4, 0.8);
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    backdrop-filter: blur(16px);
+    padding: 16px 24px;
+    background: rgba(12,18,28,0.7);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    backdrop-filter: blur(20px);
   `,
   logo: css`
     display: flex;
     align-items: center;
     gap: 12px;
-    font-weight: 600;
+    font-weight: 700;
     font-size: 20px;
     color: #ffffff;
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    letter-spacing: -0.5px;
   `,
   logoImage: css`
     width: 32px;
@@ -71,45 +72,42 @@ export const useStyles = createStyles(({ css }) => ({
     gap: 12px;
   `,
   signInBtn: css`
-    color: #94A3B8;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    color: #8b95a2;
+    font-weight: 500;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: transparent;
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.06);
     padding: 10px 20px;
     cursor: pointer;
     transition: all 0.2s ease;
     border-radius: 12px;
+    backdrop-filter: blur(20px);
 
     &:hover {
       color: #ffffff;
-      border-color: rgba(247,147,26,0.5);
-      box-shadow: 0 0 20px -5px rgba(247,147,26,0.3);
+      border-color: rgba(255,255,255,0.15);
+      background: rgba(20,30,42,0.8);
     }
   `,
   ctaBtn: css`
-    background: linear-gradient(to right, #EA580C, #F7931A);
-    color: #ffffff;
+    background: linear-gradient(135deg, #2dd4a8, #20c49a);
+    color: #0c121a;
     font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     border: none;
     padding: 10px 20px;
     cursor: pointer;
     transition: all 0.2s ease;
-    border-radius: 9999px;
-    box-shadow: 0 0 20px -5px rgba(247,147,26,0.4);
+    border-radius: 12px;
+    letter-spacing: -0.2px;
 
     &:hover {
       transform: translateY(-1px);
-      box-shadow: 0 0 30px -5px rgba(247,147,26,0.6);
+      box-shadow: 0 4px 24px rgba(45,212,168,0.35);
     }
   `,
   hero: css`
-    padding: 96px 32px 64px;
+    padding: 64px 24px 48px;
     text-align: center;
     display: flex;
     flex-direction: column;
@@ -117,54 +115,46 @@ export const useStyles = createStyles(({ css }) => ({
     gap: 24px;
   `,
   heroPill: css`
-    padding: 8px 20px;
-    background: rgba(15, 17, 21, 0.8);
-    border: 1px solid rgba(255,255,255,0.1);
-    color: #94A3B8;
+    padding: 8px 16px;
+    background: rgba(12,18,28,0.7);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: #8b95a2;
     font-size: 14px;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    font-weight: 500;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     border-radius: 9999px;
-    backdrop-filter: blur(16px);
+    backdrop-filter: blur(20px);
   `,
   heroTitle: css`
     margin: 0;
-    font-size: clamp(2.5rem, 5vw, 4.5rem);
-    font-weight: 600;
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 700;
     color: #ffffff;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-    background: linear-gradient(to right, #F7931A, #FFD600);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: -0.5px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   heroHighlight: css`
-    color: #F7931A;
-    text-shadow: 0 0 30px rgba(247,147,26,0.5);
+    color: #2dd4a8;
   `,
   heroSubtitle: css`
     max-width: 600px;
-    color: #94A3B8;
+    color: #8b95a2;
     font-size: 18px;
     line-height: 1.7;
     margin: 0;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   promptCard: css`
     width: 100%;
     max-width: 700px;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(15, 17, 21, 0.8);
-    backdrop-filter: blur(16px);
-    border-radius: 16px;
-    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(12,18,28,0.7);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    box-shadow: 0 0 80px rgba(45,212,168,0.03);
   `,
   promptInput: css`
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: transparent;
     border: none;
     color: #ffffff;
@@ -176,7 +166,7 @@ export const useStyles = createStyles(({ css }) => ({
     }
 
     &::placeholder {
-      color: #94A3B8;
+      color: #5a6572;
     }
   `,
   promptFooter: css`
@@ -185,79 +175,73 @@ export const useStyles = createStyles(({ css }) => ({
     justify-content: space-between;
     margin-top: 12px;
     gap: 12px;
-    padding: 12px 20px;
-    border-top: 1px solid rgba(255,255,255,0.1);
+    padding: 12px 16px;
+    border-top: 1px solid rgba(255,255,255,0.06);
   `,
   promptLabel: css`
     font-size: 12px;
-    color: #94A3B8;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    color: #5a6572;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   generateBtn: css`
-    background: linear-gradient(to right, #EA580C, #F7931A);
-    color: #ffffff;
+    background: linear-gradient(135deg, #2dd4a8, #20c49a);
+    color: #0c121a;
     font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     border: none;
     padding: 10px 20px;
     cursor: pointer;
     transition: all 0.2s ease;
-    border-radius: 9999px;
-    box-shadow: 0 0 20px -5px rgba(247,147,26,0.4);
+    border-radius: 12px;
+    letter-spacing: -0.2px;
 
     &:hover {
       transform: translateY(-1px);
-      box-shadow: 0 0 30px -5px rgba(247,147,26,0.6);
+      box-shadow: 0 4px 24px rgba(45,212,168,0.35);
     }
   `,
   section: css`
-    padding: 64px 32px;
+    padding: 48px 24px;
   `,
   sectionTitle: css`
     text-align: center;
-    font-size: clamp(2rem, 4vw, 3rem);
-    font-weight: 600;
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    font-weight: 700;
     margin-bottom: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: -0.5px;
     color: #ffffff;
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   sectionHighlight: css`
-    color: #F7931A;
-    text-shadow: 0 0 20px rgba(247,147,26,0.5);
+    color: #2dd4a8;
   `,
   sectionSubtitle: css`
     text-align: center;
-    color: #94A3B8;
+    color: #8b95a2;
     max-width: 600px;
-    margin: 0 auto 48px;
-    font-size: 18px;
+    margin: 0 auto 32px;
+    font-size: 16px;
     line-height: 1.7;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   featureGrid: css`
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 24px;
   `,
   featureCard: css`
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(15, 17, 21, 0.8);
-    backdrop-filter: blur(16px);
-    border-radius: 16px;
-    padding: 32px;
-    transition: all 0.3s ease;
-    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(12,18,28,0.7);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 24px;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 80px rgba(45,212,168,0.03);
 
     &:hover {
-      transform: translateY(-4px);
-      border-color: rgba(247,147,26,0.3);
-      box-shadow: 0 0 30px -5px rgba(247,147,26,0.3);
+      transform: translateY(-2px);
+      border-color: rgba(255,255,255,0.15);
+      box-shadow: 0 4px 24px rgba(45,212,168,0.35);
     }
   `,
   featureCard0: css`
@@ -275,8 +259,8 @@ export const useStyles = createStyles(({ css }) => ({
   featureIcon: css`
     width: 48px;
     height: 48px;
-    border: 1px solid rgba(247,147,26,0.3);
-    background: rgba(247,147,26,0.1);
+    border: 1px solid rgba(45,212,168,0.3);
+    background: rgba(45,212,168,0.1);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -286,24 +270,22 @@ export const useStyles = createStyles(({ css }) => ({
   featureIconDot: css`
     width: 16px;
     height: 16px;
-    background: #F7931A;
+    background: #2dd4a8;
     border-radius: 50%;
-    box-shadow: 0 0 20px -5px rgba(247,147,26,0.6);
   `,
   featureTitle: css`
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 600;
     margin-bottom: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: -0.5px;
     color: #ffffff;
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   featureDesc: css`
     margin: 0;
-    color: #94A3B8;
+    color: #8b95a2;
     line-height: 1.6;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   pipelineWrap: css`
     display: flex;
@@ -312,24 +294,22 @@ export const useStyles = createStyles(({ css }) => ({
   pipelineCard: css`
     width: 100%;
     max-width: 600px;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(15, 17, 21, 0.8);
-    backdrop-filter: blur(16px);
-    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(12,18,28,0.7);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
     overflow: hidden;
-    box-shadow: 0 0 50px -10px rgba(247,147,26,0.1);
+    box-shadow: 0 0 80px rgba(45,212,168,0.03);
   `,
   pipelineHeader: css`
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 20px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    background: linear-gradient(135deg, #EA580C, #F7931A);
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    background: linear-gradient(135deg, rgba(45,212,168,0.1), rgba(32,196,154,0.1));
     color: #ffffff;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
     font-size: 14px;
   `,
   pipelineDots: css`
@@ -339,18 +319,18 @@ export const useStyles = createStyles(({ css }) => ({
   pipelineDot: css`
     width: 12px;
     height: 12px;
-    background: rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.2);
     border-radius: 50%;
   `,
   pipelineTitle: css`
     font-size: 14px;
     color: #ffffff;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   pipelineBody: css`
-    padding: 24px;
+    padding: 16px;
     display: grid;
-    gap: 16px;
+    gap: 12px;
   `,
   pipelineStep: css`
     display: flex;
@@ -358,55 +338,53 @@ export const useStyles = createStyles(({ css }) => ({
     gap: 12px;
     padding: 12px 0;
     font-size: 14px;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   stepdone: css`
-    color: #22C55E;
+    color: #52c41a;
   `,
   steprunning: css`
-    color: #FFD600;
+    color: #faad14;
   `,
   steppending: css`
-    color: #94A3B8;
+    color: #5a6572;
   `,
   stepLabel: css`
     flex: 1;
   `,
   stepRight: css`
     font-size: 12px;
-    color: #94A3B8;
-    font-family: 'Inter', sans-serif;
+    color: #5a6572;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   stepIconDone: css`
-    color: #22C55E;
+    color: #52c41a;
   `,
   stepIconRunning: css`
-    color: #FFD600;
+    color: #faad14;
     animation: pulse 2s ease-in-out infinite;
   `,
   stepIconPending: css`
-    color: #1E293B;
+    color: rgba(255,255,255,0.1);
   `,
   footer: css`
-    padding: 24px 32px 48px;
+    padding: 24px 24px 32px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-top: 1px solid rgba(255,255,255,0.1);
+    border-top: 1px solid rgba(255,255,255,0.06);
   `,
   footerLogo: css`
     display: flex;
     align-items: center;
     gap: 12px;
     font-weight: 600;
-    color: #F7931A;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-family: 'Space Grotesk', sans-serif;
+    color: #2dd4a8;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   `,
   footerText: css`
-    color: #94A3B8;
-    font-family: 'Inter', sans-serif;
+    color: #5a6572;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-size: 14px;
   `,
 }));
