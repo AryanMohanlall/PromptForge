@@ -25,7 +25,7 @@ namespace ABPGroup.Authentication.External.GitHub
             _userCreationService = userCreationService;
         }
 
-        public async Task<User> GetOrCreateAsync(GitHubUserInfo githubUser, string githubAccessToken)
+        public async Task<User> GetOrCreateAsync(GitHubUserInfo githubUser, string githubAccessToken, int tenantId)
         {
             using (var uow = _unitOfWorkManager.Begin())
             using (_unitOfWorkManager.Current.DisableFilter(AbpDataFilters.MustHaveTenant, AbpDataFilters.MayHaveTenant))
@@ -48,7 +48,7 @@ namespace ABPGroup.Authentication.External.GitHub
 
                     user = new User
                     {
-                        TenantId = null,
+                        TenantId = tenantId,
                         UserName = userName,
                         Name = nameParts[0],
                         Surname = nameParts.Length > 1 ? nameParts[1] : nameParts[0],

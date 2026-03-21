@@ -1,4 +1,5 @@
-﻿using Abp.Runtime.Security;
+﻿using Abp.Domain.Uow;
+using Abp.Runtime.Security;
 using ABPGroup.Authorization.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
@@ -80,6 +81,20 @@ namespace ABPGroup.Web.Host.Startup
                 return;
             }
 
+            // Read the tenantId claim from the token. Without scoping the UserManager
+            // lookup to the correct tenant, ABP queries in host context (TenantId = null),
+            // finds no user, and fails validation — even though the user exists and the
+            // token is perfectly valid.
+            var tenantIdRaw = context.Principal?.Claims
+                .FirstOrDefault(c => c.Type == "http://www.aspnetboilerplate.com/identity/claims/tenantId")
+                ?.Value;
+
+            int? tenantId = null;
+            if (!string.IsNullOrWhiteSpace(tenantIdRaw) && int.TryParse(tenantIdRaw, out var parsedTenantId))
+            {
+                tenantId = parsedTenantId;
+            }
+
             var userManager = context.HttpContext.RequestServices.GetService<UserManager>();
             if (userManager == null)
             {
@@ -87,7 +102,21 @@ namespace ABPGroup.Web.Host.Startup
                 return;
             }
 
-            var user = await userManager.FindByIdAsync(userId);
+            var unitOfWorkManager = context.HttpContext.RequestServices.GetService<IUnitOfWorkManager>();
+            if (unitOfWorkManager == null)
+            {
+                context.Fail("Authentication service unavailable.");
+                return;
+            }
+
+            User user;
+            using (var uow = unitOfWorkManager.Begin())
+            using (unitOfWorkManager.Current.SetTenantId(tenantId))
+            {
+                user = await userManager.FindByIdAsync(userId);
+                uow.Complete();
+            }
+
             if (user == null || user.IsDeleted || !user.IsActive)
             {
                 context.Fail("Token belongs to a non-existent or inactive user.");

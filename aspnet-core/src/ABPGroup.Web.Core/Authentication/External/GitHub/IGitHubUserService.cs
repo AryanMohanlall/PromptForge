@@ -5,6 +5,6 @@ namespace ABPGroup.Authentication.External.GitHub
 {
     public interface IGitHubUserService
     {
-        Task<User> GetOrCreateAsync(GitHubUserInfo userInfo, string accessToken);
+        Task<User> GetOrCreateAsync(GitHubUserInfo userInfo, string accessToken, int tenantId);
     }
 }

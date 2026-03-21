@@ -41,35 +41,22 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const fetchGitHubStatus = async () => {
-      try {
         setLoading(true);
-        const axiosInstance = getAxiosInstance();
-        const response = await axiosInstance.get<GitHubStatus>(
-          "/api/github-app/status",
-        );
-        setGithubStatus(response.data);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } catch (error: any) {
-        // GitHub App status fails because credentials aren't configured
-        // But GitHub OAuth might still be available
-        if (error.response?.status === 400) {
-          // GitHub App not configured, but OAuth might be
+        
+        const isGithubConnected = sessionStorage.getItem("github_oauth_complete") === "true";
+        if(isGithubConnected){
           setGithubStatus({
-            connected: false,
-            message:
-              "Ready to connect GitHub account. Click Connect to link your GitHub profile.",
+            connected: true,
+            id: Number(sessionStorage.getItem("promptforge:githubAppId") ?? undefined),
+            slug: sessionStorage.getItem("promptforge:githubAppSlug") ?? undefined,
+            name: sessionStorage.getItem("promptforge:githubAppName") ?? undefined,
           });
-        } else {
+        }else{
           setGithubStatus({
             connected: false,
-            message:
-              "GitHub integration not available. Please configure GitHub OAuth credentials.",
-            error: error instanceof Error ? error.message : "Unknown error",
           });
         }
-      } finally {
         setLoading(false);
-      }
     };
 
     fetchGitHubStatus();

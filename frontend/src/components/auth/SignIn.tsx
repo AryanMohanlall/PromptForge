@@ -140,15 +140,16 @@ function SignInPage({ onSwitch }: PageProps) {
   const { isPending, isError } = useAuthState();
   const { styles } = useAuthStyles();
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     setAttempted(true);
     if (!email || !password) {
       setValidationError("Please enter your email and password.");
       return;
     }
     setValidationError("");
-    void login(email, password);
-    redirect("/dashboard");
+    const res = await login(email, password);
+
+    if (res) redirect("/dashboard");
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {

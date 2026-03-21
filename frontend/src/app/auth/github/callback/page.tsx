@@ -7,28 +7,48 @@ const AUTH_USER_KEY = "auth_user";
 const GITHUB_OAUTH_COMPLETE_KEY = "github_oauth_complete";
 
 function GitHubCallback() {
-  const oauthParams = useMemo(() => {
-    if (typeof window === "undefined") return null;
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("token");
-    const userId = params.get("userId");
-    const expireInSeconds = params.get("expireInSeconds");
-    if (!token || !userId) return null;
-    return { token, userId, expireInSeconds };
-  }, []);
+const oauthParams = useMemo(() => {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("token");
+  const userId = params.get("userId");
+
+  if (!token || !userId) return null;
+  return {
+    token,
+    userId,
+    expireInSeconds: params.get("expireInSeconds"),
+    tenantId: params.get("tenantId"),
+    userName: params.get("userName"),
+    name: params.get("name"),
+    surname: params.get("surname"),
+    email: params.get("email"),
+    avatarUrl: params.get("avatarUrl"),
+    githubUsername: params.get("githubUsername"),
+    roleNames: params.get("roleNames"),
+  };
+}, []);
 
   useEffect(() => {
     if (!oauthParams) return;
 
     setAuthToken(oauthParams.token);
 
-    sessionStorage.setItem(
-      AUTH_USER_KEY,
-      JSON.stringify({
-        userId: Number(oauthParams.userId),
-        accessToken: oauthParams.token,
-        expireInSeconds: Number(oauthParams.expireInSeconds ?? 86400),
-      }),
+sessionStorage.setItem(
+  AUTH_USER_KEY,
+  JSON.stringify({
+    userId: Number(oauthParams.userId),
+    tenantId: oauthParams.tenantId ? Number(oauthParams.tenantId) : null,
+    accessToken: oauthParams.token,
+    expireInSeconds: Number(oauthParams.expireInSeconds ?? 86400),
+    userName: oauthParams.userName,
+    name: oauthParams.name,
+    surname: oauthParams.surname,
+    email: oauthParams.email,
+    avatarUrl: oauthParams.avatarUrl,
+    githubUsername: oauthParams.githubUsername,
+    roleNames: oauthParams.roleNames?.split(",").filter(Boolean) ?? [],
+    }),
     );
 
     sessionStorage.setItem(GITHUB_OAUTH_COMPLETE_KEY, "true");

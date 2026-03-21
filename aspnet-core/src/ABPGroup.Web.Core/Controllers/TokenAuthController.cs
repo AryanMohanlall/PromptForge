@@ -2,13 +2,16 @@ using Abp.Authorization;
 using Abp.Authorization.Users;
 using Abp.Domain.Repositories;
 using Abp.Domain.Uow;
+using Abp.Extensions;
 using Abp.MultiTenancy;
 using Abp.Runtime.Security;
 using ABPGroup.Authentication.External;
 using ABPGroup.Authentication.External.GitHub;
 using ABPGroup.Authentication.JwtBearer;
 using ABPGroup.Authorization;
+using ABPGroup.Authorization.Roles;
 using ABPGroup.Authorization.Users;
+using ABPGroup.Editions;
 using ABPGroup.Models.TokenAuth;
 using ABPGroup.MultiTenancy;
 using Microsoft.AspNetCore.Http;
@@ -20,6 +23,7 @@ using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace ABPGroup.Controllers
@@ -37,6 +41,10 @@ namespace ABPGroup.Controllers
         private readonly IGitHubApiService _gitHubApiService;
         private readonly IGitHubUserService _gitHubUserService;
         private readonly IConfiguration _appConfiguration;
+        private readonly TenantManager _tenantManager;
+        private readonly EditionManager _editionManager;
+        private readonly RoleManager _roleManager;
+        private readonly IAbpZeroDbMigrator _abpZeroDbMigrator;
 
         public TokenAuthController(
             LogInManager logInManager,
@@ -48,7 +56,11 @@ namespace ABPGroup.Controllers
             IUserClaimsPrincipalFactory<User> userClaimsPrincipalFactory,
             IGitHubApiService gitHubApiService,
             IGitHubUserService gitHubUserService,
-            IConfiguration appConfiguration)
+            IConfiguration appConfiguration,
+            TenantManager tenantManager,
+            EditionManager editionManager,
+            RoleManager roleManager,
+            IAbpZeroDbMigrator abpZeroDbMigrator)
         {
             _logInManager = logInManager;
             _tenantCache = tenantCache;
@@ -60,6 +72,10 @@ namespace ABPGroup.Controllers
             _gitHubApiService = gitHubApiService;
             _gitHubUserService = gitHubUserService;
             _appConfiguration = appConfiguration;
+            _tenantManager = tenantManager;
+            _editionManager = editionManager;
+            _roleManager = roleManager;
+            _abpZeroDbMigrator = abpZeroDbMigrator;
         }
 
         [HttpPost]
@@ -182,7 +198,18 @@ namespace ABPGroup.Controllers
                 }
                 else
                 {
-                    user = await _gitHubUserService.GetOrCreateAsync(githubUser, githubAccessToken);
+                    // Returning user: reuse their tenant. First login: provision a new one.
+                    var existingUser = await FindUserByGitHubIdAsync(githubUser.Id.ToString());
+                    var tenantId = existingUser != null
+                        ? existingUser.TenantId.Value
+                        : await CreateTenantForGitHubUserAsync(githubUser);
+
+                    using (_unitOfWorkManager.Current.SetTenantId(tenantId))
+                    using (var uow = _unitOfWorkManager.Begin())
+                    {
+                        user = await _gitHubUserService.GetOrCreateAsync(githubUser, githubAccessToken, tenantId);
+                        await uow.CompleteAsync();
+                    }
                 }
             }
             catch (Exception ex)
@@ -191,12 +218,109 @@ namespace ABPGroup.Controllers
                 return Redirect(clientRoot + "/auth?error=user_creation_failed");
             }
 
-            var principal = await _userClaimsPrincipalFactory.CreateAsync(user);
-            var identity = (ClaimsIdentity)principal.Identity;
+            // AFTER — scoped to the user's tenant so tenantId claim is included
+            ClaimsIdentity identity;
+            // Scope to the user's tenant so both UserId AND TenantId claims are stamped
+            using (_unitOfWorkManager.Current.SetTenantId(user.TenantId))
+            {
+                var principal = await _userClaimsPrincipalFactory.CreateAsync(user);
+                identity = (ClaimsIdentity)principal.Identity;
+
+                var roles = _roleManager.Roles
+                    .Where(r => r.TenantId == user.TenantId)
+                    .Select(r => r.Name)
+                    .ToList();
+
+                foreach (var role in roles)
+                    identity.AddClaim(new Claim(ClaimTypes.Role, role));
+            }
+
             var accessToken = CreateAccessToken(CreateJwtClaims(identity));
             var expireInSeconds = (int)_configuration.Expiration.TotalSeconds;
 
-            return Redirect($"{clientRoot}/auth/github/callback?token={Uri.EscapeDataString(accessToken)}&userId={user.Id}&expireInSeconds={expireInSeconds}");
+            //return Redirect($"{clientRoot}/auth/github/callback?token={Uri.EscapeDataString(accessToken)}&userId={user.Id}&expireInSeconds={expireInSeconds}");
+           return Redirect(
+                            $"{clientRoot}/auth/github/callback" +
+                            $"?token={Uri.EscapeDataString(accessToken)}" +
+                            $"&userId={user.Id}" +
+                            $"&expireInSeconds={expireInSeconds}" +
+                            $"&tenantId={user.TenantId}" +
+                            $"&userName={Uri.EscapeDataString(user.UserName ?? "")}" +
+                            $"&name={Uri.EscapeDataString(user.Name ?? "")}" +
+                            $"&surname={Uri.EscapeDataString(user.Surname ?? "")}" +
+                            $"&email={Uri.EscapeDataString(user.EmailAddress ?? "")}" +
+                            $"&avatarUrl={Uri.EscapeDataString(user.AvatarUrl ?? "")}" +
+                            $"&githubUsername={Uri.EscapeDataString(user.GitHubUsername ?? "")}" + 
+                            $"&roleNames={Uri.EscapeDataString(string.Join(",", identity.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value)))}"
+                            );
+        }
+
+
+        private async Task<int> CreateTenantForGitHubUserAsync(GitHubUserInfo githubUser)
+        {
+            // Derive a safe tenancy name from the GitHub login, falling back to the
+            // numeric GitHub user ID when the login produces an empty slug.
+            var baseName = Regex.Replace(
+                (githubUser.Login ?? githubUser.Id.ToString()).ToLowerInvariant(),
+                @"[^a-z0-9\-]", "");
+
+            if (baseName.IsNullOrWhiteSpace())
+                baseName = $"gh{githubUser.Id}";
+
+            // Ensure uniqueness.
+            var tenancyName = baseName;
+            var counter = 1;
+            while (await _tenantManager.FindByTenancyNameAsync(tenancyName) != null)
+            {
+                tenancyName = $"{baseName}{counter++}";
+            }
+
+            var displayName = githubUser.Name.IsNullOrWhiteSpace()
+                ? tenancyName
+                : githubUser.Name;
+
+            var tenant = new Tenant(tenancyName, displayName) { IsActive = true };
+
+            var defaultEdition = await _editionManager.FindByNameAsync(EditionManager.DefaultEditionName);
+            if (defaultEdition != null)
+                tenant.EditionId = defaultEdition.Id;
+
+            await _tenantManager.CreateAsync(tenant);
+            await CurrentUnitOfWork.SaveChangesAsync();
+
+            try
+            {
+                _abpZeroDbMigrator.CreateOrMigrateForTenant(tenant);
+            }
+            catch (Exception ex)
+            {
+                throw new Abp.UI.UserFriendlyException("Tenant database migration failed.", ex.Message);
+            }
+
+            using (CurrentUnitOfWork.SetTenantId(tenant.Id))
+            {
+                CheckErrors(await _roleManager.CreateStaticRoles(tenant.Id));
+                await CurrentUnitOfWork.SaveChangesAsync();
+
+                var adminRole = _roleManager.Roles.Single(r => r.Name == StaticRoleNames.Tenants.Admin);
+                await _roleManager.GrantAllPermissionsAsync(adminRole);
+                await CurrentUnitOfWork.SaveChangesAsync();
+            }
+
+            return tenant.Id;
+        }
+
+        private async Task<User> FindUserByGitHubIdAsync(string githubId)
+        {
+            using (var uow = _unitOfWorkManager.Begin())
+            using (_unitOfWorkManager.Current.DisableFilter(AbpDataFilters.MustHaveTenant, AbpDataFilters.MayHaveTenant))
+            {
+                var user = await _userRepository.FirstOrDefaultAsync(
+                    u => u.GitHubUsername == githubId && u.TenantId != null);
+
+                uow.Complete();
+                return user;
+            }
         }
 
         private string GetGitHubOAuthConfig(string key)
