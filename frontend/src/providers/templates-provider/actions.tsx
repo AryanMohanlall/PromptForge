@@ -19,6 +19,7 @@ export enum TemplateStateEnums {
   TEMPLATE_DELETE_PENDING = "TEMPLATE_DELETE_PENDING",
   TEMPLATE_DELETE_SUCCESS = "TEMPLATE_DELETE_SUCCESS",
   TEMPLATE_DELETE_ERROR = "TEMPLATE_DELETE_ERROR",
+  TEMPLATE_CLEAR_ITEMS = "TEMPLATE_CLEAR_ITEMS",
 }
 
 export const fetchAllPending = createAction<TemplateStatePayload>(
@@ -111,4 +112,9 @@ export const deleteSuccess = createAction<TemplateStatePayload>(
 export const deleteError = createAction<TemplateStatePayload>(
   TemplateStateEnums.TEMPLATE_DELETE_ERROR,
   () => ({ isPending: false, isSuccess: false, isError: true }),
+);
+
+export const clearItems = createAction<TemplateStatePayload>(
+  TemplateStateEnums.TEMPLATE_CLEAR_ITEMS,
+  () => ({ items: [], totalCount: 0 }),
 );

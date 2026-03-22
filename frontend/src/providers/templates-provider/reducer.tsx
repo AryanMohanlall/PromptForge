@@ -67,6 +67,10 @@ export const TemplateReducer = handleActions<
       ...state,
       ...payload,
     }),
+    [TemplateStateEnums.TEMPLATE_CLEAR_ITEMS]: (state, { payload }) => ({
+      ...state,
+      ...payload,
+    }),
   },
   INITIAL_STATE,
 );

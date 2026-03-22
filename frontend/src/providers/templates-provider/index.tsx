@@ -13,6 +13,7 @@ import {
   TemplateStateContext,
 } from "./context";
 import {
+  clearItems,
   createError,
   createPending,
   createSuccess,
@@ -47,12 +48,15 @@ export const TemplateProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchAll = useCallback(
     async (input?: ITemplateListInput) => {
+      // Clear current items before fetching new ones
+      dispatch(clearItems());
       dispatch(fetchAllPending());
       try {
-        const res = await instance.get<AbpResult<AbpPagedResult<ITemplateItem>>>(
-          `${ENDPOINT}/GetList`,
-          { params: input },
-        );
+        const res = await instance.get<
+          AbpResult<AbpPagedResult<ITemplateItem>>
+        >(`${ENDPOINT}/GetList`, {
+          params: input,
+        });
         const { items, totalCount } = res.data.result;
         dispatch(fetchAllSuccess({ items, totalCount }));
       } catch {

@@ -118,23 +118,68 @@ public class TemplateAppService
     {
         try
         {
-            var userId = AbpSession.GetUserId();
-            Logger.Error("WE ARE IN TOGGLE FAVORITE, USER ID: " + userId + ", TEMPLATE ID: " + id);
-            var favorite = await _favoriteRepository.GetAll()
-                .FirstOrDefaultAsync(x => x.UserId == userId && x.TemplateId == id);
+            using (CurrentUnitOfWork.DisableFilter(AbpDataFilters.MayHaveTenant))
+            {
+                var userId = AbpSession.GetUserId();
+                var currentTenantId = AbpSession.TenantId;
+                Logger.Error("WE ARE IN TOGGLE FAVORITE, USER ID: " + userId + ", TEMPLATE ID: " + id);
 
-            if (favorite == null)
-            {
-                await _favoriteRepository.InsertAsync(new UserFavoriteTemplate
+                var favorite = await _favoriteRepository.GetAll()
+                    .FirstOrDefaultAsync(x => x.UserId == userId && x.TemplateId == id);
+
+                if (favorite == null)
                 {
-                    UserId = userId,
-                    TemplateId = id,
-                    TenantId = AbpSession.TenantId
-                });
-            }
-            else
-            {
-                await _favoriteRepository.DeleteAsync(favorite);
+                    // Get the original template
+                    var originalTemplate = await Repository.GetAsync(id);
+
+                    // Determine which template ID to use for the favorite
+                    int templateIdForFavorite = id;
+
+                    // If the template belongs to a different tenant, create a copy for the current tenant
+                    if (originalTemplate.TenantId != currentTenantId)
+                    {
+                        var copiedTemplate = new Template
+                        {
+                            TenantId = currentTenantId,
+                            Name = originalTemplate.Name,
+                            Description = originalTemplate.Description,
+                            Author = originalTemplate.Author,
+                            Category = originalTemplate.Category,
+                            Framework = originalTemplate.Framework,
+                            Language = originalTemplate.Language,
+                            Database = originalTemplate.Database,
+                            IncludesAuth = originalTemplate.IncludesAuth,
+                            Tags = originalTemplate.Tags,
+                            ThumbnailUrl = originalTemplate.ThumbnailUrl,
+                            PreviewUrl = originalTemplate.PreviewUrl,
+                            Status = originalTemplate.Status,
+                            Version = originalTemplate.Version,
+                            IsFeatured = false, // Copies are not featured by default
+                            ForkCount = 0,
+                            ScaffoldConfig = originalTemplate.ScaffoldConfig
+                        };
+
+                        await Repository.InsertAsync(copiedTemplate);
+                        await CurrentUnitOfWork.SaveChangesAsync();
+
+                        templateIdForFavorite = copiedTemplate.Id;
+
+                        // Increment fork count on the original template
+                        originalTemplate.ForkCount++;
+                        await Repository.UpdateAsync(originalTemplate);
+                    }
+
+                    await _favoriteRepository.InsertAsync(new UserFavoriteTemplate
+                    {
+                        UserId = userId,
+                        TemplateId = templateIdForFavorite,
+                        TenantId = currentTenantId
+                    });
+                }
+                else
+                {
+                    await _favoriteRepository.DeleteAsync(favorite);
+                }
             }
         }
         catch (Exception ex)
