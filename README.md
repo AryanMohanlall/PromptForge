@@ -21,9 +21,8 @@ Developers and startups often face significant friction when moving from an idea
 | Resource | Link |
 | :--- | :--- |
 | **Figma Design** | [View UI/UX Designs](https://www.figma.com/design/ztpFt2jwUETAhxCnkDM4xs/PromptForge?node-id=0-1&t=HZx01yfot5KoMsKj-1) |
-| **Domain Model** | [View Domain Model](https://lucid.app/lucidchart/a7f4c7cf-b4cb-4bea-9c13-91cf348e0c52/edit?invitationId=inv_6141d060-2270-4da9-b417-a3dd1cf3d611&page=0_0#) |
-| **Architecture** | [View Architecture Diagram](https://drive.google.com/file/d/13-XbXg1Q31u4pAhsZdx9QOW4dNwz5U54/view?usp=sharing) |
-| **Live Demo** | _Not deployed yet (coming soon)_ |
+| **Domain Model** | [View Domain Model](https://lucid.app/lucidchart/a7f4c7cf-b4cb-4bea-9c13-91cf348e0c52/edit?invitationId=inv_6141d060-2270-4da9-b417-a3dd1cf3d611&page=0_0#) |view?usp=sharing) |
+| **Live Demo** | https://abp-group.vercel.app/ |
 
 ---
 
