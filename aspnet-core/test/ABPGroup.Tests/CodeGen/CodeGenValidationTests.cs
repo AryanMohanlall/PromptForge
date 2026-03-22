@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using ABPGroup.CodeGen;
 using ABPGroup.CodeGen.Dto;
 using Xunit;
@@ -12,8 +11,8 @@ namespace ABPGroup.Tests.CodeGen
         [Fact]
         public void BuildInitialValidationResults_IncludesNextShellChecks()
         {
-            var results = InvokeValidationMethod<List<ValidationResultDto>>(
-                "BuildInitialValidationResults",
+            var validator = new CodeGenValidator();
+            var results = validator.BuildInitialValidationResults(
                 new List<ValidationRuleDto>(),
                 new StackConfigDto { Framework = "Next.js" });
 
@@ -25,8 +24,8 @@ namespace ABPGroup.Tests.CodeGen
         [Fact]
         public void EvaluateValidationResults_FailsWhenNextHomeShellIsMissing()
         {
-            var results = InvokeValidationMethod<List<ValidationResultDto>>(
-                "EvaluateValidationResults",
+            var validator = new CodeGenValidator();
+            var results = validator.EvaluateValidationResults(
                 new List<ValidationRuleDto>(),
                 new List<GeneratedFile>
                 {
@@ -43,8 +42,8 @@ namespace ABPGroup.Tests.CodeGen
         [Fact]
         public void EvaluateValidationResults_PassesWhenViteShellIsStyled()
         {
-            var results = InvokeValidationMethod<List<ValidationResultDto>>(
-                "EvaluateValidationResults",
+            var validator = new CodeGenValidator();
+            var results = validator.EvaluateValidationResults(
                 new List<ValidationRuleDto>(),
                 new List<GeneratedFile>
                 {
@@ -57,16 +56,6 @@ namespace ABPGroup.Tests.CodeGen
             Assert.Contains(results, result => result.Id == "shell-vite-index-html" && result.Status == "passed");
             Assert.Contains(results, result => result.Id == "shell-required-layout" && result.Status == "passed");
             Assert.Contains(results, result => result.Id == "shell-styled-home-route" && result.Status == "passed");
-        }
-
-        private static T InvokeValidationMethod<T>(string methodName, params object[] parameters)
-        {
-            var method = typeof(CodeGenAppService).GetMethod(
-                methodName,
-                BindingFlags.NonPublic | BindingFlags.Static);
-
-            Assert.NotNull(method);
-            return (T)method.Invoke(null, parameters);
         }
     }
 }

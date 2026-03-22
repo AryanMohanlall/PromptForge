@@ -252,7 +252,8 @@ API_URL=http://localhost:3000
         {
             var claudeClient = Substitute.For<IClaudeApiClient>();
             var aiService = new CodeGenAiService(httpClientFactory, configuration, claudeClient);
-            var sessionManager = new CodeGenSessionManager(sessionRepository, aiService);
+            var uowManager = Substitute.For<Abp.Domain.Uow.IUnitOfWorkManager>();
+            var sessionManager = new CodeGenSessionManager(sessionRepository, aiService, uowManager);
             var scaffolder = new CodeGenScaffolder();
             var validator = new CodeGenValidator();
             var planner = new CodeGenPlanner(aiService, sessionManager);

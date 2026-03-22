@@ -183,9 +183,21 @@ public class CodeGenRefiner : DomainService, ICodeGenRefiner
     private static List<string> BuildRepairAffectedPaths(List<ValidationResultDto> failures, AppSpecDto spec, StackConfigDto stack)
     {
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var specValidations = spec?.Validations ?? new List<ValidationRuleDto>();
+
         foreach (var failure in failures)
         {
-            var hint = CodeGenHelpers.ExtractRouteHint(new ValidationRuleDto { Id = failure.Id, Assertion = failure.Message });
+            var rule = specValidations.FirstOrDefault(v => v.Id == failure.Id);
+            
+            // First, try to use the specific Target from the rule
+            if (rule != null && !string.IsNullOrWhiteSpace(rule.Target))
+            {
+                paths.Add(rule.Target);
+            }
+            
+            // Next, extract a route hint based on the rule's original assertion, or the failure message
+            var assertionToCheck = rule?.Assertion ?? failure.Message;
+            var hint = CodeGenHelpers.ExtractRouteHint(new ValidationRuleDto { Id = failure.Id, Target = rule?.Target, Assertion = assertionToCheck });
             if (!string.IsNullOrWhiteSpace(hint)) paths.Add(hint);
         }
         return paths.ToList();
