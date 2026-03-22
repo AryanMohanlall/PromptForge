@@ -16,7 +16,7 @@ import {
 import { useStyles } from "./styles";
 import { useAuthAction, useAuthState } from "@/providers/auth-provider";
 import { useRouter } from "next/navigation";
-import { Image } from "antd";
+import { Flex, Image } from "antd";
 
 interface SidebarProps {
   currentPage: string;
@@ -101,8 +101,14 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   return (
     <div className={styles.sidebar}>
       <div className={styles.content}>
-        <h1 className={styles.brand}>PromptForge</h1>
-
+        <Flex align="center" justify="center">
+          <Image
+            src="/logo.svg"
+            alt="PromptForge Logo"
+            className={styles.logo}
+          />
+          <h1 className={styles.brand}>PromptForge</h1>
+        </Flex>
         <button
           type="button"
           onClick={() => onNavigate("generate")}
