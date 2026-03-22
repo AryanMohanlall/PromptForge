@@ -13,12 +13,14 @@ import {
   useProjectAction,
   useProjectState,
 } from "@/providers/projects-provider";
+import { useRouter } from "next/navigation";
 
 interface DashboardPageProps {
   onNavigate: (page: string) => void;
 }
 
 export function DashboardPage({ onNavigate }: DashboardPageProps) {
+  const router = useRouter();
   const { styles, cx } = useStyles();
   const { items, isPending, isError } = useProjectState();
   const { fetchAll, remove } = useProjectAction();
