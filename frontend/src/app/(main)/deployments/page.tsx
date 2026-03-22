@@ -121,6 +121,7 @@ export default function DeploymentsPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [loadingRepos, setLoadingRepos] = useState(false);
+  const [repoLoadError, setRepoLoadError] = useState<string | null>(null);
 
   const instance = getAxiosInstance();
 
@@ -170,12 +171,17 @@ export default function DeploymentsPage() {
 
   const loadGithubRepos = useCallback(async () => {
     setLoadingRepos(true);
+    setRepoLoadError(null);
     try {
       const res = await instance.get("/api/github-app/repositories");
       const data = res.data.result ?? res.data;
       setGithubRepos(data.repositories ?? []);
-    } catch {
-      // non-fatal
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message ??
+        (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.error ??
+        "Failed to load repositories. Connect GitHub in Settings first.";
+      setRepoLoadError(msg);
     } finally {
       setLoadingRepos(false);
     }
@@ -188,6 +194,12 @@ export default function DeploymentsPage() {
   useEffect(() => {
     loadDeployments();
   }, [loadDeployments]);
+
+  useEffect(() => {
+    if (showCreateModal && githubRepos.length === 0) {
+      loadGithubRepos();
+    }
+  }, [showCreateModal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Redeploy ─────────────────────────────────────────────────────────────
 
@@ -214,9 +226,9 @@ export default function DeploymentsPage() {
 
   const openCreateModal = () => {
     setCreateError(null);
+    setRepoLoadError(null);
     createForm.resetFields();
     setShowCreateModal(true);
-    if (githubRepos.length === 0) loadGithubRepos();
   };
 
   const handleRepoSelect = (fullName: string) => {
@@ -501,6 +513,19 @@ export default function DeploymentsPage() {
 
         {/* Modal body */}
         <div style={{ padding: "20px 24px" }}>
+          {repoLoadError && (
+            <Alert
+              type="warning"
+              message={repoLoadError}
+              style={{
+                marginBottom: 16,
+                background: "rgba(234,179,8,0.08)",
+                border: "1px solid rgba(234,179,8,0.2)",
+                borderRadius: 8,
+                color: "#fde68a",
+              }}
+            />
+          )}
           {createError && (
             <Alert
               type="error"

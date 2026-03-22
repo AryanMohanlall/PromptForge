@@ -13,6 +13,7 @@ import {
   LogOutIcon,
   SparklesIcon,
   RocketIcon,
+  GithubIcon,
 } from "lucide-react";
 import { useStyles } from "./styles";
 import { useAuthAction, useAuthState } from "@/providers/auth-provider";
@@ -95,7 +96,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
     {
       id: "github",
       label: "Github",
-      icon: BarChart3Icon,
+      icon: GithubIcon,
     }
   ];
 
