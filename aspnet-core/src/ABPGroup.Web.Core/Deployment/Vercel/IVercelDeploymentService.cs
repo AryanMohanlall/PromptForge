@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace ABPGroup.Deployment.Vercel
+namespace ABPGroup.VercelDeployment
 {
     public interface IVercelDeploymentService
     {

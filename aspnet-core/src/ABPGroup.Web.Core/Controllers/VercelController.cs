@@ -1,5 +1,5 @@
 using Abp.Authorization;
-using ABPGroup.Deployment.Vercel;
+using ABPGroup.VercelDeployment;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 

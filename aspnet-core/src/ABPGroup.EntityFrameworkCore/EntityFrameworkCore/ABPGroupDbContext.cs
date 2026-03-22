@@ -20,6 +20,8 @@ public class ABPGroupDbContext : AbpZeroDbContext<Tenant, Role, User, ABPGroupDb
     public DbSet<Template> Templates { get; set; }
     public DbSet<UserFavoriteTemplate> UserFavoriteTemplates { get; set; }
     public DbSet<CodeGenSession> CodeGenSessions { get; set; }
+    public DbSet<ProjectRepository> ProjectRepositories { get; set; }
+    public DbSet<Deployment> Deployments { get; set; }
 
     public ABPGroupDbContext(DbContextOptions<ABPGroupDbContext> options)
         : base(options)
