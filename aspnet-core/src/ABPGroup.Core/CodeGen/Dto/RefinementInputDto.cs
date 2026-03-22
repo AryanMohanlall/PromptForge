@@ -9,7 +9,7 @@ public class RefinementInputDto
     public string SessionId { get; set; }
 
     [Required]
-    public string ChangeRequest { get; set; } // natural language description of what to change
+    public string ChangeRequest { get; set; }
 
-    public List<string> AffectedFiles { get; set; } = new(); // optional hint about which files to touch
+    public List<string> AffectedFiles { get; set; } = new();
 }

@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace ABPGroup.CodeGen.Dto;
 
 public class StackConfigDto
@@ -10,5 +8,4 @@ public class StackConfigDto
     public string Database { get; set; }
     public string Orm { get; set; }
     public string Auth { get; set; }
-    public Dictionary<string, string> Reasoning { get; set; } = new();
 }

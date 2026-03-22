@@ -204,7 +204,7 @@ export interface IGenerationStatus {
   completedSteps: string[];
   validationResults: IValidationResult[];
   isComplete: boolean;
-  error?: string;
+  errorMessage?: string;
 }
 
 // ─── README Result ───────────────────────────────────────────────────────────

@@ -51,12 +51,16 @@ export function GenerationProgress({ sessionId, onComplete }: GenerationProgress
       try {
         const status = await pollStatus(sessionId);
 
-        if (status.completedSteps.length > activityLog.length) {
-          const newSteps = status.completedSteps.slice(activityLog.length);
-          setActivityLog((prev) => [...prev, ...newSteps]);
-        }
+        // Update local activity log based on current status
+        setActivityLog((prev) => {
+          if (status.completedSteps.length > prev.length) {
+            const newSteps = status.completedSteps.slice(prev.length);
+            return [...prev, ...newSteps];
+          }
+          return prev;
+        });
 
-        if (status.isComplete || status.error) {
+        if (status.isComplete || status.errorMessage) {
           if (pollRef.current) clearInterval(pollRef.current);
           onComplete(status);
         }
@@ -68,11 +72,11 @@ export function GenerationProgress({ sessionId, onComplete }: GenerationProgress
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [started, sessionId, pollStatus, onComplete, activityLog.length]);
+  }, [started, sessionId, pollStatus, onComplete]);
 
   const validations = generationStatus?.validationResults ?? [];
   const isComplete = generationStatus?.isComplete ?? false;
-  const hasError = !!generationStatus?.error;
+  const hasError = !!generationStatus?.errorMessage;
 
   const currentStepsCount = generationStatus?.completedSteps?.length ?? activityLog.length;
   const estimatedTotalSteps = 8;

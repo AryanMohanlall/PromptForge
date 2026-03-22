@@ -56,9 +56,12 @@ foreach ($entry in $mappings.GetEnumerator()) {
 
 # Local dev paths (not inside a container)
 $localOutput = [System.Environment]::GetEnvironmentVariable("LOCAL_OUTPUT_PATH", "Process")
-if (-not $localOutput) { $localOutput = "C:/Users/Nhlakanipho/Documents/GeneratedApps" }
+if (-not $localOutput) { 
+    $localOutput = Join-Path ([System.IO.Path]::GetTempPath()) "PromptForge\GeneratedApps"
+}
+if (-not (Test-Path $localOutput)) { New-Item -Path $localOutput -ItemType Directory -Force | Out-Null }
 [System.Environment]::SetEnvironmentVariable("CodeGen__LocalCopyPath", $localOutput, "Process")
-[System.Environment]::SetEnvironmentVariable("CodeGen__OutputPath", (Join-Path $PSScriptRoot "docker\GeneratedApps"), "Process")
+[System.Environment]::SetEnvironmentVariable("CodeGen__OutputPath", $localOutput, "Process")
 
 $env:ASPNETCORE_ENVIRONMENT = "Development"
 $env:ASPNETCORE_URLS = "http://localhost:44311"

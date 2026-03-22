@@ -59,6 +59,7 @@ export const CodeGenProvider = ({ children }: { children: ReactNode }) => {
   const instance = getAxiosInstance();
   const [state, dispatch] = useReducer(CodeGenReducer, INITIAL_STATE);
   const inFlightSpecRequests = useRef<Record<string, Promise<IAppSpec>>>({});
+  const inFlightGenerationRequests = useRef<Record<string, Promise<void>>>({});
 
   const normalizeSpec = useCallback((spec: IAppSpec | null | undefined): IAppSpec => ({
     entities: spec?.entities ?? [],
@@ -183,19 +184,32 @@ export const CodeGenProvider = ({ children }: { children: ReactNode }) => {
   }, [instance]);
 
   const startGeneration = useCallback(async (sessionId: string): Promise<void> => {
+    const existingRequest = inFlightGenerationRequests.current[sessionId];
+    if (existingRequest !== undefined) {
+      return existingRequest;
+    }
+
     dispatch(startGenerationPending());
-    try {
-      const res = await instance.post<AbpResult<ICodeGenSession>>(
+    const request = instance
+      .post<AbpResult<ICodeGenSession>>(
         `${ENDPOINT}/Generate`,
         null,
         { params: { sessionId } }
-      );
-      dispatch(startGenerationSuccess(res.data.result));
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Failed to start generation";
-      dispatch(startGenerationError(msg));
-      throw error;
-    }
+      )
+      .then((res) => {
+        dispatch(startGenerationSuccess(res.data.result));
+      })
+      .catch((error) => {
+        const msg = error instanceof Error ? error.message : "Failed to start generation";
+        dispatch(startGenerationError(msg));
+        throw error;
+      })
+      .finally(() => {
+        delete inFlightGenerationRequests.current[sessionId];
+      });
+
+    inFlightGenerationRequests.current[sessionId] = request;
+    return request;
   }, [instance]);
 
   const pollStatus = useCallback(async (sessionId: string): Promise<IGenerationStatus> => {

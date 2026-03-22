@@ -8,6 +8,7 @@ using ABPGroup.CodeGen.Dto;
 using ABPGroup.Templates;
 using Abp.Domain.Repositories;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Xunit;
 
@@ -100,7 +101,7 @@ export default function TasksPage() {
             sessionRepo.UpdateAsync(Arg.Any<CodeGenSession>())
                 .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
 
-            var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+            var service = CreateService(factory, config, templateRepo, sessionRepo);
 
             var result = await service.RefineSession(new RefinementInputDto
             {
@@ -178,7 +179,7 @@ export default function Footer() {
             sessionRepo.UpdateAsync(Arg.Any<CodeGenSession>())
                 .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
 
-            var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+            var service = CreateService(factory, config, templateRepo, sessionRepo);
 
             var result = await service.RefineSession(new RefinementInputDto
             {
@@ -251,7 +252,7 @@ export default function SettingsPage() {
             sessionRepo.UpdateAsync(Arg.Any<CodeGenSession>())
                 .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
 
-            var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+            var service = CreateService(factory, config, templateRepo, sessionRepo);
 
             var result = await service.RefineSession(new RefinementInputDto
             {
@@ -298,7 +299,7 @@ export default function SettingsPage() {
 
             sessionRepo.FirstOrDefaultAsync(sessionId).Returns(session);
 
-            var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+            var service = CreateService(factory, config, templateRepo, sessionRepo);
 
             await Assert.ThrowsAsync<Abp.UI.UserFriendlyException>(() =>
                 service.RefineSession(new RefinementInputDto
@@ -306,6 +307,32 @@ export default function SettingsPage() {
                     SessionId = sessionId.ToString(),
                     ChangeRequest = "Add a footer"
                 }));
+        }
+
+        private CodeGenAppService CreateService(
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration,
+            IRepository<Template, int> templateRepository,
+            IRepository<CodeGenSession, Guid> sessionRepository)
+        {
+            var claudeClient = Substitute.For<IClaudeApiClient>();
+            var aiService = new CodeGenAiService(httpClientFactory, configuration, claudeClient);
+            var sessionManager = new CodeGenSessionManager(sessionRepository, aiService);
+            var scaffolder = new CodeGenScaffolder();
+            var validator = new CodeGenValidator();
+            var planner = new CodeGenPlanner(aiService, sessionManager);
+            var engine = new CodeGenEngine(aiService, planner, scaffolder, configuration);
+            var refiner = new CodeGenRefiner(aiService, sessionManager, validator);
+            var scopeFactory = Substitute.For<IServiceScopeFactory>();
+
+            return new CodeGenAppService(
+                sessionManager,
+                engine,
+                planner,
+                refiner,
+                aiService,
+                templateRepository,
+                scopeFactory);
         }
     }
 

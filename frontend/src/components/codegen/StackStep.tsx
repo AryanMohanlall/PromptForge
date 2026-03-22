@@ -97,7 +97,7 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
             orm: rec.orm,
             auth: rec.auth,
           });
-          setReasoning(rec.reasoning);
+          setReasoning(rec.reasoning || {});
           setLoaded(true);
         })
         .catch(() => {
@@ -111,9 +111,7 @@ export function StackStep({ sessionId, onNext, onBack }: StackStepProps) {
     setSelections((prev) => ({ ...prev, [category]: value }));
   };
 
-  const handleExtraSelect = (category: string, value: string) => {
-    setExtraSelections((prev) => ({ ...prev, [category]: value }));
-  };
+
 
   const handleConfirm = async () => {
     const stack: IStackConfig = {

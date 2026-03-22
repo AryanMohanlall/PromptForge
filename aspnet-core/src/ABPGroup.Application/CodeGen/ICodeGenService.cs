@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using Abp.Application.Services;
 using ABPGroup.CodeGen.Dto;
@@ -8,7 +9,7 @@ namespace ABPGroup.CodeGen;
 public interface ICodeGenAppService : IApplicationService
 {
     // Legacy single-shot generation (backward compat with ProjectAppService)
-    Task<CodeGenResult> GenerateProjectAsync(CreateUpdateProjectDto input);
+    Task<CodeGenResult> GenerateProjectAsync(CreateUpdateProjectDto input, Func<string, Task> onProgress = null);
 
     // Multi-step workflow
     Task<CodeGenSessionDto> CreateSession(CreateSessionInput input);

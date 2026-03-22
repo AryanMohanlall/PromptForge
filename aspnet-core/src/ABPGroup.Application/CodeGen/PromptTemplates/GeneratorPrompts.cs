@@ -114,4 +114,37 @@ FINAL SELF-CHECK BEFORE ANSWERING
 - Did I keep dependency choices compatible with the scaffold?
 If any answer is no, fix it before returning.";
     }
+    public static string BuildCodeGenSystemPrompt(
+        string layerDescription,
+        AppSpecDto spec,
+        string framework,
+        string scaffoldBaseline,
+        string approvedReadme)
+    {
+        return $@"You are a principal full-stack engineer generating {layerDescription} for a {framework} application.
+SCAFFOLD BASELINE:
+{scaffoldBaseline}
+
+APPROVED README:
+{approvedReadme}
+
+SPECIFICATION:
+Entities: {string.Join(", ", spec?.Entities?.Select(e => e.Name) ?? new List<string>())}
+Pages: {string.Join(", ", spec?.Pages?.Select(p => p.Route) ?? new List<string>())}
+
+Follow the architecture defined in the scaffold and README.";
+    }
+
+    public static string BuildLayerUserPrompt(
+        string userInstruction,
+        System.Text.StringBuilder context,
+        string originalPrompt,
+        string approvedReadme)
+    {
+        return $@"Instruction: {userInstruction}
+Original Requirement: {originalPrompt}
+Context: {context}
+
+Generate the code for this layer. Return the files in the standard delimiters.";
+    }
 }

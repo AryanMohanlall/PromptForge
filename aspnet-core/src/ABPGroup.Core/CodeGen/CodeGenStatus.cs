@@ -12,5 +12,7 @@ public enum CodeGenStatus
     ValidationPassed = 8,
     ValidationFailed = 9,
     Committed = 10,
-    Deployed = 11
+    Deployed = 11,
+    GenerationCompleted = 12,
+    Failed = 99
 }

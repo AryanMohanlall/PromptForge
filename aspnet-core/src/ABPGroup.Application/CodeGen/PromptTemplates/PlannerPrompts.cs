@@ -154,6 +154,41 @@ The JSON must have this exact structure:
             + BuildStackContext(stack));
     }
 
+    /// <summary>
+    /// Builds a README generation prompt for the user to review before scaffolding.
+    /// </summary>
+    public static string BuildReadmePrompt(
+        string projectName,
+        string requirement,
+        StackConfigDto stack,
+        List<string> features,
+        List<string> entities)
+    {
+        return $@"Generate a high-level README.md and implementation summary for the following project.
+Project Name: {projectName}
+User Requirements: {requirement}
+Stack: {BuildStackContext(stack)}
+Desired Features: {string.Join(", ", features)}
+Core Entities: {string.Join(", ", entities)}
+
+The response MUST include:
+===SUMMARY===
+A concise (2-3 sentence) summary of the project architecture and the user's primary goal.
+===END SUMMARY===
+
+===README===
+A professional markdown README including:
+- Project Title
+- Tech Stack
+- Folder Structure (based on the chosen framework)
+- Core Features
+- Database Schema Overview
+- API endpoints (if applicable)
+===END README===
+
+Focus on clarity and strategic architecture. Use the provided stack (Framework: {stack?.Framework}) as the technical constraint.";
+    }
+
     private static string BuildPrompt(string objective, string context)
     {
         return $@"You are an expert software architect. {objective}

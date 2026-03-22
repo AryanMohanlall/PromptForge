@@ -11,6 +11,7 @@ using ABPGroup.CodeGen.Dto;
 using ABPGroup.Templates;
 using Abp.Domain.Repositories;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Xunit;
 
@@ -76,7 +77,7 @@ export default function HomePage() {
             sessionRepo.UpdateAsync(Arg.Any<CodeGenSession>())
                 .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
 
-            var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+            var service = CreateService(factory, config, templateRepo, sessionRepo);
 
             var result = await service.Repair(new TriggerRepairInput
             {
@@ -177,7 +178,7 @@ API_URL=http://localhost:3000
             sessionRepo.UpdateAsync(Arg.Any<CodeGenSession>())
                 .Returns(callInfo => Task.FromResult(callInfo.Arg<CodeGenSession>()));
 
-            var service = new CodeGenAppService(factory, config, templateRepo, sessionRepo);
+            var service = CreateService(factory, config, templateRepo, sessionRepo);
 
             var result = await service.Repair(new TriggerRepairInput
             {
@@ -241,6 +242,32 @@ API_URL=http://localhost:3000
                     Content = new StringContent(body, Encoding.UTF8, "application/json")
                 };
             }
+        }
+
+        private CodeGenAppService CreateService(
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration,
+            IRepository<Template, int> templateRepository,
+            IRepository<CodeGenSession, Guid> sessionRepository)
+        {
+            var claudeClient = Substitute.For<IClaudeApiClient>();
+            var aiService = new CodeGenAiService(httpClientFactory, configuration, claudeClient);
+            var sessionManager = new CodeGenSessionManager(sessionRepository, aiService);
+            var scaffolder = new CodeGenScaffolder();
+            var validator = new CodeGenValidator();
+            var planner = new CodeGenPlanner(aiService, sessionManager);
+            var engine = new CodeGenEngine(aiService, planner, scaffolder, configuration);
+            var refiner = new CodeGenRefiner(aiService, sessionManager, validator);
+            var scopeFactory = Substitute.For<IServiceScopeFactory>();
+
+            return new CodeGenAppService(
+                sessionManager,
+                engine,
+                planner,
+                refiner,
+                aiService,
+                templateRepository,
+                scopeFactory);
         }
     }
 }

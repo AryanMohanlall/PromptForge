@@ -49,7 +49,7 @@ export function GenerationResult({
     : passedValidations === totalValidations
       ? `All ${totalValidations} validations passed. Your app is ready to deploy.`
       : `${passedValidations} of ${totalValidations} validations passed. Your app is ready to deploy.`;
-  const isSuccess = !status.error && failures.length === 0;
+  const isSuccess = !status.errorMessage && failures.length === 0;
   const repairAttempts = session?.repairAttempts ?? 0;
   const maxRepairAttempts = 5;
   const canRepair = failures.length > 0 && failures.length <= 5 && repairAttempts < maxRepairAttempts;
@@ -121,11 +121,11 @@ export function GenerationResult({
           </div>
           <div>
             <h3 className={styles.failedTitle}>
-              {status.error ? "Generation Failed" : "Validation Failures"}
+              {status.errorMessage ? "Generation Failed" : "Validation Failures"}
             </h3>
             <p className={styles.failedSubtitle}>
-              {status.error
-                ? status.error
+              {status.errorMessage
+                ? status.errorMessage
                 : `${failures.length} validation(s) failed. ${canRepair ? "Auto-repair is available." : "Manual fixes required."}`}
             </p>
           </div>
@@ -175,7 +175,7 @@ export function GenerationResult({
             <ArrowLeftIcon size={16} />
             Back to Spec
           </button>
-          {!status.error && onSaveOnly && (
+          {!status.errorMessage && onSaveOnly && (
             <button
               type="button"
               className={styles.secondaryButton}
