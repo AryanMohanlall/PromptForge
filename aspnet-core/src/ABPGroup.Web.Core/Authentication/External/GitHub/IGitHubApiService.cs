@@ -10,6 +10,6 @@ namespace ABPGroup.Authentication.External.GitHub
         Task<List<object>> GetCommitsAsync(string userAccessToken, string owner, string repo, string branch = null, int perPage = 30);
         Task<List<object>> GetBranchesAsync(string userAccessToken, string owner, string repo);
 
-        Task<List<GitHubApiService.GitHubRepositoryInfo>> GetUserRepositoriesAsync(string userAccessToken);
+        Task<List<object>> GetUserRepositoriesAsync(string userAccessToken);
     }
 }

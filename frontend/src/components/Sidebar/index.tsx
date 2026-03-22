@@ -63,11 +63,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       label: "Settings",
       icon: SettingsIcon,
     },
-    {
-      id: "admin-page",
-      label: "Admin",
-      icon: BarChart3Icon,
-    }
+    
   ];
 
   const adminNav = [
@@ -96,6 +92,11 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       label: "System Health",
       icon: ActivityIcon,
     },
+    {
+      id: "github",
+      label: "Github",
+      icon: BarChart3Icon,
+    }
   ];
 
   const handleLogout = async () => {

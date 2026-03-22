@@ -240,7 +240,7 @@ function CreateRepoModal({
     setError(null);
     try {
       const instance = getAxiosInstance();
-      const res = await instance.post<{ repository: Repository }>(
+      const res = await instance.post(
         "/api/github-app/repositories",
         {
           name: name.trim(),
@@ -249,7 +249,8 @@ function CreateRepoModal({
           autoInit: true,
         }
       );
-      onCreated(res.data.repository);
+      const repository = res.data.result?.repository ?? res.data.repository;
+      onCreated(repository);
       onClose();
     } catch (err: unknown) {
       const e = err as { response?: { data?: { error?: string } } };
@@ -458,54 +459,47 @@ export default function GitHubDashboardPage() {
 
   const instance = getAxiosInstance();
 
-  const fetchRepos = useCallback(async () => {
-    setLoadingRepos(true);
-    setReposError(null);
-    try {
-      const res = await instance.get<{ repositories: Repository[] }>(
-        "/api/github-app/repositories"
-      );
-      setRepos(res.data.repositories ?? []);
-    } catch {
-      setReposError("Failed to load repositories. Make sure your GitHub account is connected.");
-    } finally {
-      setLoadingRepos(false);
-    }
-  }, [instance]);
+const fetchRepos = useCallback(async () => {
+  setLoadingRepos(true);
+  setReposError(null);
+  try {
+    const res = await instance.get("/api/github-app/repositories");
+    setRepos(res.data.result?.repositories ?? res.data.repositories ?? []);
+  } catch (err) {
+    console.error("[GitHub] Error:", err);
+    setReposError("Failed to load repositories. Make sure your GitHub account is connected.");
+  } finally {
+    setLoadingRepos(false);
+  }
+}, [instance]);
 
-  const fetchCommits = useCallback(
-    async (repo: Repository) => {
-      setLoadingDetail(true);
-      try {
-        const res = await instance.get<{ commits: Commit[] }>(
-          `/api/github-app/commits?owner=${repo.fullName.split("/")[0]}&repo=${repo.name}`
-        );
-        setCommits(res.data.commits ?? []);
-      } catch {
-        setCommits([]);
-      } finally {
-        setLoadingDetail(false);
-      }
-    },
-    [instance]
-  );
+const fetchCommits = useCallback(async (repo: Repository) => {
+  setLoadingDetail(true);
+  try {
+    const res = await instance.get(
+      `/api/github-app/commits?owner=${repo.fullName.split("/")[0]}&repo=${repo.name}`
+    );
+    setCommits(res.data.result?.commits ?? res.data.commits ?? []);
+  } catch {
+    setCommits([]);
+  } finally {
+    setLoadingDetail(false);
+  }
+}, [instance]);
 
-  const fetchBranches = useCallback(
-    async (repo: Repository) => {
-      setLoadingDetail(true);
-      try {
-        const res = await instance.get<{ branches: Branch[] }>(
-          `/api/github-app/branches?owner=${repo.fullName.split("/")[0]}&repo=${repo.name}`
-        );
-        setBranches(res.data.branches ?? []);
-      } catch {
-        setBranches([]);
-      } finally {
-        setLoadingDetail(false);
-      }
-    },
-    [instance]
-  );
+const fetchBranches = useCallback(async (repo: Repository) => {
+  setLoadingDetail(true);
+  try {
+    const res = await instance.get(
+      `/api/github-app/branches?owner=${repo.fullName.split("/")[0]}&repo=${repo.name}`
+    );
+    setBranches(res.data.result?.branches ?? res.data.branches ?? []);
+  } catch {
+    setBranches([]);
+  } finally {
+    setLoadingDetail(false);
+  }
+}, [instance]);
 
   useEffect(() => {
     fetchRepos();

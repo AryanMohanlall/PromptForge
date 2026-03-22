@@ -10,6 +10,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace ABPGroup.Authentication.External.GitHub
 {
@@ -720,24 +721,40 @@ namespace ABPGroup.Authentication.External.GitHub
         return branches;
     }
 
-    public async Task<List<GitHubRepositoryInfo>> GetUserRepositoriesAsync(string userAccessToken)
+public async Task<List<object>> GetUserRepositoriesAsync(string userAccessToken)
+{
+    var client = _httpClientFactory.CreateClient();
+    var request = BuildGitHubRequest(
+        HttpMethod.Get,
+        "https://api.github.com/user/repos?per_page=100&sort=updated",
+        userAccessToken);
+
+    var response = await client.SendAsync(request);
+    if (!response.IsSuccessStatusCode)
     {
-        var client = _httpClientFactory.CreateClient();
-        var request = BuildGitHubRequest(
-            HttpMethod.Get,
-            "https://api.github.com/user/repos?per_page=100&sort=updated",
-            userAccessToken);
-
-        var response = await client.SendAsync(request);
-        if (!response.IsSuccessStatusCode)
-        {
-            var error = await response.Content.ReadAsStringAsync();
-            throw new Exception($"GitHub user repositories request failed: {(int)response.StatusCode} {error}");
-        }
-
-        return await response.Content.ReadFromJsonAsync<List<GitHubRepositoryInfo>>()
-            ?? new List<GitHubRepositoryInfo>();
+        var error = await response.Content.ReadAsStringAsync();
+        throw new Exception($"GitHub user repositories request failed: {(int)response.StatusCode} {error}");
     }
+
+    var raw = await response.Content.ReadFromJsonAsync<List<GitHubRepositoryInfo>>()
+        ?? new List<GitHubRepositoryInfo>();
+
+    // Map to camelCase DTO so frontend interface matches
+    return raw.Select(r => (object)new
+    {
+        id = r.Id,
+        name = r.Name,
+        fullName = r.FullName,
+        htmlUrl = r.HtmlUrl,
+        @private = r.Private,
+        description = (string)null,
+        language = (string)null,
+        defaultBranch = (string)null,
+        updatedAt = (string)null,
+        stargazersCount = 0,
+        forksCount = 0
+    }).ToList();
+}
 
         // ── Response models ───────────────────────────────────────────────────
 

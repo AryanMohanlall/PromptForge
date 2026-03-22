@@ -115,50 +115,6 @@ namespace ABPGroup.Controllers
                 });
             }
         }
-/* 
-        [HttpGet("repositories")]
-        public async Task<IActionResult> Repositories([FromQuery] string installationId = null)
-        {
-            var appId = _configuration["GitHubApp:AppId"];
-            var privateKeyPem = _configuration["GitHubApp:PrivateKeyPem"];
-            var resolvedInstallationId = installationId ?? _configuration["GitHubApp:InstallationId"];
-
-            if (string.IsNullOrWhiteSpace(appId) ||
-                string.IsNullOrWhiteSpace(privateKeyPem) ||
-                string.IsNullOrWhiteSpace(resolvedInstallationId))
-            {
-                return BadRequest(new
-                {
-                    message = "GitHub App configuration is incomplete.",
-                    hasAppId = !string.IsNullOrWhiteSpace(appId),
-                    hasPrivateKey = !string.IsNullOrWhiteSpace(privateKeyPem),
-                    hasInstallationId = !string.IsNullOrWhiteSpace(resolvedInstallationId)
-                });
-            }
-
-            try
-            {
-                var installationToken = await _gitHubApiService.CreateInstallationTokenAsync(
-                    appId, resolvedInstallationId, privateKeyPem);
-
-                var repositories = await _gitHubApiService.GetInstallationRepositoriesAsync(installationToken);
-                return Ok(new
-                {
-                    installationId = resolvedInstallationId,
-                    count = repositories.Count,
-                    repositories
-                });
-            }
-            catch (Exception ex)
-            {
-                Logger.Warn("GitHub installation repositories request failed.", ex);
-                return StatusCode(502, new
-                {
-                    message = "Failed to query installation repositories.",
-                    error = ex.Message
-                });
-            }
-        } */
 
         [HttpPost("repositories")]
         public async Task<IActionResult> CreateRepository([FromBody] CreateRepositoryInput input)
