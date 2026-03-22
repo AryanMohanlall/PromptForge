@@ -115,7 +115,11 @@ namespace ABPGroup.Deployment.Vercel
                 };
 
                 var requestUri = BuildRequestUri(deploymentEndpoint, query);
-                var response = await client.PostAsJsonAsync(requestUri, requestBody);
+                var jsonOptions = new System.Text.Json.JsonSerializerOptions
+                {
+                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                };
+                var response = await client.PostAsJsonAsync(requestUri, requestBody, jsonOptions);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -159,6 +163,178 @@ namespace ABPGroup.Deployment.Vercel
                     ErrorMessage = ex.Message
                 };
             }
+        }
+
+        public async Task<VercelListResult<VercelDeploymentItem>> ListDeploymentsAsync(
+            string projectId, string state, string branch, int limit = 20)
+        {
+            var token = _configuration["Vercel:Token"] ?? _configuration["Vercel__Token"];
+            if (string.IsNullOrWhiteSpace(token))
+                return new VercelListResult<VercelDeploymentItem> { Success = false, ErrorMessage = "Vercel token missing." };
+
+            var client = CreateVercelClient(token);
+            var query = BuildCommonQuery();
+            if (!string.IsNullOrWhiteSpace(projectId)) query["projectId"] = projectId;
+            if (!string.IsNullOrWhiteSpace(state)) query["state"] = state;
+            if (!string.IsNullOrWhiteSpace(branch)) query["branch"] = branch;
+            query["limit"] = Math.Min(limit, 100).ToString();
+
+            try
+            {
+                var uri = BuildRequestUri("https://api.vercel.com/v6/deployments", query);
+                var response = await client.GetAsync(uri);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var err = await response.Content.ReadAsStringAsync();
+                    return new VercelListResult<VercelDeploymentItem>
+                    {
+                        Success = false,
+                        ErrorMessage = TryExtractVercelError(err) ?? err
+                    };
+                }
+
+                var payload = await response.Content.ReadFromJsonAsync<VercelDeploymentsListResponse>();
+                var items = (payload?.Deployments ?? new List<VercelDeploymentListItem>())
+                    .ConvertAll(d => new VercelDeploymentItem
+                    {
+                        Uid = d.Uid,
+                        Name = d.Name,
+                        ProjectId = d.ProjectId,
+                        Url = NormalizeVercelUrl(d.Url),
+                        State = d.State,
+                        Target = d.Target,
+                        Created = d.Created,
+                        InspectorUrl = NormalizeVercelUrl(d.InspectorUrl),
+                        ErrorMessage = d.ErrorMessage,
+                        Meta = d.Meta,
+                        Creator = d.Creator == null ? null : new VercelCreatorInfo
+                        {
+                            Uid = d.Creator.Uid,
+                            Username = d.Creator.Username,
+                            Email = d.Creator.Email
+                        }
+                    });
+
+                return new VercelListResult<VercelDeploymentItem> { Success = true, Items = items };
+            }
+            catch (Exception ex)
+            {
+                return new VercelListResult<VercelDeploymentItem> { Success = false, ErrorMessage = ex.Message };
+            }
+        }
+
+        public async Task<VercelListResult<VercelProjectItem>> ListProjectsAsync(string search, int limit = 20)
+        {
+            var token = _configuration["Vercel:Token"] ?? _configuration["Vercel__Token"];
+            if (string.IsNullOrWhiteSpace(token))
+                return new VercelListResult<VercelProjectItem> { Success = false, ErrorMessage = "Vercel token missing." };
+
+            var client = CreateVercelClient(token);
+            var query = BuildCommonQuery();
+            if (!string.IsNullOrWhiteSpace(search)) query["search"] = search;
+            query["limit"] = Math.Min(limit, 100).ToString();
+
+            try
+            {
+                var uri = BuildRequestUri("https://api.vercel.com/v10/projects", query);
+                var response = await client.GetAsync(uri);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var err = await response.Content.ReadAsStringAsync();
+                    return new VercelListResult<VercelProjectItem>
+                    {
+                        Success = false,
+                        ErrorMessage = TryExtractVercelError(err) ?? err
+                    };
+                }
+
+                var payload = await response.Content.ReadFromJsonAsync<VercelProjectsListResponse>();
+                var items = (payload?.Projects ?? new List<VercelProjectDetail>())
+                    .ConvertAll(p => new VercelProjectItem
+                    {
+                        Id = p.Id,
+                        Name = p.Name,
+                        Framework = p.Framework,
+                        UpdatedAt = p.UpdatedAt
+                    });
+
+                return new VercelListResult<VercelProjectItem> { Success = true, Items = items };
+            }
+            catch (Exception ex)
+            {
+                return new VercelListResult<VercelProjectItem> { Success = false, ErrorMessage = ex.Message };
+            }
+        }
+
+        public async Task<VercelDeploymentResult> RedeployAsync(string deploymentId, string projectName)
+        {
+            if (string.IsNullOrWhiteSpace(deploymentId))
+                return new VercelDeploymentResult { Triggered = false, ErrorMessage = "Deployment ID is required." };
+
+            var token = _configuration["Vercel:Token"] ?? _configuration["Vercel__Token"];
+            if (string.IsNullOrWhiteSpace(token))
+                return new VercelDeploymentResult { Triggered = false, ErrorMessage = "Vercel token missing." };
+
+            var client = CreateVercelClient(token);
+            var query = BuildCommonQuery();
+            var resolvedName = string.IsNullOrWhiteSpace(projectName)
+                ? "redeployment"
+                : SanitizeProjectName(projectName);
+
+            var requestBody = new { name = resolvedName, deploymentId = deploymentId };
+
+            try
+            {
+                var uri = BuildRequestUri("https://api.vercel.com/v13/deployments", query);
+                var response = await client.PostAsJsonAsync(uri, requestBody);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync();
+                    var parsedError = TryExtractVercelError(errorBody);
+                    return new VercelDeploymentResult
+                    {
+                        Triggered = false,
+                        ErrorMessage = parsedError ?? errorBody
+                    };
+                }
+
+                var payload = await response.Content.ReadFromJsonAsync<VercelCreateDeploymentResponse>();
+                return new VercelDeploymentResult
+                {
+                    Triggered = !string.IsNullOrWhiteSpace(payload?.Id),
+                    DeploymentId = payload?.Id,
+                    Url = NormalizeVercelUrl(payload?.Url),
+                    InspectorUrl = NormalizeVercelUrl(payload?.InspectorUrl),
+                    State = payload?.State
+                };
+            }
+            catch (Exception ex)
+            {
+                return new VercelDeploymentResult { Triggered = false, ErrorMessage = ex.Message };
+            }
+        }
+
+        private HttpClient CreateVercelClient(string token)
+        {
+            var client = _httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", token);
+            client.DefaultRequestHeaders.Accept.Add(
+                new MediaTypeWithQualityHeaderValue("application/json"));
+            return client;
+        }
+
+        private Dictionary<string, string> BuildCommonQuery()
+        {
+            var query = new Dictionary<string, string>();
+            var teamId = _configuration["Vercel:TeamId"];
+            if (!string.IsNullOrWhiteSpace(teamId)) query["teamId"] = teamId;
+            var slug = _configuration["Vercel:Slug"];
+            if (!string.IsNullOrWhiteSpace(slug)) query["slug"] = slug;
+            return query;
         }
 
         private string BuildDeploymentEndpoint()
@@ -272,6 +448,48 @@ namespace ABPGroup.Deployment.Vercel
 
             [JsonPropertyName("readyState")]
             public string State { get; set; }
+        }
+
+        private class VercelDeploymentsListResponse
+        {
+            [JsonPropertyName("deployments")]
+            public List<VercelDeploymentListItem> Deployments { get; set; }
+        }
+
+        private class VercelDeploymentListItem
+        {
+            [JsonPropertyName("uid")] public string Uid { get; set; }
+            [JsonPropertyName("name")] public string Name { get; set; }
+            [JsonPropertyName("projectId")] public string ProjectId { get; set; }
+            [JsonPropertyName("url")] public string Url { get; set; }
+            [JsonPropertyName("state")] public string State { get; set; }
+            [JsonPropertyName("target")] public string Target { get; set; }
+            [JsonPropertyName("created")] public long Created { get; set; }
+            [JsonPropertyName("inspectorUrl")] public string InspectorUrl { get; set; }
+            [JsonPropertyName("errorMessage")] public string ErrorMessage { get; set; }
+            [JsonPropertyName("meta")] public Dictionary<string, string> Meta { get; set; }
+            [JsonPropertyName("creator")] public VercelCreatorDetail Creator { get; set; }
+        }
+
+        private class VercelCreatorDetail
+        {
+            [JsonPropertyName("uid")] public string Uid { get; set; }
+            [JsonPropertyName("username")] public string Username { get; set; }
+            [JsonPropertyName("email")] public string Email { get; set; }
+        }
+
+        private class VercelProjectsListResponse
+        {
+            [JsonPropertyName("projects")]
+            public List<VercelProjectDetail> Projects { get; set; }
+        }
+
+        private class VercelProjectDetail
+        {
+            [JsonPropertyName("id")] public string Id { get; set; }
+            [JsonPropertyName("name")] public string Name { get; set; }
+            [JsonPropertyName("framework")] public string Framework { get; set; }
+            [JsonPropertyName("updatedAt")] public long UpdatedAt { get; set; }
         }
 
         private class VercelErrorResponse

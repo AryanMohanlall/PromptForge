@@ -12,6 +12,7 @@ import {
   ActivityIcon,
   LogOutIcon,
   SparklesIcon,
+  RocketIcon,
 } from "lucide-react";
 import { useStyles } from "./styles";
 import { useAuthAction, useAuthState } from "@/providers/auth-provider";
@@ -63,7 +64,6 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       label: "Settings",
       icon: SettingsIcon,
     },
-    
   ];
 
   const adminNav = [
@@ -83,7 +83,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       icon: LayersIcon,
     },
     {
-      id: "admin-deployments",
+      id: "deployments",
       label: "Deployments",
       icon: ServerIcon,
     },
