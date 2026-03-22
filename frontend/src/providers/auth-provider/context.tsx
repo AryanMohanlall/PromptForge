@@ -11,6 +11,8 @@ export interface IUser {
   surname?: string;
   emailAddress?: string;
   roleNames: string[];
+  roleName?: string;
+
   avatarUrl?: string;
 }
 
@@ -43,6 +45,7 @@ export interface IRegisterInput {
   emailAddress: string;
   password: string;
   tenantId?: number;
+  roleName?: string;
 }
 
 export const INITIAL_STATE: IAuthStateContext = {

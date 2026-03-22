@@ -11,7 +11,7 @@ interface InviteModalProps {
 
 const ROLE_OPTIONS = [
   { label: "Developer", value: "Developer" },
-  { label: "Product Owner", value: "ProductOwner" },
+  { label: "Product Builder", value: "ProductBuilder" },
   { label: "Admin", value: "Admin" },
 ];
 

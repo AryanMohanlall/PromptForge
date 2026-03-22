@@ -32,7 +32,9 @@ namespace ABPGroup.Invites
             var tokenPayload = new
             {
                 tenantId = tenantId,
-                role = role
+                role = role,
+                email = input.EmailAddress,
+                expires = DateTime.UtcNow.AddDays(7) // Token valid for 7 days
             };
 
             // Base64 encode the token
@@ -66,7 +68,7 @@ namespace ABPGroup.Invites
             {
                 sender = new
                 {
-                    name = "Lethabo Maepa",
+                    name = "PromptForge",
                     email = "lethabomaepa11@gmail.com"
                 },
                 to = new[]
@@ -78,37 +80,150 @@ namespace ABPGroup.Invites
                 },
                 subject = "You're invited to join PromptForge",
                 htmlContent = $@"
-                    <html>
-                    <body style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
-                        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;'>
-                            <h1 style='color: white; margin: 0;'>PromptForge</h1>
-                        </div>
-                        <div style='padding: 30px; background: #f9f9f9;'>
-                            <h2 style='color: #333;'>You've been invited!</h2>
-                            <p style='color: #666; line-height: 1.6;'>
-                                You've been invited to join PromptForge as a <strong>{role}</strong>.
-                            </p>
-                            <p style='color: #666; line-height: 1.6;'>
-                                Click the button below to create your account and get started:
-                            </p>
-                            <div style='text-align: center; margin: 30px 0;'>
-                                <a href='{signupUrl}' 
-                                   style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                                          color: white; 
-                                          padding: 15px 30px; 
-                                          text-decoration: none; 
-                                          border-radius: 5px; 
-                                          display: inline-block;
-                                          font-weight: bold;'>
-                                    Create Your Account
-                                </a>
-                            </div>
-                            <p style='color: #999; font-size: 12px; margin-top: 30px;'>
-                                If you didn't expect this invitation, you can safely ignore this email.
-                            </p>
-                        </div>
-                    </body>
-                    </html>"
+                <html>
+                <head>
+                    <meta charset='UTF-8' />
+                    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+                </head>
+                <body style='margin:0; padding:0; background-color:#050b13; font-family: Outfit, -apple-system, sans-serif;'>
+                    <table width='100%' cellpadding='0' cellspacing='0' style='background-color:#050b13; padding: 40px 16px;'>
+                        <tr>
+                            <td align='center'>
+                                <table width='600' cellpadding='0' cellspacing='0' style='max-width:600px; width:100%;'>
+
+                                    <!-- Header -->
+                                    <tr>
+                                        <td align='center' style='
+                                            background: #0f1a27;
+                                            border: 1px solid rgba(40,225,140,0.25);
+                                            border-bottom: none;
+                                            border-radius: 10px 10px 0 0;
+                                            padding: 32px 40px;
+                                        '>
+                                            <img src='http://promptforgesa.vercel.app/_next/image?url=%2Flogo.svg&w=96&q=75'
+                                                alt='PromptForge'
+                                                width='48'
+                                                style='display:block; margin: 0 auto 16px auto;' />
+                                            <span style='
+                                                font-size: 22px;
+                                                font-weight: 700;
+                                                color: #22c55e;
+                                                letter-spacing: 0.5px;
+                                            '>PromptForge</span>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Divider -->
+                                    <tr>
+                                        <td style='
+                                            background: #0f1a27;
+                                            border-left: 1px solid rgba(40,225,140,0.25);
+                                            border-right: 1px solid rgba(40,225,140,0.25);
+                                            padding: 0 40px;
+                                        '>
+                                            <div style='height:1px; background: rgba(40,225,140,0.2);'></div>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Body -->
+                                    <tr>
+                                        <td style='
+                                            background: #0f1a27;
+                                            border-left: 1px solid rgba(40,225,140,0.25);
+                                            border-right: 1px solid rgba(40,225,140,0.25);
+                                            padding: 40px 40px 32px 40px;
+                                        '>
+                                            <h2 style='
+                                                margin: 0 0 16px 0;
+                                                font-size: 22px;
+                                                font-weight: 700;
+                                                color: #e8f3ea;
+                                            '>You've been invited!</h2>
+
+                                            <p style='
+                                                margin: 0 0 12px 0;
+                                                font-size: 15px;
+                                                color: #a7cfc1;
+                                                line-height: 1.7;
+                                            '>
+                                                You've been invited to join <span style='color:#22c55e; font-weight:600;'>PromptForge</span> as a
+                                                <span style='
+                                                    color: #facc15;
+                                                    font-weight: 700;
+                                                    background: rgba(250,204,21,0.08);
+                                                    padding: 2px 8px;
+                                                    border-radius: 6px;
+                                                    border: 1px solid rgba(250,204,21,0.2);
+                                                '>{role}</span>.
+                                            </p>
+
+                                            <p style='
+                                                margin: 0 0 32px 0;
+                                                font-size: 15px;
+                                                color: #a7cfc1;
+                                                line-height: 1.7;
+                                            '>
+                                                Click the button below to create your account and get started.
+                                            </p>
+
+                                            <!-- CTA Button -->
+                                            <div style='text-align:center; margin-bottom: 32px;'>
+                                                <a href='{signupUrl}'
+                                                style='
+                                                    display: inline-block;
+                                                    background: #22c55e;
+                                                    color: #050b13;
+                                                    font-size: 15px;
+                                                    font-weight: 700;
+                                                    text-decoration: none;
+                                                    padding: 14px 36px;
+                                                    border-radius: 10px;
+                                                    letter-spacing: 0.3px;
+                                                '>
+                                                    Create Your Account
+                                                </a>
+                                            </div>
+
+                                            <!-- Divider -->
+                                            <div style='height:1px; background: rgba(40,225,140,0.2); margin-bottom: 24px;'></div>
+
+                                            <p style='
+                                                margin: 0;
+                                                font-size: 12px;
+                                                color: #5f9b86;
+                                                line-height: 1.6;
+                                            '>
+                                                If you didn't expect this invitation, you can safely ignore this email.
+                                            </p>
+                                        </td>
+                                    </tr>
+
+                                    <!-- Footer -->
+                                    <tr>
+                                        <td style='
+                                            background: #15202f;
+                                            border: 1px solid rgba(40,225,140,0.25);
+                                            border-top: none;
+                                            border-radius: 0 0 10px 10px;
+                                            padding: 20px 40px;
+                                            text-align: center;
+                                        '>
+                                            <p style='
+                                                margin: 0;
+                                                font-size: 12px;
+                                                color: #5f9b86;
+                                            '>
+                                                &copy; {DateTime.UtcNow.Year} PromptForge. All rights reserved.
+                                            </p>
+                                        </td>
+                                    </tr>
+
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                </body>
+                </html>",
             };
 
             var json = JsonSerializer.Serialize(emailPayload);
