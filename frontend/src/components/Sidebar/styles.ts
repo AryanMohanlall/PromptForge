@@ -17,6 +17,12 @@ export const useStyles = createStyles(({ css }) => ({
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     z-index: 50;
   `,
+  logo: css`
+    width: 20px;
+    height: auto;
+    margin-bottom: 16px;
+    display: block;
+  `,
   content: css`
     padding: 16px;
     display: flex;

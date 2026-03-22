@@ -11,6 +11,7 @@ export interface IUser {
   surname?: string;
   emailAddress?: string;
   roleNames: string[];
+  avatarUrl?: string;
 }
 
 export interface IAuthStateContext {
@@ -25,7 +26,10 @@ export interface IAuthStateContext {
 }
 
 export interface IAuthActionContext {
-  login: (userNameOrEmailAddress: string, password: string) => Promise<IUser | null>;
+  login: (
+    userNameOrEmailAddress: string,
+    password: string,
+  ) => Promise<IUser | null>;
   register: (input: IRegisterInput) => Promise<void>;
   logout: () => Promise<void>;
   connectGithub: () => void;
