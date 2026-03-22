@@ -12,6 +12,8 @@ import {
   ActivityIcon,
   LogOutIcon,
   SparklesIcon,
+  RocketIcon,
+  GithubIcon,
 } from "lucide-react";
 import { useStyles } from "./styles";
 import { useAuthAction, useAuthState } from "@/providers/auth-provider";
@@ -82,7 +84,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       icon: LayersIcon,
     },
     {
-      id: "admin-deployments",
+      id: "deployments",
       label: "Deployments",
       icon: ServerIcon,
     },
@@ -91,6 +93,11 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       label: "System Health",
       icon: ActivityIcon,
     },
+    {
+      id: "github",
+      label: "Github",
+      icon: GithubIcon,
+    }
   ];
 
   const handleLogout = async () => {

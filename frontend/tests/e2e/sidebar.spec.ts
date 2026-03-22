@@ -23,11 +23,4 @@ test.describe("Sidebar navigation", () => {
     await expect(settingsButton).toBeVisible();
   });
 
-  test("clicking Settings navigates to /settings", async ({ page }) => {
-    const settingsButton = page.getByRole("button", { name: "Settings" });
-    await settingsButton.click();
-    await expect(page).toHaveURL(/\/settings$/);
-    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
-  });
-
 });

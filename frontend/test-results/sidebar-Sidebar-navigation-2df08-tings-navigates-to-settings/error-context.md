@@ -1,0 +1,84 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+    - img [ref=e8]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - img "PromptForge Logo" [ref=e17]
+        - heading "PromptForge" [level=1] [ref=e19]
+      - button "New project" [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+        - text: New project
+      - navigation [ref=e22]:
+        - button "My Projects" [ref=e23] [cursor=pointer]:
+          - img [ref=e24]
+          - text: My Projects
+        - button "Generate" [ref=e26] [cursor=pointer]:
+          - img [ref=e27]
+          - text: Generate
+        - button "Templates" [ref=e30] [cursor=pointer]:
+          - img [ref=e31]
+          - text: Templates
+        - button "Settings" [active] [ref=e35] [cursor=pointer]:
+          - img [ref=e36]
+          - text: Settings
+      - generic [ref=e39]:
+        - button "U User No role assigned" [ref=e40] [cursor=pointer]:
+          - generic [ref=e41]:
+            - generic [ref=e43]: U
+            - generic [ref=e44]:
+              - generic [ref=e45]: User
+              - generic [ref=e46]: No role assigned
+        - button "Log out" [ref=e47] [cursor=pointer]:
+          - img [ref=e48]
+          - text: Log out
+    - main [ref=e51]:
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - heading "Settings" [level=2] [ref=e54]
+          - generic [ref=e55]: Configure your PromptForge experience.
+        - generic [ref=e56]:
+          - generic [ref=e57]:
+            - generic [ref=e60]: Theme
+            - generic [ref=e61]:
+              - generic [ref=e62]:
+                - generic [ref=e63]: Dark mode
+                - switch [checked] [disabled] [ref=e64]
+              - generic [ref=e67]:
+                - generic [ref=e68]: Enable animations
+                - switch [checked] [ref=e69] [cursor=pointer]
+          - generic [ref=e72]:
+            - generic [ref=e75]: Account
+            - generic [ref=e76]:
+              - generic [ref=e77]:
+                - generic [ref=e78]: Email notifications
+                - switch [checked] [ref=e79] [cursor=pointer]
+              - generic [ref=e82]:
+                - generic [ref=e83]: Auto-update
+                - switch [ref=e84] [cursor=pointer]
+          - generic [ref=e87]:
+            - generic [ref=e91]:
+              - img [ref=e93]
+              - generic [ref=e96]: GitHub Integration
+            - generic [ref=e100]:
+              - generic [ref=e102]:
+                - generic [ref=e103]: Status
+                - generic [ref=e104]:
+                  - img [ref=e105]
+                  - text: Disconnected
+              - button "Connect GitHub" [ref=e108] [cursor=pointer]:
+                - generic [ref=e109]: Connect GitHub
+          - generic [ref=e110]:
+            - generic [ref=e114]:
+              - img [ref=e116]
+              - generic [ref=e119]: User Invitations
+            - generic [ref=e120]:
+              - generic [ref=e121]: Invite new users to join your organization. They will receive an email with a link to create their account.
+              - button "Invite User" [ref=e122] [cursor=pointer]:
+                - img [ref=e124]
+                - generic [ref=e127]: Invite User
+```

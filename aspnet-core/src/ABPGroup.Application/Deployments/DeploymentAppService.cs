@@ -4,14 +4,15 @@ using Abp.Domain.Repositories;
 using Abp.Linq.Extensions;
 using ABPGroup.Authorization;
 using ABPGroup.Deployments.Dto;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace ABPGroup.Deployments
 {
     /// <summary>
     /// Manages deployments of project repositories to hosting targets.
     /// </summary>
-    [AbpAuthorize(PermissionNames.Pages_Deployments)]
     public class DeploymentAppService
         : AsyncCrudAppService<Deployment, DeploymentDto, long, PagedDeploymentResultRequestDto, CreateUpdateDeploymentDto, CreateUpdateDeploymentDto>,
           IDeploymentAppService
@@ -33,6 +34,12 @@ namespace ABPGroup.Deployments
         protected override IQueryable<Deployment> ApplySorting(IQueryable<Deployment> query, PagedDeploymentResultRequestDto input)
         {
             return query.OrderByDescending(x => x.TriggeredAt);
+        }
+
+        public async Task<List<DeploymentDto>> GetByProjectId(long projectId)
+        {
+            var deployments = await Repository.GetAllListAsync(x => x.ProjectId == projectId);
+            return ObjectMapper.Map<List<DeploymentDto>>(deployments);
         }
     }
 }

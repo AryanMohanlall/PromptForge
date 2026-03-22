@@ -10,6 +10,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace ABPGroup.Authentication.External.GitHub
 {
@@ -395,6 +396,216 @@ namespace ABPGroup.Authentication.External.GitHub
             };
         }
 
+// ── Add these methods to GitHubApiService.cs ──
+// ── Also add the corresponding signatures to IGitHubApiService.cs ──
+
+public async Task<List<object>> GetPullRequestsAsync(
+    string userAccessToken, string owner, string repo, string state = "open")
+{
+    var url = $"https://api.github.com/repos/{owner}/{repo}/pulls?state={state}&per_page=30";
+    var client = _httpClientFactory.CreateClient();
+    var request = BuildGitHubRequest(HttpMethod.Get, url, userAccessToken);
+    var response = await client.SendAsync(request);
+    if (!response.IsSuccessStatusCode)
+        throw new Exception($"GitHub PRs request failed: {(int)response.StatusCode}");
+
+    var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+    return doc.RootElement.EnumerateArray().Select(item => (object)new
+    {
+        id = item.GetProperty("id").GetInt64(),
+        number = item.GetProperty("number").GetInt32(),
+        title = item.GetProperty("title").GetString(),
+        state = item.GetProperty("state").GetString(),
+        author = item.GetProperty("user").GetProperty("login").GetString(),
+        authorAvatar = item.GetProperty("user").GetProperty("avatar_url").GetString(),
+        createdAt = item.GetProperty("created_at").GetString(),
+        updatedAt = item.GetProperty("updated_at").GetString(),
+        url = item.GetProperty("html_url").GetString(),
+        draft = item.TryGetProperty("draft", out var d) && d.GetBoolean(),
+        mergeable = item.TryGetProperty("mergeable", out var m) ? (bool?)m.GetBoolean() : null,
+        labels = item.TryGetProperty("labels", out var lbls)
+    ? lbls.EnumerateArray().Select(l => new { name = l.GetProperty("name").GetString(), color = l.GetProperty("color").GetString() }).ToList()
+    : new List<object>().Select(x => new { name = (string)null, color = (string)null }).ToList()
+    }).ToList();
+}
+
+public async Task<List<object>> GetIssuesAsync(
+    string userAccessToken, string owner, string repo, string state = "open")
+{
+    // GitHub issues endpoint returns PRs too — filter them out
+    var url = $"https://api.github.com/repos/{owner}/{repo}/issues?state={state}&per_page=30";
+    var client = _httpClientFactory.CreateClient();
+    var request = BuildGitHubRequest(HttpMethod.Get, url, userAccessToken);
+    var response = await client.SendAsync(request);
+    if (!response.IsSuccessStatusCode)
+        throw new Exception($"GitHub issues request failed: {(int)response.StatusCode}");
+
+    var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+    return doc.RootElement.EnumerateArray()
+        .Where(item => !item.TryGetProperty("pull_request", out _)) // exclude PRs
+        .Select(item => (object)new
+        {
+            id = item.GetProperty("id").GetInt64(),
+            number = item.GetProperty("number").GetInt32(),
+            title = item.GetProperty("title").GetString(),
+            state = item.GetProperty("state").GetString(),
+            author = item.GetProperty("user").GetProperty("login").GetString(),
+            authorAvatar = item.GetProperty("user").GetProperty("avatar_url").GetString(),
+            createdAt = item.GetProperty("created_at").GetString(),
+            url = item.GetProperty("html_url").GetString(),
+            comments = item.TryGetProperty("comments", out var c) ? c.GetInt32() : 0,
+            labels = item.GetProperty("labels").EnumerateArray()
+                .Select(l => new { name = l.GetProperty("name").GetString(), color = l.GetProperty("color").GetString() })
+                .ToList()
+        }).ToList();
+}
+
+public async Task<List<object>> GetReleasesAsync(string userAccessToken, string owner, string repo)
+{
+    var url = $"https://api.github.com/repos/{owner}/{repo}/releases?per_page=10";
+    var client = _httpClientFactory.CreateClient();
+    var request = BuildGitHubRequest(HttpMethod.Get, url, userAccessToken);
+    var response = await client.SendAsync(request);
+    if (!response.IsSuccessStatusCode)
+        throw new Exception($"GitHub releases request failed: {(int)response.StatusCode}");
+
+    var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+    return doc.RootElement.EnumerateArray().Select(item => (object)new
+    {
+        id = item.GetProperty("id").GetInt64(),
+        tagName = item.GetProperty("tag_name").GetString(),
+        name = item.TryGetProperty("name", out var n) ? n.GetString() : null,
+        body = item.TryGetProperty("body", out var b) ? b.GetString() : null,
+        prerelease = item.GetProperty("prerelease").GetBoolean(),
+        draft = item.GetProperty("draft").GetBoolean(),
+        publishedAt = item.TryGetProperty("published_at", out var p) ? p.GetString() : null,
+        url = item.GetProperty("html_url").GetString(),
+        author = item.TryGetProperty("author", out var a) ? a.GetProperty("login").GetString() : null
+    }).ToList();
+}
+
+public async Task<List<object>> GetWorkflowRunsAsync(
+    string userAccessToken, string owner, string repo, int perPage = 10)
+{
+    var url = $"https://api.github.com/repos/{owner}/{repo}/actions/runs?per_page={perPage}";
+    var client = _httpClientFactory.CreateClient();
+    var request = BuildGitHubRequest(HttpMethod.Get, url, userAccessToken);
+    var response = await client.SendAsync(request);
+    if (!response.IsSuccessStatusCode)
+        throw new Exception($"GitHub actions request failed: {(int)response.StatusCode}");
+
+    var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+    if (!doc.RootElement.TryGetProperty("workflow_runs", out var runs))
+        return new List<object>();
+
+    return runs.EnumerateArray().Select(item => (object)new
+    {
+        id = item.GetProperty("id").GetInt64(),
+        name = item.GetProperty("name").GetString(),
+        status = item.GetProperty("status").GetString(),
+        conclusion = item.TryGetProperty("conclusion", out var c) ? c.GetString() : null,
+        event_ = item.GetProperty("event").GetString(),
+        branch = item.GetProperty("head_branch").GetString(),
+        commitSha = item.GetProperty("head_sha").GetString().Substring(0, 7),        createdAt = item.GetProperty("created_at").GetString(),
+        updatedAt = item.GetProperty("updated_at").GetString(),
+        url = item.GetProperty("html_url").GetString(),
+        durationMs = item.TryGetProperty("run_started_at", out var start) && item.TryGetProperty("updated_at", out var end)
+            ? (long)(DateTime.Parse(end.GetString()) - DateTime.Parse(start.GetString())).TotalMilliseconds
+            : 0L
+    }).ToList();
+}
+
+public async Task<List<object>> GetContentsAsync(
+    string userAccessToken, string owner, string repo, string path = "")
+{
+    var encodedPath = string.IsNullOrWhiteSpace(path) ? "" : "/" + path.TrimStart('/');
+    var url = $"https://api.github.com/repos/{owner}/{repo}/contents{encodedPath}";
+    var client = _httpClientFactory.CreateClient();
+    var request = BuildGitHubRequest(HttpMethod.Get, url, userAccessToken);
+    var response = await client.SendAsync(request);
+    if (!response.IsSuccessStatusCode)
+        throw new Exception($"GitHub contents request failed: {(int)response.StatusCode}");
+
+    var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+    // Could be array (directory) or object (file)
+    if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+    {
+        return doc.RootElement.EnumerateArray()
+            .OrderBy(item => item.GetProperty("type").GetString() == "dir" ? 0 : 1)
+            .Select(item => (object)new
+            {
+                name = item.GetProperty("name").GetString(),
+                path = item.GetProperty("path").GetString(),
+                type = item.GetProperty("type").GetString(),
+                size = item.TryGetProperty("size", out var s) ? s.GetInt64() : 0L,
+                url = item.TryGetProperty("html_url", out var u) ? u.GetString() : null
+            }).ToList();
+    }
+
+    // Single file
+    return new List<object> { new
+    {
+        name = doc.RootElement.GetProperty("name").GetString(),
+        path = doc.RootElement.GetProperty("path").GetString(),
+        type = "file",
+        size = doc.RootElement.TryGetProperty("size", out var fs) ? fs.GetInt64() : 0L,
+        content = doc.RootElement.TryGetProperty("content", out var fc) ? fc.GetString() : null,
+        url = doc.RootElement.TryGetProperty("html_url", out var fu) ? fu.GetString() : null
+    }};
+}
+
+public async Task<object> GetFileContentAsync(
+    string userAccessToken, string owner, string repo, string path)
+{
+    var encodedPath = "/" + path.TrimStart('/');
+    var url = $"https://api.github.com/repos/{owner}/{repo}/contents{encodedPath}";
+    var client = _httpClientFactory.CreateClient();
+    var request = BuildGitHubRequest(HttpMethod.Get, url, userAccessToken);
+    var response = await client.SendAsync(request);
+    if (!response.IsSuccessStatusCode)
+        throw new Exception($"GitHub file request failed: {(int)response.StatusCode}");
+
+    var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+    var base64Content = doc.RootElement.TryGetProperty("content", out var c) ? c.GetString() : null;
+    string decodedContent = null;
+    if (!string.IsNullOrWhiteSpace(base64Content))
+    {
+        try
+        {
+            var cleaned = base64Content.Replace("\n", "").Replace("\r", "");
+            decodedContent = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(cleaned));
+        }
+        catch { decodedContent = base64Content; }
+    }
+
+    return new
+    {
+        name = doc.RootElement.GetProperty("name").GetString(),
+        path = doc.RootElement.GetProperty("path").GetString(),
+        size = doc.RootElement.TryGetProperty("size", out var s) ? s.GetInt64() : 0L,
+        content = decodedContent,
+        url = doc.RootElement.TryGetProperty("html_url", out var u) ? u.GetString() : null
+    };
+}
+
+public async Task<Dictionary<string, long>> GetLanguagesAsync(
+    string userAccessToken, string owner, string repo)
+{
+    var url = $"https://api.github.com/repos/{owner}/{repo}/languages";
+    var client = _httpClientFactory.CreateClient();
+    var request = BuildGitHubRequest(HttpMethod.Get, url, userAccessToken);
+    var response = await client.SendAsync(request);
+    if (!response.IsSuccessStatusCode)
+        throw new Exception($"GitHub languages request failed: {(int)response.StatusCode}");
+
+    var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+    return doc.RootElement.EnumerateObject()
+        .ToDictionary(p => p.Name, p => p.Value.GetInt64());
+}
+
+
         // ── Private helpers ───────────────────────────────────────────────────
 
         private async Task<string> EnsureBranchExistsAsync(
@@ -649,6 +860,111 @@ namespace ABPGroup.Authentication.External.GitHub
 
             return null;
         }
+
+    public async Task<List<object>> GetCommitsAsync(
+        string userAccessToken, string owner, string repo,
+        string branch = null, int perPage = 30)
+    {
+        var url = $"https://api.github.com/repos/{owner}/{repo}/commits?per_page={perPage}";
+        if (!string.IsNullOrWhiteSpace(branch))
+            url += $"&sha={Uri.EscapeDataString(branch)}";
+
+        var client = _httpClientFactory.CreateClient();
+        var request = BuildGitHubRequest(HttpMethod.Get, url, userAccessToken);
+        var response = await client.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"GitHub commits request failed: {(int)response.StatusCode} {error}");
+        }
+
+        var doc = System.Text.Json.JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        var commits = new List<object>();
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            commits.Add(new
+            {
+                sha = item.GetProperty("sha").GetString(),
+                message = item.GetProperty("commit").GetProperty("message").GetString(),
+                author = item.GetProperty("commit")
+                            .GetProperty("author")
+                            .GetProperty("name").GetString(),
+                date = item.GetProperty("commit")
+                        .GetProperty("author")
+                        .GetProperty("date").GetString(),
+                url = item.GetProperty("html_url").GetString()
+            });
+        }
+        return commits;
+    }
+
+    public async Task<List<object>> GetBranchesAsync(
+        string userAccessToken, string owner, string repo)
+    {
+        var url = $"https://api.github.com/repos/{owner}/{repo}/branches";
+        var client = _httpClientFactory.CreateClient();
+        var request = BuildGitHubRequest(HttpMethod.Get, url, userAccessToken);
+        var response = await client.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new Exception($"GitHub branches request failed: {(int)response.StatusCode} {error}");
+        }
+
+        var doc = System.Text.Json.JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        var branches = new List<object>();
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            branches.Add(new
+            {
+                name = item.GetProperty("name").GetString(),
+                sha = item.GetProperty("commit").GetProperty("sha").GetString(),
+                @protected = item.GetProperty("protected").GetBoolean()
+            });
+        }
+        return branches;
+    }
+
+public async Task<List<object>> GetUserRepositoriesAsync(string userAccessToken)
+{
+    var client = _httpClientFactory.CreateClient();
+    var request = BuildGitHubRequest(
+        HttpMethod.Get,
+        "https://api.github.com/user/repos?per_page=100&sort=updated",
+        userAccessToken);
+
+    var response = await client.SendAsync(request);
+    if (!response.IsSuccessStatusCode)
+    {
+        var error = await response.Content.ReadAsStringAsync();
+        throw new Exception($"GitHub user repositories request failed: {(int)response.StatusCode} {error}");
+    }
+
+    var raw = await response.Content.ReadFromJsonAsync<List<GitHubRepositoryInfo>>()
+        ?? new List<GitHubRepositoryInfo>();
+
+    // Map to camelCase DTO so frontend interface matches
+    return raw.Select(r => (object)new
+    {
+        id = r.Id,
+        name = r.Name,
+        fullName = r.FullName,
+        htmlUrl = r.HtmlUrl,
+        @private = r.Private,
+        description = (string)null,
+        language = (string)null,
+        defaultBranch = (string)null,
+        updatedAt = (string)null,
+        stargazersCount = 0,
+        forksCount = 0
+    }).ToList();
+}
 
         // ── Response models ───────────────────────────────────────────────────
 

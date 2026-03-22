@@ -1,11 +1,18 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useStyles } from "./styles";
 
 export interface ProjectData {
   id: string;
   name: string;
-  status: "Draft" | "Generating" | "Generated" | "Deploying" | "Live" | "Failed";
+  status:
+    | "Draft"
+    | "Generating"
+    | "Generated"
+    | "Deploying"
+    | "Live"
+    | "Failed";
   framework: string;
   language: string;
   updatedAt: string;
@@ -28,6 +35,7 @@ export function ProjectCard({
   isDeleting = false,
 }: ProjectCardProps) {
   const { styles, cx } = useStyles();
+  const router = useRouter();
 
   const statusClassMap: Record<ProjectData["status"], string> = {
     Draft: styles.statusDraft,
@@ -47,7 +55,9 @@ export function ProjectCard({
             {project.framework} · {project.language}
           </p>
         </div>
-        <span className={cx(styles.statusBadge, statusClassMap[project.status])}>
+        <span
+          className={cx(styles.statusBadge, statusClassMap[project.status])}
+        >
           {project.status}
         </span>
       </div>
@@ -95,7 +105,7 @@ export function ProjectCard({
           )}
           <button
             type="button"
-            onClick={onView}
+            onClick={() => router.push(`/projects/${project.id}`)}
             className={cx(styles.viewButton, styles.focusRing)}
           >
             Open

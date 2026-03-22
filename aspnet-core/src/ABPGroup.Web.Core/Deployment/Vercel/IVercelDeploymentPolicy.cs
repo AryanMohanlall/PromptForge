@@ -1,7 +1,7 @@
 using Abp.Dependency;
 using ABPGroup.Projects;
 
-namespace ABPGroup.Deployment.Vercel
+namespace ABPGroup.VercelDeployment
 {
     public interface IVercelDeploymentPolicy
     {

@@ -1,8 +1,8 @@
-using ABPGroup.Deployment.Vercel;
+using ABPGroup.VercelDeployment;
 using ABPGroup.Projects;
 using Xunit;
 
-namespace ABPGroup.Tests.Deployment.Vercel
+namespace ABPGroup.Tests.VercelDeployment
 {
     public class VercelDeploymentPolicyTests
     {

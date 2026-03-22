@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   CheckIcon,
   RocketIcon,
@@ -219,6 +219,7 @@ const PipelineStep = ({ phase, status, detail, isLast }: PipelineStepProps) => {
 export function GenerationPage({ onNavigate }: GenerationPageProps) {
   const { styles, cx } = useStyles();
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const { selected: project } = useProjectState();
   const { fetchById } = useProjectAction();
@@ -390,7 +391,9 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
 
   const handleDeploy = async () => {
     if (!isGithubConnected) {
-      setDeployError("GitHub must be connected before deploying. Please complete GitHub OAuth first.");
+      setDeployError(
+        "GitHub must be connected before deploying. Please complete GitHub OAuth first.",
+      );
       return;
     }
 
@@ -424,10 +427,10 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
         isPrivate: true,
         autoInit: true,
         owner: configuredOwner || undefined,
+        projectId: project.id,
       });
 
       const repository = response.data.repository;
-      const repoUrl = repository?.htmlUrl ?? "";
       const fullName = repository?.fullName ?? "";
       const ownerFromFullName = fullName.includes("/")
         ? fullName.split("/")[0]
@@ -454,6 +457,8 @@ export function GenerationPage({ onNavigate }: GenerationPageProps) {
       setGithubRepoFullName(
         repository?.fullName ?? repository?.name ?? sanitizedRepoName,
       );
+
+      router.push(`/projects/${project.id}`);
     } catch (error) {
       setIsDeploying(false);
       setDeploymentStep(-1);
