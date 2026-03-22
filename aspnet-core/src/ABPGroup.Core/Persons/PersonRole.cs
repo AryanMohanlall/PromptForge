@@ -4,6 +4,6 @@ namespace ABPGroup.Persons
     {
         Admin = 0,
         Developer = 1,
-        ProductOwner = 2
+        ProductBuilder = 2
     }
 }

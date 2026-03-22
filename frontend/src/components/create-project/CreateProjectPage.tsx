@@ -13,7 +13,10 @@ import {
   ProjectStatus,
   useProjectAction,
 } from "@/providers/projects-provider";
-import { useTemplateAction, useTemplateState } from "@/providers/templates-provider";
+import {
+  useTemplateAction,
+  useTemplateState,
+} from "@/providers/templates-provider";
 
 interface CreateProjectPageProps {
   onNavigate: (page: string) => void;
@@ -24,17 +27,22 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
   const { isGithubConnected } = useAuthState();
   const { connectGithub, markProjectCreated } = useAuthAction();
   const { create } = useProjectAction();
-  const { items: templates, isPending: isLoadingTemplates } = useTemplateState();
+  const { items: templates, isPending: isLoadingTemplates } =
+    useTemplateState();
   const { fetchAll: fetchTemplates } = useTemplateAction();
   const [currentStep, setCurrentStep] = useState(1);
   const [prompt, setPrompt] = useState("");
   const [framework, setFramework] = useState("Next.js");
   const [language, setLanguage] = useState("TypeScript");
   const [styling, setStyling] = useState("Tailwind CSS");
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(
+    null,
+  );
 
   useEffect(() => {
-    fetchTemplates();
+    fetchTemplates({
+      isMyTemplates: true,
+    });
   }, [fetchTemplates]);
   const [database, setDatabase] = useState("PostgreSQL");
   const [authEnabled, setAuthEnabled] = useState(true);
@@ -49,7 +57,13 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
     "Project tracker",
     "Social media app",
   ];
-  const frameworks = ["Next.js", "React + Vite", "Angular", "Vue", ".NET Blazor"];
+  const frameworks = [
+    "Next.js",
+    "React + Vite",
+    "Angular",
+    "Vue",
+    ".NET Blazor",
+  ];
   const languages = ["TypeScript", "JavaScript", "C#"];
   const stylings = ["Tailwind CSS", "CSS Modules", "Material UI", "Bootstrap"];
   const databases = ["PostgreSQL", "MongoDB", "SQLite", "None"];
@@ -146,7 +160,7 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
   const renderSelectionCard = (
     options: string[],
     selected: string,
-    onSelect: (val: string) => void
+    onSelect: (val: string) => void,
   ) => (
     <div className={styles.selectionGrid}>
       {options.map((opt) => {
@@ -159,7 +173,9 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
             className={cx(
               styles.selectionCard,
               styles.focusRing,
-              isSelected ? styles.selectionCardSelected : styles.selectionCardDefault
+              isSelected
+                ? styles.selectionCardSelected
+                : styles.selectionCardDefault,
             )}
           >
             {isSelected && (
@@ -194,10 +210,14 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
           </div>
         </div>
       ) : (
-      <StepIndicator
-        currentStep={currentStep}
-        steps={["Describe your app", "Configure stack", "Review and generate"]}
-      />
+        <StepIndicator
+          currentStep={currentStep}
+          steps={[
+            "Describe your app",
+            "Configure stack",
+            "Review and generate",
+          ]}
+        />
       )}
 
       {!requiresGithub && (
@@ -237,7 +257,7 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
                     type="button"
                     onClick={() =>
                       setPrompt(
-                        `A modern ${suggestion.toLowerCase()} with user authentication, a dashboard, and responsive design.`
+                        `A modern ${suggestion.toLowerCase()} with user authentication, a dashboard, and responsive design.`,
                       )
                     }
                     className={cx(styles.suggestionButton, styles.focusRing)}
@@ -271,7 +291,8 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
               <div className={styles.templateSection}>
                 <h3 className={styles.sectionLabel}>Start from a template</h3>
                 <p className={styles.templateHint}>
-                  Pick a template to guide the AI, or start from scratch and let it figure out the best structure.
+                  Pick a template to guide the AI, or start from scratch and let
+                  it figure out the best structure.
                 </p>
                 <div className={styles.templateGrid}>
                   <button
@@ -280,7 +301,9 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
                     className={cx(
                       styles.templateCard,
                       styles.focusRing,
-                      selectedTemplateId === null ? styles.templateCardSelected : styles.templateCardDefault
+                      selectedTemplateId === null
+                        ? styles.templateCardSelected
+                        : styles.templateCardDefault,
                     )}
                   >
                     {selectedTemplateId === null && (
@@ -291,11 +314,22 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
                     <div className={styles.templateCardIcon}>
                       <SparklesIcon style={{ width: 20, height: 20 }} />
                     </div>
-                    <span className={styles.templateCardName}>Start from scratch</span>
-                    <span className={styles.templateCardDesc}>AI decides the best structure</span>
+                    <span className={styles.templateCardName}>
+                      Start from scratch
+                    </span>
+                    <span className={styles.templateCardDesc}>
+                      AI decides the best structure
+                    </span>
                   </button>
                   {isLoadingTemplates && templates.length === 0 && (
-                    <div className={styles.templateCardDesc} style={{ padding: 16, gridColumn: "1 / -1", textAlign: "center" }}>
+                    <div
+                      className={styles.templateCardDesc}
+                      style={{
+                        padding: 16,
+                        gridColumn: "1 / -1",
+                        textAlign: "center",
+                      }}
+                    >
                       Loading templates...
                     </div>
                   )}
@@ -307,7 +341,9 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
                       className={cx(
                         styles.templateCard,
                         styles.focusRing,
-                        selectedTemplateId === t.id ? styles.templateCardSelected : styles.templateCardDefault
+                        selectedTemplateId === t.id
+                          ? styles.templateCardSelected
+                          : styles.templateCardDefault,
                       )}
                     >
                       {selectedTemplateId === t.id && (
@@ -320,10 +356,14 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
                       </div>
                       <span className={styles.templateCardName}>{t.name}</span>
                       {t.category && (
-                        <span className={styles.templateCardDesc}>{t.category}</span>
+                        <span className={styles.templateCardDesc}>
+                          {t.category}
+                        </span>
                       )}
                       {t.description && (
-                        <span className={styles.templateCardDesc}>{t.description}</span>
+                        <span className={styles.templateCardDesc}>
+                          {t.description}
+                        </span>
                       )}
                     </button>
                   ))}
@@ -361,7 +401,8 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
                 <div>
                   <h3 className={styles.toggleTitle}>Include authentication</h3>
                   <p className={styles.toggleSubtitle}>
-                    Adds sign-up, sign-in, password reset, and session management
+                    Adds sign-up, sign-in, password reset, and session
+                    management
                   </p>
                 </div>
                 <button
@@ -370,13 +411,13 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
                   className={cx(
                     styles.toggleButton,
                     styles.focusRing,
-                    authEnabled ? styles.toggleOn : styles.toggleOff
+                    authEnabled ? styles.toggleOn : styles.toggleOff,
                   )}
                 >
                   <div
                     className={cx(
                       styles.toggleThumb,
-                      authEnabled && styles.toggleThumbOn
+                      authEnabled && styles.toggleThumbOn,
                     )}
                   />
                 </button>
@@ -452,11 +493,15 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
                         <span>
                           {selectedTemplateId === null
                             ? "Start from scratch"
-                            : templates.find((t) => t.id === selectedTemplateId)?.name ?? "Custom"}
+                            : (templates.find(
+                                (t) => t.id === selectedTemplateId,
+                              )?.name ?? "Custom")}
                         </span>
                       </div>
                       <div className={styles.summaryItem}>
-                        <span className={styles.summaryLabel}>Authentication</span>
+                        <span className={styles.summaryLabel}>
+                          Authentication
+                        </span>
                         <div className={styles.authRow}>
                           {authEnabled ? (
                             <>
@@ -471,7 +516,9 @@ export function CreateProjectPage({ onNavigate }: CreateProjectPageProps) {
                     </div>
                   </div>
 
-                  <div className={cx(styles.reviewPanel, styles.reviewPanelAlt)}>
+                  <div
+                    className={cx(styles.reviewPanel, styles.reviewPanelAlt)}
+                  >
                     <h3 className={styles.reviewTitle}>Estimated output</h3>
                     <ul className={styles.outputList}>
                       <li className={styles.outputItem}>

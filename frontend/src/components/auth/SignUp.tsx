@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Button, Input } from "antd";
@@ -23,11 +23,14 @@ interface InputProps {
   readonly onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   readonly showToggle?: boolean;
   readonly confirmState?: "idle" | "match" | "mismatch";
+  readonly disabled?: boolean;
 }
 
 interface InvitePayload {
   tenantId: number;
   role: string;
+  email: string;
+  expires: string;
 }
 
 const decodeInviteToken = (value: string | null): InvitePayload | undefined => {
@@ -43,7 +46,9 @@ const decodeInviteToken = (value: string | null): InvitePayload | undefined => {
     const payload = JSON.parse(decoded) as InvitePayload;
     if (
       typeof payload.tenantId === "number" &&
-      typeof payload.role === "string"
+      typeof payload.role === "string" &&
+      typeof payload.email === "string" &&
+      typeof payload.expires === "string"
     ) {
       return payload;
     }
@@ -63,6 +68,7 @@ function AuthInput({
   onKeyDown,
   showToggle,
   confirmState,
+  disabled,
 }: InputProps) {
   const { styles } = useInputStyles();
   const prefix = <span className={styles.icon}>{icon}</span>;
@@ -73,6 +79,7 @@ function AuthInput({
         prefix={prefix}
         placeholder={placeholder}
         value={value}
+        disabled={disabled}
         onChange={onChange}
         onKeyDown={onKeyDown}
         className={styles.input}
@@ -90,6 +97,7 @@ function AuthInput({
       onChange={onChange}
       onKeyDown={onKeyDown}
       className={styles.input}
+      disabled={disabled}
     />
   );
 }
@@ -159,6 +167,7 @@ function CheckItem({
 
 function SignUpPage() {
   const [name, setName] = useState("");
+  const [hasToken, setHasToken] = useState(false);
   const [surname, setSurname] = useState("");
   const [userName, setUserName] = useState("");
   const [email, setEmail] = useState("");
@@ -179,7 +188,7 @@ function SignUpPage() {
   const finalUserName = userName || email;
   const allChecksMet = PASSWORD_CHECKS.every(({ test }) => test(password));
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     setAttempted(true);
     if (!name || !surname || !finalUserName || !email || !password) {
       setValidationError("Please complete all required fields.");
@@ -190,12 +199,13 @@ function SignUpPage() {
       return;
     }
     setValidationError("");
-    void register({
+    await register({
       name,
       surname,
       userName: finalUserName,
       emailAddress: email,
       password,
+      roleName: invitePayload?.role,
       ...(tenantId !== undefined ? { tenantId } : {}),
     });
   };
@@ -215,6 +225,14 @@ function SignUpPage() {
     passwordsMatch &&
     allChecksMet,
   );
+
+  useEffect(() => {
+    if (invitePayload) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setHasToken(true);
+      setEmail(invitePayload.email);
+    }
+  }, [invitePayload]);
 
   return (
     <AuthCard>
@@ -254,6 +272,7 @@ function SignUpPage() {
           type="email"
           placeholder="Email address"
           value={email}
+          disabled={hasToken}
           onChange={(e) => setEmail(e.target.value)}
           onKeyDown={handleKeyDown}
         />
