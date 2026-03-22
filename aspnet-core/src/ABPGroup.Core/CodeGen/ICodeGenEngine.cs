@@ -11,6 +11,7 @@ public interface ICodeGenEngine : ITransientDependency
 {
     Task<CodeGenResult> GenerateProjectAsync(
         CodeGenEngineInput input,
+        StackConfigDto stack,
         Func<string, Task> onProgress,
         string currentDir = null,
         AppSpecDto approvedPlan = null,
@@ -21,6 +22,7 @@ public interface ICodeGenEngine : ITransientDependency
         string layerDescription,
         string userInstruction,
         CodeGenEngineInput input,
+        StackConfigDto stack,
         System.Text.StringBuilder context,
         AppSpecDto approvedPlan,
         string scaffoldBaseline,

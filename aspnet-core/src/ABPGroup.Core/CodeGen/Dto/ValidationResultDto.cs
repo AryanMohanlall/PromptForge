@@ -5,4 +5,6 @@ public class ValidationResultDto
     public string Id { get; set; }
     public string Status { get; set; } // pending | running | passed | failed
     public string Message { get; set; }
+    public string Logs { get; set; }
+    public System.Collections.Generic.List<string> Errors { get; set; } = new();
 }

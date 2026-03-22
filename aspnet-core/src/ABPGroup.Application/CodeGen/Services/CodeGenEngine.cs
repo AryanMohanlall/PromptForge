@@ -10,7 +10,6 @@ using ABPGroup.CodeGen.Dto;
 using ABPGroup.CodeGen.PromptTemplates;
 using ABPGroup.Projects;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 
 namespace ABPGroup.CodeGen;
 
@@ -19,22 +18,26 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
     private readonly ICodeGenAiService _aiService;
     private readonly ICodeGenPlanner _planner;
     private readonly ICodeGenScaffolder _scaffolder;
+    private readonly ICodeGenBuildValidator _buildValidator;
     private readonly IConfiguration _configuration;
 
     public CodeGenEngine(
         ICodeGenAiService aiService,
         ICodeGenPlanner planner,
         ICodeGenScaffolder scaffolder,
+        ICodeGenBuildValidator buildValidator,
         IConfiguration configuration)
     {
         _aiService = aiService;
         _planner = planner;
         _scaffolder = scaffolder;
+        _buildValidator = buildValidator;
         _configuration = configuration;
     }
 
     public async Task<CodeGenResult> GenerateProjectAsync(
         CodeGenEngineInput input,
+        StackConfigDto stack,
         Func<string, Task> onProgress,
         string currentDir = null,
         AppSpecDto approvedPlan = null,
@@ -68,6 +71,7 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
             "frontend pages and components",
             "Generate the frontend code",
             input,
+            stack,
             context,
             normalizedPlan,
             scaffoldBaseline,
@@ -80,6 +84,7 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
             "backend API routes and server logic",
             "Generate the backend code",
             input,
+            stack,
             context,
             normalizedPlan,
             scaffoldBaseline,
@@ -92,6 +97,7 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
             "database schema and data access layer",
             "Generate the database layer",
             input,
+            stack,
             context,
             normalizedPlan,
             scaffoldBaseline,
@@ -102,6 +108,27 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         result.OutputPath = outputPath;
         _scaffolder.WriteFilesToDisk(result.Files, outputPath);
 
+        if (onProgress != null) await onProgress("[6/6] Validating Build & Integrity...");
+        var buildResult = await _buildValidator.ValidateBuildAsync(outputPath, input.Framework);
+
+        result.ValidationResults.Add(new ValidationResultDto
+        {
+            Id = "build-passes",
+            Status = buildResult.Success ? "passed" : "failed",
+            Message = buildResult.Success ? "Build validation succeeded on the server." : "Build validation failed on the server. Check logs for details.",
+            Logs = buildResult.Logs,
+            Errors = buildResult.Errors
+        });
+
+        if (!buildResult.Success)
+        {
+            Logger.Warn($"Build validation failed for project {input.Id}. Errors: {string.Join(", ", buildResult.Errors)}");
+        }
+        else
+        {
+            Logger.Info($"Build validation succeeded for project {input.Id}.");
+        }
+
         return result;
     }
 
@@ -110,6 +137,7 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         string layerDescription,
         string userInstruction,
         CodeGenEngineInput input,
+        StackConfigDto stack,
         System.Text.StringBuilder context,
         AppSpecDto approvedPlan,
         string scaffoldBaseline,
@@ -120,7 +148,7 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         if (onProgress != null) await onProgress(progressLabel);
 
         return await _aiService.CallAiAsync(
-            GeneratorPrompts.BuildCodeGenSystemPrompt(layerDescription, approvedPlan, input.Framework.ToString(), scaffoldBaseline, approvedReadme),
+            GeneratorPrompts.BuildCodeGenSystemPrompt(layerDescription, approvedPlan, stack, scaffoldBaseline, approvedReadme),
             GeneratorPrompts.BuildLayerUserPrompt(userInstruction, context, input.Prompt, approvedReadme));
     }
 

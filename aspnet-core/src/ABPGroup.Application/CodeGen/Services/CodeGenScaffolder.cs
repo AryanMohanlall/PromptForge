@@ -77,7 +77,9 @@ public class CodeGenScaffolder : DomainService, ICodeGenScaffolder
         if (templateDir == null)
             return;
 
-        files.AddRange(ReadScaffoldFiles(templateDir));
+        // NOTE: We no longer copy files from templates. 
+        // We let the AI generate everything from scratch based on the stack selector and README.
+        // files.AddRange(ReadScaffoldFiles(templateDir));
     }
 
     public void AddApprovedReadmeFile(List<GeneratedFile> files, string approvedReadme)

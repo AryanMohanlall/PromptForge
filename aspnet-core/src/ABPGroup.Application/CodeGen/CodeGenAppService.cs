@@ -316,13 +316,10 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
 
         try
         {
-            Logger.Info($"BackgroundGenerate: Parsing spec for {sessionId}");
-            var planJson = session.SpecJson;
-            var plan = CodeGenHelpers.ParseSpecOrDefault(planJson, out var parseWarning);
-            if (!string.IsNullOrWhiteSpace(parseWarning))
-            {
-                Logger.Warn($"BackgroundGenerate: Spec parse warning for {sessionId}: {parseWarning}");
-            }
+            Logger.Info($"BackgroundGenerate: Loading blueprint for {sessionId}");
+            var blueprint = await sessionManager.GetGenerationBlueprintAsync(sessionId);
+            var plan = blueprint.Spec;
+            var approvedReadme = blueprint.ReadmeMarkdown;
             
             var stack = JsonSerializer.Deserialize<StackConfigDto>(session.ConfirmedStackJson ?? "{}", JsonOptions);
             if (stack == null)
@@ -349,6 +346,7 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
             Logger.Info($"BackgroundGenerate: Calling GenerateProjectAsync for {sessionId} with framework={engineInput.Framework}, prompt length={engineInput.Prompt.Length}");
             var result = await engine.GenerateProjectAsync(
                 engineInput,
+                stack,
                 async msg =>
                 {
                     Logger.Info($"BackgroundGenerate: Progress update for {sessionId}: {msg}");
@@ -372,7 +370,8 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
                     await innerSessionManager.SaveSessionAsync(innerSession);
                 },
                 null,
-                plan);
+                plan,
+                approvedReadme);
 
             Logger.Info($"BackgroundGenerate: Generation completed for {sessionId}. Saving files...");
             
@@ -383,6 +382,32 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
 
             finalSession.GeneratedFilesJson = JsonSerializer.Serialize(
                 result.Files.Select(f => new GeneratedFileDto { Path = f.Path, Content = f.Content }), JsonOptions);
+            
+            // Merge build validation results into existing ones
+            var existingValidations = JsonSerializer.Deserialize<List<ValidationResultDto>>(finalSession.ValidationResultsJson ?? "[]", JsonOptions) 
+                ?? new List<ValidationResultDto>();
+            
+            if (result.ValidationResults != null)
+            {
+                foreach (var v in result.ValidationResults)
+                {
+                    // Update if already exists (by ID) or add new
+                    var existing = existingValidations.FirstOrDefault(ev => ev.Id == v.Id);
+                    if (existing != null)
+                    {
+                        existing.Status = v.Status;
+                        existing.Message = v.Message;
+                        existing.Logs = v.Logs;
+                        existing.Errors = v.Errors;
+                    }
+                    else
+                    {
+                        existingValidations.Add(v);
+                    }
+                }
+            }
+            finalSession.ValidationResultsJson = JsonSerializer.Serialize(existingValidations, JsonOptions);
+
             finalSession.Status = (int)CodeGenStatus.GenerationCompleted;
             finalSession.GenerationMode = "full";
             finalSession.GenerationCompletedAt = DateTime.UtcNow;
@@ -434,6 +459,15 @@ public class CodeGenAppService : ABPGroupAppServiceBase, ICodeGenAppService
             DatabaseOption = input.DatabaseOption,
             IncludeAuth = input.IncludeAuth
         };
-        return await _engine.GenerateProjectAsync(engineInput, onProgress);
+        
+        var stack = new StackConfigDto
+        {
+            Framework = input.Framework.ToString(),
+            Language = input.Language.ToString(),
+            Database = input.DatabaseOption.ToString(),
+            Auth = input.IncludeAuth ? "Enabled" : "Disabled"
+        };
+        
+        return await _engine.GenerateProjectAsync(engineInput, stack, onProgress);
     }
 }

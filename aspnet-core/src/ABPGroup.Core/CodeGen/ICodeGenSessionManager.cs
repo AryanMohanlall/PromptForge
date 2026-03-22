@@ -14,4 +14,5 @@ public interface ICodeGenSessionManager : ITransientDependency
     Task<CodeGenSessionDto> CreateSessionAsync(CreateSessionInput input, long? userId = null);
     CodeGenSessionDto MapToDto(CodeGenSession session);
     System.Linq.IQueryable<CodeGenSession> GetSessionQuery();
+    Task<GenerationBlueprintDto> GetGenerationBlueprintAsync(string sessionId);
 }

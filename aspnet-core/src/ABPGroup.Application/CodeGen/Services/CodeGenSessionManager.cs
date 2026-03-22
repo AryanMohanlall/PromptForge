@@ -138,6 +138,17 @@ public class CodeGenSessionManager : DomainService, ICodeGenSessionManager
         return MapToDto(session);
     }
 
+    public async Task<GenerationBlueprintDto> GetGenerationBlueprintAsync(string sessionId)
+    {
+        var session = await GetSessionAsync(sessionId);
+        var blueprint = LoadGenerationBlueprint(session.SpecJson);
+        return new GenerationBlueprintDto
+        {
+            Spec = CodeGenHelpers.NormalizeSpec(blueprint.Spec ?? new AppSpecDto()),
+            ReadmeMarkdown = blueprint.ReadmeMarkdown
+        };
+    }
+
     public CodeGenSessionDto MapToDto(CodeGenSession session)
     {
         return new CodeGenSessionDto

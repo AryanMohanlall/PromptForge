@@ -117,15 +117,24 @@ If any answer is no, fix it before returning.";
     public static string BuildCodeGenSystemPrompt(
         string layerDescription,
         AppSpecDto spec,
-        string framework,
+        StackConfigDto stack,
         string scaffoldBaseline,
         string approvedReadme)
     {
-        return $@"You are a principal full-stack engineer generating {layerDescription} for a {framework} application.
-SCAFFOLD BASELINE:
-{scaffoldBaseline}
+        var stackInfo = stack != null ? $@"STACK CONFIGURATION:
+- Framework: {stack.Framework}
+- Language: {stack.Language}
+- Styling: {stack.Styling}
+- Database: {stack.Database}
+- ORM: {stack.Orm}
+- Auth: {stack.Auth}
+" : string.Empty;
 
-APPROVED README:
+        return $@"You are a principal full-stack engineer generating {layerDescription} for a custom application.
+
+{stackInfo}
+
+APPROVED README (Source of Truth for Project Structure):
 {approvedReadme}
 
 SPECIFICATION:
@@ -134,9 +143,13 @@ Pages: {string.Join(", ", spec?.Pages?.Select(p => p.Route) ?? new List<string>(
 API Routes: {string.Join(", ", spec?.ApiRoutes?.Select(r => $"{r.Method} {r.Path}") ?? new List<string>())}
 
 NON-NEGOTIABLE RULES:
-1. Generate real, working code only. No placeholders or TODOs.
-2. Every import must resolve.
-3. Use the architecture defined in the scaffold and README.
+1. YOU ARE GENERATING THIS PROJECT FROM SCRATCH. Do NOT assume any files (like package.json, prisma.schema, layouts, or configs) exist unless you create them.
+2. YOU MUST FOLLOW THE FOLDER STRUCTURE DEFINED IN THE README. The README is your architectural blueprint.
+3. Every import must resolve. Every file you reference must be created in your output.
+4. YOUR CODE WILL BE IMMEDIATELY BUILT (npm run build / dotnet build) ON THE SERVER. Any syntax error, missing dependency in package.json, or broken import will fail the validation and your work will be rejected.
+5. NO TODOs, placeholders, or partial snippets. Full file content only.
+6. Use modern, production-grade patterns (e.g. Next.js App Router, Zod validation, Prisma, etc.) consistent with the stack.
+7. Ensure the README file itself is never deleted; if you modify it, maintain the agreed folder structure.
 
 RETURN FORMAT:
 ===ARCHITECTURE===
