@@ -28,6 +28,7 @@ import {
   projectCreated,
   authInitialized,
 } from "./actions";
+import { useRouter } from "next/navigation";
 
 const AUTH_USER_KEY = "auth_user";
 const GITHUB_OAUTH_COMPLETE_KEY = "github_oauth_complete";
@@ -43,6 +44,7 @@ const clearStoredAuth = () => {
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const instance = getAxiosInstance();
+  const router = useRouter();
   const [state, dispatch] = useReducer(AuthReducer, INITIAL_STATE);
 
   useEffect(() => {
@@ -113,11 +115,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const register = async (input: IRegisterInput) => {
     dispatch(registerPending());
+    const roles = ["Admin", "ProductBuilder", "Developer"];
     try {
-      const { tenantId, ...rest } = input;
+      const { tenantId, roleName, ...rest } = input;
+      let role;
+      if (roleName) {
+        role = roles.indexOf(roleName);
+      }
+
       await instance.post(
         "/api/services/app/Account/Register",
-        rest,
+        { ...rest, role },
         tenantId === undefined
           ? undefined
           : {
@@ -132,6 +140,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       );
       if (user) {
         dispatch(registerSuccess(user));
+        router.push("/projects");
       } else {
         dispatch(registerError());
       }

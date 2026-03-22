@@ -43,6 +43,7 @@ export interface IRegisterInput {
   emailAddress: string;
   password: string;
   tenantId?: number;
+  roleName?: string;
 }
 
 export const INITIAL_STATE: IAuthStateContext = {
