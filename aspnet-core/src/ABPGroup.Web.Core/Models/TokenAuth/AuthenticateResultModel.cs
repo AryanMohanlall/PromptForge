@@ -19,5 +19,7 @@
         public string EmailAddress { get; set; }
 
         public string[] RoleNames { get; set; }
+        public int Role { get; set; }      // 0, 1, or 2
+        public string RoleName { get; set; } // "Admin", "Developer", or "ProductBuilder"
     }
 }

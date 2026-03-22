@@ -11,6 +11,8 @@ export interface IUser {
   surname?: string;
   emailAddress?: string;
   roleNames: string[];
+  roleName?: string;
+
   avatarUrl?: string;
 }
 

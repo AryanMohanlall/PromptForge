@@ -28,7 +28,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const router = useRouter();
   const { user } = useAuthState();
   const { logout } = useAuthAction();
-  const isAdmin = user?.roleNames?.includes("Admin");
+  const isAdmin = user?.roleName === "Admin";
   const displayName =
     [user?.name, user?.surname].filter(Boolean).join(" ").trim() ||
     user?.userName ||
@@ -201,7 +201,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
               </div>
               <div className={styles.profileTextBlock}>
                 <span className={styles.profileName}>{displayName}</span>
-                <span className={styles.roleBadge}>{rolesLabel}</span>
+                <span className={styles.roleBadge}>{user?.roleName}</span>
               </div>
             </div>
           </button>

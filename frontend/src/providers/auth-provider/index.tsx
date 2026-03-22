@@ -92,6 +92,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         surname,
         emailAddress,
         roleNames,
+        roleName,
       } = res.data.result;
       setAuthToken(accessToken);
       const user: IUser = {
@@ -103,6 +104,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         surname,
         emailAddress,
         roleNames: Array.isArray(roleNames) ? roleNames : [],
+        roleName,
       };
       sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
       dispatch(loginSuccess(user));
@@ -115,7 +117,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const register = async (input: IRegisterInput) => {
     dispatch(registerPending());
-    const roles = ["Admin", "ProductBuilder", "Developer"];
+    const roles = ["Admin", "Developer", "ProductBuilder"];
     try {
       const { tenantId, roleName, ...rest } = input;
       let role;

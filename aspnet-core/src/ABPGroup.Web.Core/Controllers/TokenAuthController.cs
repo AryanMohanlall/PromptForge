@@ -14,6 +14,7 @@ using ABPGroup.Authorization.Users;
 using ABPGroup.Editions;
 using ABPGroup.Models.TokenAuth;
 using ABPGroup.MultiTenancy;
+using ABPGroup.Persons;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -116,7 +117,9 @@ namespace ABPGroup.Controllers
                 Name = loginResult.User.Name,
                 Surname = loginResult.User.Surname,
                 EmailAddress = loginResult.User.EmailAddress,
-                RoleNames = roleNames
+                RoleNames = roleNames,
+                Role = (int)loginResult.User.Role,
+                RoleName = ((PersonRole)loginResult.User.Role).ToString()
             };
         }
 
@@ -239,20 +242,22 @@ namespace ABPGroup.Controllers
             var expireInSeconds = (int)_configuration.Expiration.TotalSeconds;
 
             //return Redirect($"{clientRoot}/auth/github/callback?token={Uri.EscapeDataString(accessToken)}&userId={user.Id}&expireInSeconds={expireInSeconds}");
-           return Redirect(
-                            $"{clientRoot}/auth/github/callback" +
-                            $"?token={Uri.EscapeDataString(accessToken)}" +
-                            $"&userId={user.Id}" +
-                            $"&expireInSeconds={expireInSeconds}" +
-                            $"&tenantId={user.TenantId}" +
-                            $"&userName={Uri.EscapeDataString(user.UserName ?? "")}" +
-                            $"&name={Uri.EscapeDataString(user.Name ?? "")}" +
-                            $"&surname={Uri.EscapeDataString(user.Surname ?? "")}" +
-                            $"&email={Uri.EscapeDataString(user.EmailAddress ?? "")}" +
-                            $"&avatarUrl={Uri.EscapeDataString(user.AvatarUrl ?? "")}" +
-                            $"&githubUsername={Uri.EscapeDataString(user.GitHubUsername ?? "")}" + 
-                            $"&roleNames={Uri.EscapeDataString(string.Join(",", identity.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value)))}"
-                            );
+            return Redirect(
+                $"{clientRoot}/auth/github/callback" +
+                $"?token={Uri.EscapeDataString(accessToken)}" +
+                $"&userId={user.Id}" +
+                $"&expireInSeconds={expireInSeconds}" +
+                $"&tenantId={user.TenantId}" +
+                $"&userName={Uri.EscapeDataString(user.UserName ?? "")}" +
+                $"&name={Uri.EscapeDataString(user.Name ?? "")}" +
+                $"&surname={Uri.EscapeDataString(user.Surname ?? "")}" +
+                $"&email={Uri.EscapeDataString(user.EmailAddress ?? "")}" +
+                $"&avatarUrl={Uri.EscapeDataString(user.AvatarUrl ?? "")}" +
+                $"&githubUsername={Uri.EscapeDataString(user.GitHubUsername ?? "")}" +
+                $"&roleNames={Uri.EscapeDataString(string.Join(",", identity.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value)))}" +
+                $"&role={(int)user.Role}" +
+                $"&roleName={Uri.EscapeDataString(((PersonRole)user.Role).ToString())}"
+            );
         }
 
 
