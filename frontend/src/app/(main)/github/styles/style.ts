@@ -3,12 +3,12 @@ import { createStyles } from "antd-style";
 export const useStyles = createStyles(({ token, css }) => ({
   page: css`
     min-height: 100vh;
-    background: #070b10;
-    padding: 28px 20px;
-    font-family: 'Sora', sans-serif;
+    background: #06090d;
+    padding: 32px 24px;
+    font-family: 'Inter', sans-serif;
   `,
   inner: css`
-    max-width: 1320px;
+    max-width: 1200px;
     margin: 0 auto;
   `,
   headerTitle: css`
@@ -27,23 +27,24 @@ export const useStyles = createStyles(({ token, css }) => ({
   headerIcon: css`
     width: 40px;
     height: 40px;
-    border-radius: ${token.borderRadiusLG}px;
-    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    border-radius: 12px;
+    background: linear-gradient(135deg, #2dd4a8, #20b894);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 0 20px rgba(99,102,241,0.25);
+    box-shadow: 0 0 20px rgba(45,212,168,0.25);
     flex-shrink: 0;
   `,
   card: css`
-    background: rgba(255,255,255,0.02);
+    background: rgba(12,18,28,0.7);
     border: 1px solid rgba(255,255,255,0.06);
-    border-radius: ${token.borderRadiusLG}px;
+    border-radius: 12px;
     overflow: hidden;
+    backdrop-filter: blur(20px);
   `,
   mainGrid: css`
     display: grid;
-    gap: 14px;
+    gap: 24px;
     align-items: start;
   `,
   repoListHeader: css`
@@ -77,8 +78,8 @@ export const useStyles = createStyles(({ token, css }) => ({
     &:hover { background: rgba(255,255,255,0.04); }
   `,
   repoCardSelected: css`
-    background: rgba(99,102,241,0.08) !important;
-    border-color: rgba(99,102,241,0.4) !important;
+    background: rgba(45,212,168,0.08) !important;
+    border-color: rgba(45,212,168,0.4) !important;
   `,
   repoCardName: css`
     font-family: 'JetBrains Mono', monospace;
@@ -201,8 +202,8 @@ export const useStyles = createStyles(({ token, css }) => ({
   commitSha: css`
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
-    color: #6366f1;
-    background: rgba(99,102,241,0.08);
+    color: #2dd4a8;
+    background: rgba(45,212,168,0.08);
     padding: 1px 5px;
     border-radius: 3px;
   `,
@@ -410,8 +411,8 @@ export const useStyles = createStyles(({ token, css }) => ({
     font-size: 9px;
     padding: 2px 6px;
     border-radius: 4px;
-    background: rgba(99,102,241,0.1);
-    color: #6366f1;
+    background: rgba(45,212,168,0.1);
+    color: #2dd4a8;
     font-weight: 600;
   `,
 }));

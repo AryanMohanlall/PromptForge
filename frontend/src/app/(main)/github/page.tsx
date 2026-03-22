@@ -169,7 +169,7 @@ function FileTree({ owner, repo, onFileSelect }: { owner: string; repo: string; 
               : <ChevronRightIcon style={{ width: 12, height: 12, flexShrink: 0 }} />
             : <span style={{ width: 12, flexShrink: 0 }} />}
           {entry.type === "dir"
-            ? <FolderOutlined style={{ color: "#6366f1", flexShrink: 0 }} />
+            ? <FolderOutlined style={{ color: "#2dd4a8", flexShrink: 0 }} />
             : <FileOutlined style={{ color: "#64748b", flexShrink: 0 }} />}
           <span>{entry.name}</span>
           {entry.type === "file" && entry.size > 0 && (
@@ -252,7 +252,7 @@ function FileViewer({ owner, repo, path, onBack }: { owner: string; repo: string
               icon={<ExportOutlined />}
               href={file.url}
               target="_blank"
-              style={{ fontSize: 11, color: "#6366f1", background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.15)" }}
+              style={{ fontSize: 11, color: "#2dd4a8", background: "rgba(45,212,168,0.08)", border: "1px solid rgba(45,212,168,0.15)" }}
             >
               GitHub
             </Button>
@@ -350,12 +350,12 @@ function CreateRepoModal({ open, onClose, onCreated }: { open: boolean; onClose:
       confirmLoading={loading}
       title={<span className={styles.modalTitle}>New repository</span>}
       okText="Create repository"
-      okButtonProps={{ style: { background: "#4f46e5", borderColor: "#4f46e5" } }}
+      okButtonProps={{ style: { background: "#20b894", borderColor: "#20b894" } }}
       styles={{
-        body: { background: "#0d1117", border: "1px solid rgba(255,255,255,0.1)" },
-        header: { background: "#0d1117", borderBottom: "1px solid rgba(255,255,255,0.07)" },
-        footer: { background: "#0d1117", borderTop: "1px solid rgba(255,255,255,0.07)" },
-        mask: { backdropFilter: "blur(6px)" },
+        body: { background: "rgba(12, 18, 28, 0.95)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)" },
+        header: { background: "rgba(12, 18, 28, 0.95)", borderBottom: "1px solid rgba(255,255,255,0.07)" },
+        footer: { background: "rgba(12, 18, 28, 0.95)", borderTop: "1px solid rgba(255,255,255,0.07)" },
+        mask: { backdropFilter: "blur(8px)", background: "rgba(0,0,0,0.5)" },
       }}
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
@@ -496,7 +496,7 @@ export default function GitHubDashboardPage() {
                 type="primary"
                 icon={<PlusOutlined />}
                 onClick={() => setShowCreateModal(true)}
-                style={{ background: "#4f46e5", borderColor: "#4f46e5", boxShadow: "0 0 14px rgba(99,102,241,0.2)" }}
+                style={{ background: "#2dd4a8", borderColor: "#20b894", boxShadow: "0 0 14px rgba(45,212,168,0.2)" }}
               >
                 New repo
               </Button>
@@ -504,7 +504,7 @@ export default function GitHubDashboardPage() {
           </div>
 
           {/* Main grid */}
-          <div className={styles.mainGrid} style={{ gridTemplateColumns: selectedRepo ? "300px 1fr" : "1fr" }}>
+          <div className={styles.mainGrid} style={{ gridTemplateColumns: selectedRepo ? "320px 1fr" : "1fr" }}>
 
             {/* Repo list */}
             <div className={styles.card}>
@@ -512,7 +512,7 @@ export default function GitHubDashboardPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 9 }}>
                   <Space>
                     <Text className={styles.repoListLabel}>Repositories</Text>
-                    {repos.length > 0 && <Badge count={repos.length} style={{ background: "rgba(99,102,241,0.15)", color: "#6366f1", boxShadow: "none", fontSize: 9 }} />}
+                    {repos.length > 0 && <Badge count={repos.length} style={{ background: "rgba(45,212,168,0.15)", color: "#2dd4a8", boxShadow: "none", fontSize: 9 }} />}
                   </Space>
                 </div>
                 <Input
@@ -551,7 +551,7 @@ export default function GitHubDashboardPage() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
                       <div style={{ minWidth: 0 }}>
                         <Space wrap>
-                          <FolderOutlined style={{ color: "#6366f1" }} />
+                          <FolderOutlined style={{ color: "#2dd4a8" }} />
                           <Text className={styles.repoFullName}>{selectedRepo.fullName}</Text>
                           <Tag
                             color={selectedRepo.private ? "warning" : "success"}
@@ -593,7 +593,7 @@ export default function GitHubDashboardPage() {
                           icon={<ExportOutlined />}
                           href={selectedRepo.htmlUrl}
                           target="_blank"
-                          style={{ fontSize: 11, color: "#6366f1", background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.15)" }}
+                          style={{ fontSize: 11, color: "#2dd4a8", background: "rgba(45,212,168,0.08)", border: "1px solid rgba(45,212,168,0.15)" }}
                         >
                           Open
                         </Button>
@@ -623,8 +623,8 @@ export default function GitHubDashboardPage() {
                         icon={tab.icon}
                         onClick={() => handleTabChange(tab.id)}
                         style={{
-                          color: activeTab === tab.id ? "#6366f1" : "#64748b",
-                          background: activeTab === tab.id ? "rgba(99,102,241,0.12)" : "transparent",
+                          color: activeTab === tab.id ? "#2dd4a8" : "#64748b",
+                          background: activeTab === tab.id ? "rgba(45,212,168,0.12)" : "transparent",
                           fontWeight: activeTab === tab.id ? 600 : 400,
                           fontSize: 11,
                         }}
@@ -674,13 +674,13 @@ export default function GitHubDashboardPage() {
                           key={b.name}
                           className={styles.branchRow}
                           style={{
-                            background: b.name === selectedRepo.defaultBranch ? "rgba(99,102,241,0.05)" : "rgba(255,255,255,0.02)",
-                            border: b.name === selectedRepo.defaultBranch ? "1px solid rgba(99,102,241,0.14)" : "1px solid rgba(255,255,255,0.04)",
+                            background: b.name === selectedRepo.defaultBranch ? "rgba(45,212,168,0.05)" : "rgba(255,255,255,0.02)",
+                            border: b.name === selectedRepo.defaultBranch ? "1px solid rgba(45,212,168,0.14)" : "1px solid rgba(255,255,255,0.04)",
                           }}
                         >
                           <Space size={9}>
-                            <div className={styles.branchIcon} style={{ background: b.name === selectedRepo.defaultBranch ? "rgba(99,102,241,0.1)" : "rgba(255,255,255,0.04)" }}>
-                              <BranchesOutlined style={{ color: b.name === selectedRepo.defaultBranch ? "#6366f1" : "#64748b" }} />
+                            <div className={styles.branchIcon} style={{ background: b.name === selectedRepo.defaultBranch ? "rgba(45,212,168,0.1)" : "rgba(255,255,255,0.04)" }}>
+                              <BranchesOutlined style={{ color: b.name === selectedRepo.defaultBranch ? "#2dd4a8" : "#64748b" }} />
                             </div>
                             <div>
                               <Text className={styles.branchName}>{b.name}</Text>
@@ -792,7 +792,7 @@ export default function GitHubDashboardPage() {
                         >
                           <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                             <Space>
-                              <TagOutlined style={{ color: "#6366f1" }} />
+                              <TagOutlined style={{ color: "#2dd4a8" }} />
                               <Text className={styles.releaseTag}>{rel.tagName}</Text>
                               {rel.prerelease && <Tag color="warning" style={{ fontSize: 9, fontWeight: 700 }}>PRE-RELEASE</Tag>}
                               {rel.draft && <Tag color="default" style={{ fontSize: 9, fontWeight: 700 }}>DRAFT</Tag>}
