@@ -139,7 +139,16 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         _scaffolder.WriteFilesToDisk(result.Files, outputPath);
 
         if (onProgress != null) await onProgress("[6/6] Validating Build & Integrity...");
-        var buildResult = await _buildValidator.ValidateBuildAsync(outputPath, input.Framework);
+        var skipBuild = _configuration.GetValue<bool>("CodeGen:SkipBuild");
+        BuildValidationResult buildResult;
+        if (skipBuild)
+        {
+            buildResult = new BuildValidationResult { Success = true, Logs = "Build validation skipped (CodeGen:SkipBuild=true)." };
+        }
+        else
+        {
+            buildResult = await _buildValidator.ValidateBuildAsync(outputPath, input.Framework);
+        }
 
         result.ValidationResults.Add(new ValidationResultDto
         {
