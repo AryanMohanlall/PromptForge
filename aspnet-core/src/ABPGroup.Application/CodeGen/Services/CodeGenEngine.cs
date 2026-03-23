@@ -212,7 +212,9 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         // 2. If the baseline exceeds the threshold, switch to "Structural Summary" for remaining files.
         
         var criticalFiles = files
-            .Where(f => f.Path.Contains("package.json", StringComparison.OrdinalIgnoreCase) || 
+            .Where(f => f.Path.Contains("package.json", StringComparison.OrdinalIgnoreCase) ||
+                        f.Path.Contains("tsconfig.json", StringComparison.OrdinalIgnoreCase) ||
+                        f.Path.StartsWith("next.config", StringComparison.OrdinalIgnoreCase) ||
                         f.Path.Contains("layout.tsx", StringComparison.OrdinalIgnoreCase) ||
                         f.Path.Contains("README.md", StringComparison.OrdinalIgnoreCase))
             .ToList();
@@ -272,6 +274,19 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         return context;
     }
 
+    /// <summary>
+    /// Scaffold config files that the AI must not overwrite — the scaffold versions are authoritative.
+    /// </summary>
+    private static readonly HashSet<string> ProtectedScaffoldFiles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "tsconfig.json",
+        "next.config.mjs",
+        "next.config.js",
+        "postcss.config.mjs",
+        "eslint.config.mjs",
+        ".gitignore"
+    };
+
     public void MergeLayerResponse(CodeGenResult result, string layerResponse, bool allowArchitectureOverride)
     {
         // Parse using new JSON envelope format (with legacy fallback)
@@ -280,11 +295,19 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         // Merge files
         foreach (var file in output.Files)
         {
-            var existing = result.Files.FirstOrDefault(f => 
-                string.Equals(CodeGenHelpers.NormalizeFilePath(f.Path), CodeGenHelpers.NormalizeFilePath(file.Path), StringComparison.OrdinalIgnoreCase));
-            
+            var normalizedPath = CodeGenHelpers.NormalizeFilePath(file.Path);
+            var existing = result.Files.FirstOrDefault(f =>
+                string.Equals(CodeGenHelpers.NormalizeFilePath(f.Path), normalizedPath, StringComparison.OrdinalIgnoreCase));
+
             if (existing != null)
             {
+                // Never let AI-generated output overwrite protected scaffold config files
+                // (tsconfig.json, next.config.mjs, etc.) — the scaffold versions are authoritative
+                if (ProtectedScaffoldFiles.Contains(normalizedPath))
+                {
+                    Logger.Info($"Skipping AI override of protected scaffold file: {file.Path}");
+                    continue;
+                }
                 existing.Content = file.Content;
             }
             else

@@ -15,11 +15,11 @@ export const useStyles = createStyles(({ token, css }) => ({
     width: 40px;
     height: 40px;
     border-radius: ${token.borderRadiusLG}px;
-    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    background: linear-gradient(135deg, #2dd4a8, #20b894);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 0 20px rgba(99,102,241,0.25);
+    box-shadow: 0 0 20px rgba(45,212,168,0.25);
     flex-shrink: 0;
   `,
   headerTitle: css`
@@ -89,14 +89,14 @@ export const useStyles = createStyles(({ token, css }) => ({
   `,
   deploymentUrl: css`
     font-size: 11px;
-    color: #6366f1;
+    color: #2dd4a8;
     text-decoration: none;
     font-family: 'JetBrains Mono', monospace;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     display: block;
-    &:hover { text-decoration: underline; color: #818cf8; }
+    &:hover { text-decoration: underline; color: #5ee8c5; }
   `,
   metaText: css`
     font-size: 11px;

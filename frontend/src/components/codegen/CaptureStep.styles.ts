@@ -355,4 +355,70 @@ export const useStyles = createStyles(({ css }) => ({
     padding-top: 32px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
   `,
+  dropZone: css`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 24px;
+    border: 2px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    background: rgba(12, 18, 28, 0.25);
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:hover {
+      border-color: rgba(45, 212, 168, 0.3);
+      background: rgba(45, 212, 168, 0.04);
+    }
+  `,
+  dropZoneActive: css`
+    border-color: rgba(45, 212, 168, 0.5) !important;
+    background: rgba(45, 212, 168, 0.08) !important;
+    box-shadow: 0 0 0 4px rgba(45, 212, 168, 0.1);
+  `,
+  dropZoneContent: css`
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  `,
+  dropZoneIcon: css`
+    width: 32px;
+    height: 32px;
+    color: #5a6572;
+    transition: color 0.2s ease;
+  `,
+  dropZoneText: css`
+    font-size: 14px;
+    color: #8b95a2;
+    text-align: center;
+
+    strong {
+      color: #ffffff;
+      font-weight: 600;
+    }
+  `,
+  dropZoneHint: css`
+    font-size: 12px;
+    color: #4b5563;
+    margin-top: 2px;
+  `,
+  removeFileButton: css`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: rgba(255, 77, 79, 0.15);
+    color: #ff4d4f;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 4px;
+
+    &:hover {
+      background: rgba(255, 77, 79, 0.3);
+    }
+  `,
 }));

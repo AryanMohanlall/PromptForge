@@ -18,6 +18,14 @@ const nextConfig: NextConfig = {
     ],
     dangerouslyAllowSVG: true,
   },
+  webpack: (config) => {
+    // Allow pdfjs-dist worker to be loaded as a static asset
+    config.resolve.alias["pdfjs-dist"] = path.resolve(
+      __dirname,
+      "node_modules/pdfjs-dist"
+    );
+    return config;
+  },
 };
 
 export default nextConfig;

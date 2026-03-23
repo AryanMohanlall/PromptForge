@@ -49,8 +49,8 @@ interface GithubRepo {
 
 const STATE_COLOR: Record<string, string> = {
   READY: "#22c55e",
-  BUILDING: "#6366f1",
-  INITIALIZING: "#6366f1",
+  BUILDING: "#2dd4a8",
+  INITIALIZING: "#2dd4a8",
   QUEUED: "#94a3b8",
   ERROR: "#ef4444",
   CANCELED: "#64748b",
@@ -59,8 +59,8 @@ const STATE_COLOR: Record<string, string> = {
 
 const STATE_BG: Record<string, string> = {
   READY: "rgba(34,197,94,0.12)",
-  BUILDING: "rgba(99,102,241,0.12)",
-  INITIALIZING: "rgba(99,102,241,0.12)",
+  BUILDING: "rgba(45,212,168,0.12)",
+  INITIALIZING: "rgba(45,212,168,0.12)",
   QUEUED: "rgba(148,163,184,0.12)",
   ERROR: "rgba(239,68,68,0.12)",
   CANCELED: "rgba(100,116,139,0.12)",
@@ -310,7 +310,7 @@ export default function DeploymentsPage() {
               type="primary"
               icon={<PlusOutlined />}
               onClick={openCreateModal}
-              style={{ background: "linear-gradient(135deg,#4f46e5,#7c3aed)", border: "none" }}
+              style={{ background: "linear-gradient(135deg,#2dd4a8,#20b894)", border: "none" }}
             >
               New Deployment
             </Button>
@@ -421,9 +421,9 @@ export default function DeploymentsPage() {
                   <div>
                     <span style={{
                       fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 20,
-                      background: target === "production" ? "rgba(99,102,241,0.15)" : "rgba(148,163,184,0.1)",
-                      color: target === "production" ? "#818cf8" : "#94a3b8",
-                      border: `1px solid ${target === "production" ? "#6366f133" : "#64748b33"}`,
+                      background: target === "production" ? "rgba(45,212,168,0.15)" : "rgba(148,163,184,0.1)",
+                      color: target === "production" ? "#5ee8c5" : "#94a3b8",
+                      border: `1px solid ${target === "production" ? "#2dd4a833" : "#64748b33"}`,
                       textTransform: "capitalize",
                     }}>
                       {target}
@@ -442,8 +442,8 @@ export default function DeploymentsPage() {
                         loading={redeployingId === d.uid}
                         onClick={() => handleRedeploy(d)}
                         style={{
-                          background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.25)",
-                          color: "#818cf8",
+                          background: "rgba(45,212,168,0.1)", border: "1px solid rgba(45,212,168,0.25)",
+                          color: "#5ee8c5",
                         }}
                       />
                     </Tooltip>
@@ -495,9 +495,9 @@ export default function DeploymentsPage() {
         }}>
           <div style={{
             width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-            background: "linear-gradient(135deg,#4f46e5,#7c3aed)",
+            background: "linear-gradient(135deg,#2dd4a8,#20b894)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 0 16px rgba(99,102,241,0.3)",
+            boxShadow: "0 0 16px rgba(45,212,168,0.3)",
           }}>
             <RocketIcon size={16} color="#fff" />
           </div>
@@ -678,10 +678,10 @@ export default function DeploymentsPage() {
             loading={creating}
             onClick={handleCreate}
             style={{
-              background: "linear-gradient(135deg,#4f46e5,#7c3aed)",
+              background: "linear-gradient(135deg,#2dd4a8,#20b894)",
               border: "none",
               display: "flex", alignItems: "center", gap: 6,
-              boxShadow: "0 0 16px rgba(99,102,241,0.3)",
+              boxShadow: "0 0 16px rgba(45,212,168,0.3)",
             }}
           >
             Deploy

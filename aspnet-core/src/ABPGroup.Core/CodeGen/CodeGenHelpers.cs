@@ -219,7 +219,7 @@ public static class CodeGenHelpers
         {
             if (TryDeserialize(element, out ApiRouteSpecDto route))
             {
-                route.ResponseShape ??= new { };
+                route.ResponseShape ??= "{}";
                 items.Add(route);
                 continue;
             }
@@ -236,8 +236,8 @@ public static class CodeGenHelpers
                     Method = method,
                     Path = path,
                     Handler = handler,
-                    RequestBody = ToLooseObject(GetPropertyCaseInsensitive(element, "requestBody")),
-                    ResponseShape = ToLooseObject(GetPropertyCaseInsensitive(element, "responseShape")) ?? new { },
+                    RequestBody = GetJsonStringProperty(element, "requestBody"),
+                    ResponseShape = GetJsonStringProperty(element, "responseShape") ?? "{}",
                     Auth = GetBoolProperty(element, "auth"),
                     Description = description
                 });
@@ -382,6 +382,17 @@ public static class CodeGenHelpers
         return null;
     }
 
+    /// <summary>
+    /// Returns the raw JSON text of a property (for object/array values that should be stored as a JSON string).
+    /// </summary>
+    private static string GetJsonStringProperty(JsonElement element, string propertyName)
+    {
+        var prop = GetPropertyCaseInsensitive(element, propertyName);
+        if (prop.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+            return null;
+        return prop.GetRawText();
+    }
+
     private static bool GetBoolProperty(JsonElement element, string propertyName)
     {
         var prop = GetPropertyCaseInsensitive(element, propertyName);
@@ -447,7 +458,7 @@ public static class CodeGenHelpers
             {
                 r.Method = string.IsNullOrWhiteSpace(r.Method) ? "GET" : r.Method.ToUpperInvariant();
                 r.Path = NormalizeApiPath(r.Path);
-                r.ResponseShape ??= new { };
+                r.ResponseShape ??= "{}";
                 r.Description ??= string.Empty;
                 return r;
             })

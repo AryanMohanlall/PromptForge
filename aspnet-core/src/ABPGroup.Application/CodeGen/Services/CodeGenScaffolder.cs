@@ -77,9 +77,24 @@ public class CodeGenScaffolder : DomainService, ICodeGenScaffolder
         if (templateDir == null)
             return;
 
-        // NOTE: We no longer copy files from templates. 
-        // We let the AI generate everything from scratch based on the stack selector and README.
-        // files.AddRange(ReadScaffoldFiles(templateDir));
+        // Read scaffold files as CONTEXT for the AI — these establish the version baseline
+        // (package.json versions, tsconfig settings, next.config conventions) that the AI must follow.
+        // The AI generates everything from scratch but must match these versions exactly.
+        var scaffoldFiles = ReadScaffoldFiles(templateDir);
+        foreach (var sf in scaffoldFiles)
+        {
+            // Only include config/baseline files — not source code or build artifacts
+            var lower = sf.Path.ToLowerInvariant();
+            if (lower == "package.json"
+                || lower == "tsconfig.json"
+                || lower.StartsWith("next.config")
+                || lower == "postcss.config.mjs"
+                || lower == "eslint.config.mjs"
+                || lower == ".gitignore")
+            {
+                files.Add(sf);
+            }
+        }
     }
 
     public void AddApprovedReadmeFile(List<GeneratedFile> files, string approvedReadme)

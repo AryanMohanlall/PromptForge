@@ -125,6 +125,26 @@ public class CodeGenPlanner : DomainService, ICodeGenPlanner
                     entities));
 
             var specJson = CodeGenHelpers.ParseDelimitedSection(response, "SPEC_JSON")?.Trim();
+
+            // Fallback: if delimiters were not found, try parsing the raw response as JSON directly
+            // This handles cases where the AI returns raw JSON without wrapping in ===SPEC_JSON=== delimiters
+            if (string.IsNullOrWhiteSpace(specJson))
+            {
+                var trimmed = response?.Trim() ?? "";
+                // Strip markdown fences if present
+                if (trimmed.StartsWith("```"))
+                {
+                    var firstNewline = trimmed.IndexOf('\n');
+                    if (firstNewline > 0) trimmed = trimmed[(firstNewline + 1)..];
+                    if (trimmed.EndsWith("```")) trimmed = trimmed[..^3].Trim();
+                }
+                if (trimmed.StartsWith("{") && trimmed.EndsWith("}"))
+                {
+                    Logger.Warn("GeneratePlanFromReadme: SPEC_JSON delimiters not found, falling back to raw JSON parse.");
+                    specJson = trimmed;
+                }
+            }
+
             var plan = CodeGenHelpers.ParseSpecOrDefault(specJson, out var parseWarning);
             
             if (!string.IsNullOrWhiteSpace(parseWarning))

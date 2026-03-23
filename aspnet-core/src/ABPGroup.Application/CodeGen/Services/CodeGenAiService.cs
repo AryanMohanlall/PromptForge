@@ -40,8 +40,14 @@ public class CodeGenAiService : DomainService, ICodeGenAiService
             return await _claudeApiClient.CallClaudeAsync(systemPrompt, userPrompt);
         }
 
-        // Auto-detect JSON mode if prompt asks for it and no specific mime type is provided
-        if (responseMimeType == null && (systemPrompt.Contains("json", StringComparison.OrdinalIgnoreCase) || userPrompt.Contains("json", StringComparison.OrdinalIgnoreCase)))
+        // Auto-detect JSON mode ONLY when the prompt explicitly asks for raw JSON output
+        // (not when it merely mentions "json" in context like "SPEC_JSON" delimiters or "JSON file")
+        // Delimited prompts (===SPEC_JSON===) need text/plain so the delimiters are preserved
+        if (responseMimeType == null
+            && !systemPrompt.Contains("===", StringComparison.Ordinal)
+            && !userPrompt.Contains("===", StringComparison.Ordinal)
+            && (systemPrompt.Contains("return a single valid JSON object", StringComparison.OrdinalIgnoreCase)
+                || systemPrompt.Contains("return valid JSON", StringComparison.OrdinalIgnoreCase)))
         {
             responseMimeType = "application/json";
         }
@@ -82,7 +88,7 @@ public class CodeGenAiService : DomainService, ICodeGenAiService
                     generationConfig = new
                     {
                         temperature = 0.7,
-                        maxOutputTokens = 8192,
+                        maxOutputTokens = 65536,
                         response_mime_type = responseMimeType ?? "text/plain"
                     }
                 };

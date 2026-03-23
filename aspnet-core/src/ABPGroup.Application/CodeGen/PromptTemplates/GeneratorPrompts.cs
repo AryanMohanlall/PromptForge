@@ -16,9 +16,7 @@ public static class GeneratorPrompts
         "tsconfig.json",
         "next.config.mjs",
         "src/app/layout.tsx",
-        "src/app/page.tsx",
-        "prisma/schema.prisma",
-        ".env.example"
+        "src/app/page.tsx"
     };
 
     /// <summary>
@@ -525,6 +523,21 @@ NON-NEGOTIABLE RULES:
 11. Ensure the README file is never deleted. If you modify it, preserve the agreed folder structure.
 12. Optimize for a WORKING APPLICATION over cleverness or elegance.
 13. NEVER use next.config.ts — Next.js does not support TypeScript config files. Always use next.config.mjs (ESM) or next.config.js (CJS).
+14. DEPLOY TARGET IS RENDER (free tier, 512MB RAM). Your next.config.mjs MUST include: output: ""standalone"", eslint: {{ ignoreDuringBuilds: true }}. This is mandatory for deployment to succeed.
+15. Your build script in package.json MUST be: ""build"": ""if [ -f prisma/schema.prisma ]; then prisma generate --schema=./prisma/schema.prisma; fi && NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS='--max-old-space-size=512' next build"" — this conditionally runs Prisma codegen only when a schema exists, and sets memory limits for constrained environments. Do NOT add Prisma or @prisma/client to package.json unless the app actually uses a database.
+
+DATABASE / PRISMA POLICY (CRITICAL):
+- Do NOT include Prisma, @prisma/client, or a prisma/schema.prisma file unless the application ACTUALLY requires a database (i.e., the spec contains entities with persistent storage needs).
+- A quiz app, calculator, static content app, or any app that uses only client-side state does NOT need Prisma or a database.
+- If the app needs a database, include prisma and @prisma/client in package.json and generate prisma/schema.prisma and .env.example.
+- If the app does NOT need a database, omit all Prisma-related files and dependencies entirely. Use client-side state, local storage, or hardcoded data as appropriate.
+
+VERSION LOCK (CRITICAL — READ THIS):
+- The SCAFFOLD BASELINE above contains the project's package.json with EXACT dependency versions. You MUST use those exact versions.
+- If the scaffold has ""next"": ""16.2.1"", you MUST use ""next"": ""16.2.1"" — NOT 14.x, NOT 15.x, NOT ""latest"".
+- If the scaffold has ""react"": ""19.2.4"", you MUST use ""react"": ""19.2.4"" — NOT 18.x.
+- Copy dependency versions VERBATIM from the scaffold's package.json. Do not guess, do not use versions from your training data.
+- Only ADD new packages that are not already in the scaffold. Never downgrade or change existing scaffold dependency versions.
 
 QUALITY BAR:
 - Complete file contents — never partial snippets or truncated code
@@ -538,9 +551,10 @@ QUALITY BAR:
 - Shared utilities and components where logic would otherwise be duplicated
 
 DEPENDENCY POLICY:
-- Prefer the scaffold's existing dependencies first — do not add duplicates
-- Add the fewest extra packages necessary for the requested features
-- When adding packages, choose current stable versions compatible with the scaffold
+- FIRST: Copy ALL dependency versions from the scaffold's package.json exactly as-is
+- THEN: Add only the new packages needed for the requested features
+- When adding new packages, choose versions COMPATIBLE with the scaffold's framework version (check the scaffold's package.json)
+- NEVER downgrade or change any dependency version that already exists in the scaffold
 - If a dependency change is required, include the updated package.json in your output
 - Every dependency you add MUST have a corresponding import somewhere in your code");
 

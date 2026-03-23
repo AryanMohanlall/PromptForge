@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Button, Input, Tag, Spin, message, Switch } from "antd";
-import { SparklesIcon, PlusIcon, ArrowRightIcon, PencilIcon, LockIcon, GlobeIcon } from "lucide-react";
+import { useState, useRef } from "react";
+import { Button, Input, Tag, Spin, message } from "antd";
+import { SparklesIcon, PlusIcon, ArrowRightIcon, PencilIcon, LockIcon, GlobeIcon, UploadCloudIcon, FileTextIcon, XIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCodeGenAction, useCodeGenState } from "@/providers/codegen-provider";
 import { ICodeGenSession } from "@/providers/codegen-provider";
 import { useStyles } from "./CaptureStep.styles";
+import { extractDocumentText } from "@/utils/extractDocumentText";
 
 interface CaptureStepProps {
   onNext: (session: ICodeGenSession) => void;
@@ -19,6 +20,10 @@ export function CaptureStep({ onNext }: CaptureStepProps) {
 
   const [prompt, setPrompt] = useState("");
   const [analyzed, setAnalyzed] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [features, setFeatures] = useState<string[]>([]);
   const [entities, setEntities] = useState<string[]>([]);
   const [projectName, setProjectName] = useState("");
@@ -34,6 +39,53 @@ export function CaptureStep({ onNext }: CaptureStepProps) {
 
   const maxChars = 100000;
   const remaining = maxChars - prompt.length;
+
+  const acceptedTypes = [".pdf", ".md", ".txt"];
+
+  const handleFileSelect = async (file: File) => {
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!ext || !acceptedTypes.some((t) => t.endsWith(ext))) {
+      message.warning("Only .pdf, .md, and .txt files are supported.");
+      return;
+    }
+
+    setIsExtracting(true);
+    setUploadedFile(file);
+    try {
+      const text = await extractDocumentText(file);
+      if (!text.trim()) {
+        message.warning("Could not extract any text from the document.");
+        setUploadedFile(null);
+      } else {
+        setPrompt((prev) => (prev ? `${prev}\n\n${text}` : text).slice(0, maxChars));
+        message.success(`Extracted requirements from ${file.name}`);
+      }
+    } catch {
+      message.error("Failed to extract text from the document.");
+      setUploadedFile(null);
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFileSelect(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => setIsDragOver(false);
+
+  const removeUploadedFile = () => {
+    setUploadedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const handleAnalyze = async () => {
     if (!prompt.trim() || prompt.length < 20) {
@@ -126,6 +178,58 @@ export function CaptureStep({ onNext }: CaptureStepProps) {
           Tell us what you want to build in plain English. Be as detailed as possible.
         </p>
       </div>
+
+      {!analyzed && (
+        <div
+          className={cx(styles.dropZone, isDragOver && styles.dropZoneActive)}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.md,.txt"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFileSelect(file);
+            }}
+          />
+          {isExtracting ? (
+            <div className={styles.dropZoneContent}>
+              <Spin size="default" />
+              <span className={styles.dropZoneText}>Extracting requirements...</span>
+            </div>
+          ) : uploadedFile ? (
+            <div className={styles.dropZoneContent}>
+              <FileTextIcon className={styles.dropZoneIcon} style={{ color: "#2dd4a8" }} />
+              <span className={styles.dropZoneText} style={{ color: "#2dd4a8" }}>
+                {uploadedFile.name}
+              </span>
+              <button
+                type="button"
+                className={styles.removeFileButton}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeUploadedFile();
+                }}
+              >
+                <XIcon size={14} />
+              </button>
+            </div>
+          ) : (
+            <div className={styles.dropZoneContent}>
+              <UploadCloudIcon className={styles.dropZoneIcon} />
+              <span className={styles.dropZoneText}>
+                Drop a <strong>.pdf</strong>, <strong>.md</strong>, or <strong>.txt</strong> file here, or click to browse
+              </span>
+              <span className={styles.dropZoneHint}>Optional — extract requirements from an existing document</span>
+            </div>
+          )}
+        </div>
+      )}
 
       <textarea
         className={cx(styles.textarea, analyzed && styles.textareaAnalyzed)}

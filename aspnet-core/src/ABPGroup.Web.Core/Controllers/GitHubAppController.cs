@@ -141,6 +141,23 @@ namespace ABPGroup.Controllers
         [HttpGet("repositories")]
         public async Task<IActionResult> GetRepositories([FromQuery] string installationId = null)
         {
+            // Always prefer the current user's OAuth token so they see their own repos
+            var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
+            if (!string.IsNullOrWhiteSpace(userGitHubToken))
+            {
+                try
+                {
+                    var userRepos = await _gitHubApiService.GetUserRepositoriesAsync(userGitHubToken);
+                    return Ok(new { count = userRepos.Count, repositories = userRepos });
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn("Failed to fetch user repositories via OAuth token.", ex);
+                    return StatusCode(502, new { message = "Failed to fetch repositories.", error = ex.Message });
+                }
+            }
+
+            // Fall back to GitHub App installation flow only if the user has no OAuth token
             var appId = _configuration["GitHubApp:AppId"];
             var privateKeyPem = _configuration["GitHubApp:PrivateKeyPem"];
             var resolvedInstallationId = installationId ?? _configuration["GitHubApp:InstallationId"];
@@ -149,24 +166,8 @@ namespace ABPGroup.Controllers
                 !string.IsNullOrWhiteSpace(privateKeyPem) &&
                 !string.IsNullOrWhiteSpace(resolvedInstallationId);
 
-            // Fall back to OAuth user token if GitHub App is not configured
             if (!canUseAppFlow)
-            {
-                var userGitHubToken = await GetCurrentUserGitHubAccessTokenAsync();
-                if (string.IsNullOrWhiteSpace(userGitHubToken))
-                    return BadRequest(new { message = "GitHub OAuth token is missing. Sign in with GitHub first." });
-
-                try
-                {
-                    var userRepos = await _gitHubApiService.GetUserRepositoriesAsync(userGitHubToken);
-                    return Ok(new { count = userRepos.Count, repositories = userRepos });
-                }
-                catch (Exception ex)
-                {
-                    Logger.Warn("Failed to fetch user repositories.", ex);
-                    return StatusCode(502, new { message = "Failed to fetch repositories.", error = ex.Message });
-                }
-            }
+                return BadRequest(new { message = "GitHub OAuth token is missing. Sign in with GitHub first." });
 
             try
             {
@@ -187,6 +188,10 @@ namespace ABPGroup.Controllers
         {
             if (input == null || string.IsNullOrWhiteSpace(input.Name))
                 return BadRequest(new { message = "Repository name is required." });
+
+            // GitHub rejects descriptions containing control characters (newlines, tabs, etc.)
+            if (!string.IsNullOrEmpty(input.Description))
+                input.Description = Regex.Replace(input.Description, @"[\x00-\x1F\x7F]+", " ").Trim();
 
             var appId = _configuration["GitHubApp:AppId"];
             var privateKeyPem = _configuration["GitHubApp:PrivateKeyPem"];

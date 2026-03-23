@@ -29,7 +29,7 @@ public class FieldSpecDto
     public string Type { get; set; }
     public bool Required { get; set; }
     public bool? Unique { get; set; }
-    public object Default { get; set; }
+    public string Default { get; set; }
     public int? MaxLength { get; set; }
     public List<string> EnumValues { get; set; }
     public string Description { get; set; }
@@ -57,8 +57,8 @@ public class ApiRouteSpecDto
     public string Method { get; set; }
     public string Path { get; set; }
     public string Handler { get; set; }
-    public object RequestBody { get; set; }
-    public object ResponseShape { get; set; } = new();
+    public string RequestBody { get; set; }
+    public string ResponseShape { get; set; }
     public bool Auth { get; set; }
     public string Description { get; set; }
 }
