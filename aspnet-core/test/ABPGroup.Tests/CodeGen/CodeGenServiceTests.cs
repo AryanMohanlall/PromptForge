@@ -733,7 +733,7 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
             // Verify scaffold files are present
             Assert.Contains(result.Files, f => f.Path == "package.json");
             Assert.Contains(result.Files, f => f.Path == "tsconfig.json");
-            Assert.Contains(result.Files, f => f.Path == "next.config.ts");
+            Assert.Contains(result.Files, f => f.Path == "next.config.mjs");
             Assert.Contains(result.Files, f => f.Path == "src/app/layout.tsx");
             Assert.Contains(result.Files, f => f.Path == "src/lib/auth.ts");
             Assert.Contains(result.Files, f => f.Path == "prisma/schema.prisma");

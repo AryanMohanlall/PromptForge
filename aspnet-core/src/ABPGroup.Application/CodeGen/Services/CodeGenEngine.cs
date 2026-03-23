@@ -86,7 +86,7 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
         var scaffoldBaseline = BuildScaffoldBaseline(result.Files);
         var context = BuildGenerationContext(projectName, input, requirements, approvedReadme);
 
-        string cumulativeMetadata = "";
+        string previousLayerContext = "";
 
         // 1. Database/Schema Layer
         var databaseResponse = await GenerateLayerAsync(
@@ -100,11 +100,11 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
             scaffoldBaseline,
             approvedReadme,
             onProgress,
-            cumulativeMetadata);
+            previousLayerContext);
         MergeLayerResponse(result, databaseResponse, false);
-        cumulativeMetadata += CodeGenHelpers.ExtractLayerMetadata(result.Files);
+        previousLayerContext = CodeGenHelpers.ExtractLayerContracts(databaseResponse);
 
-        // 2. Backend API Layer
+        // 2. Backend API Layer (sees full DB contracts: schema, types, lib)
         var backendResponse = await GenerateLayerAsync(
             "[4/5] Generating backend...",
             "backend API routes and server logic",
@@ -116,11 +116,11 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
             scaffoldBaseline,
             approvedReadme,
             onProgress,
-            cumulativeMetadata);
+            previousLayerContext);
         MergeLayerResponse(result, backendResponse, false);
-        cumulativeMetadata += CodeGenHelpers.ExtractLayerMetadata(result.Files);
+        previousLayerContext += "\n" + CodeGenHelpers.ExtractLayerContracts(backendResponse);
 
-        // 3. Frontend UI Layer
+        // 3. Frontend UI Layer (sees DB + Backend contracts: schemas, API routes, types)
         var frontendResponse = await GenerateLayerAsync(
             "[5/5] Generating frontend...",
             "frontend pages and components",
@@ -132,7 +132,7 @@ public class CodeGenEngine : DomainService, ICodeGenEngine
             scaffoldBaseline,
             approvedReadme,
             onProgress,
-            cumulativeMetadata);
+            previousLayerContext);
         MergeLayerResponse(result, frontendResponse, true);
 
         result.OutputPath = outputPath;

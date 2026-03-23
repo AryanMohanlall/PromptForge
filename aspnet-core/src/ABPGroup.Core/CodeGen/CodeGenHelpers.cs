@@ -1066,6 +1066,86 @@ public static class CodeGenHelpers
         return metadata.ToString().Trim();
     }
 
+    /// <summary>
+    /// Extracts contract surfaces (schemas, types, API handlers, lib utilities) from generated layer output.
+    /// Full content is kept for contract-critical files; only export signatures for UI components.
+    /// This gives downstream layers enough context to integrate without exceeding token limits.
+    /// </summary>
+    public static string ExtractLayerContracts(string layerResponse)
+    {
+        if (string.IsNullOrWhiteSpace(layerResponse))
+            return string.Empty;
+
+        var output = ParseGeneratorOutput(layerResponse);
+        if (output.Files == null || output.Files.Count == 0)
+            return string.Empty;
+
+        var sb = new StringBuilder();
+        var totalLength = 0;
+        const int maxTotalLength = 60000; // safety cap to avoid blowing context
+
+        foreach (var file in output.Files)
+        {
+            if (totalLength >= maxTotalLength)
+            {
+                sb.AppendLine("--- LAYER CONTEXT TRUNCATED (token budget) ---");
+                break;
+            }
+
+            var path = file.Path ?? "";
+            var content = file.Content ?? "";
+
+            // Full content for contract-critical files (schemas, types, API routes, lib utilities, configs)
+            if (IsContractFile(path))
+            {
+                var snippet = content.Length > 8000 ? content[..8000] + "\n// ... truncated" : content;
+                sb.AppendLine($"FILE: {path}");
+                sb.AppendLine(snippet);
+                sb.AppendLine("===END LAYER FILE===");
+                totalLength += snippet.Length;
+            }
+            else
+            {
+                // For UI components, only include export signatures and imports
+                sb.AppendLine($"FILE: {path} (exports only)");
+                foreach (var line in content.Split('\n'))
+                {
+                    var trimmed = line.TrimStart();
+                    if (trimmed.StartsWith("export") || trimmed.StartsWith("import") || trimmed.StartsWith("interface") || trimmed.StartsWith("type "))
+                    {
+                        sb.AppendLine(line);
+                        totalLength += line.Length;
+                    }
+                }
+                sb.AppendLine("===END LAYER FILE===");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Determines if a file is contract-critical (should be passed in full to downstream layers).
+    /// </summary>
+    private static bool IsContractFile(string path)
+    {
+        var lower = path.ToLowerInvariant();
+        return lower.Contains("schema.prisma")
+            || lower.Contains("/api/")
+            || lower.Contains("/routes/")
+            || lower.Contains("/lib/")
+            || lower.Contains("/utils/")
+            || lower.Contains("/types")
+            || lower.Contains("/models/")
+            || lower.Contains("/services/")
+            || lower.Contains("/middleware")
+            || lower.Contains("/actions/")
+            || lower.EndsWith(".d.ts")
+            || lower.EndsWith(".prisma")
+            || lower.Contains("package.json")
+            || lower.Contains(".env");
+    }
+
     public static string SanitizeDirName(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "unnamed-project";
